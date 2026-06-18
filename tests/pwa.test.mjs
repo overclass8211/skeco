@@ -9,11 +9,11 @@ describe('PWA 자원 서빙', () => {
     const res = await api().get('/manifest.json');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/json/);
-    expect(res.body.name).toBe('OCI CRM AI');
-    expect(res.body.short_name).toBe('OCI CRM');
+    expect(res.body.name).toBe('SK ecoplant materials CRM');
+    expect(res.body.short_name).toBe('SK materials');
     expect(res.body.start_url).toBe('/');
     expect(res.body.display).toBe('standalone');
-    expect(res.body.theme_color).toBe('#E63329');
+    expect(res.body.theme_color).toBe('#EA002C');
     expect(Array.isArray(res.body.icons)).toBe(true);
     expect(res.body.icons.length).toBeGreaterThanOrEqual(2);
     // 캐시 헤더 — 짧은 캐시
