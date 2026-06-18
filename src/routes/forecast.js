@@ -17,6 +17,7 @@
 const router = require('express').Router();
 const pool = require('../db');
 const { handleError } = require('../middleware/errorHandler');
+const { requireLevel } = require('../middleware/rbac');
 
 const ACTIVE_ROLES = ['active'];
 const WON_ROLE = 'won';
@@ -184,14 +185,9 @@ router.get('/probabilities', async (req, res) => {
   }
 });
 
-// ── 단계 확률 저장 (team_lead+) ────────────────────────────────
-router.put('/probabilities', async (req, res) => {
+// ── 단계 확률 저장 (team_lead+ — requireLevel 2) ──────────────
+router.put('/probabilities', requireLevel(2), async (req, res) => {
   try {
-    const role = req.user?.role;
-    const allowed = ['team_lead', 'executive', 'admin', 'superadmin'];
-    if (!allowed.includes(role)) {
-      return res.status(403).json({ success: false, error: '권한이 없습니다 (팀장 이상)' });
-    }
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     for (const it of items) {
       if (!it.stage_key) continue;
@@ -202,6 +198,51 @@ router.put('/probabilities', async (req, res) => {
       ]);
     }
     res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 월별 스냅샷 저장 (team_lead+) — 정밀 전년/추세 비교용 ────────
+router.post('/snapshot', requireLevel(2), async (req, res) => {
+  try {
+    const year = parseInt(req.body?.year, 10) || new Date().getFullYear();
+    const snapMonth = /^\d{4}-\d{2}$/.test(req.body?.snapshot_month || '')
+      ? req.body.snapshot_month
+      : null;
+    if (!snapMonth) {
+      return res.status(400).json({ success: false, error: 'snapshot_month(YYYY-MM) 필요' });
+    }
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(l.expected_close_date,'%Y-%m') AS ym, ps.role AS role,
+              COALESCE(SUM(l.expected_amount),0) AS eok,
+              COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0) / 100),0) AS w_eok,
+              COALESCE(SUM(CASE WHEN ps.role='won' THEN l.expected_amount ELSE 0 END),0) AS c_eok
+         FROM leads l LEFT JOIN pipeline_stages ps ON l.stage = ps.stage_key
+        WHERE l.expected_close_date IS NOT NULL AND YEAR(l.expected_close_date)=?
+          AND ps.role IN ('active','won')
+        GROUP BY ym, ps.role`,
+      [year]
+    );
+    // ym 별 합산 (원 단위 = 억 × 1e8)
+    const agg = {};
+    for (const r of rows) {
+      const a = (agg[r.ym] = agg[r.ym] || { e: 0, w: 0, c: 0 });
+      a.e += Number(r.eok) * 1e8;
+      a.w += Number(r.w_eok) * 1e8;
+      a.c += Number(r.c_eok) * 1e8;
+    }
+    let n = 0;
+    for (const [ym, a] of Object.entries(agg)) {
+      await pool.query(
+        `INSERT INTO forecast_snapshots (snapshot_month, target_month, expected_krw, weighted_krw, committed_krw)
+         VALUES (?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE expected_krw=VALUES(expected_krw), weighted_krw=VALUES(weighted_krw), committed_krw=VALUES(committed_krw)`,
+        [snapMonth, ym, Math.round(a.e), Math.round(a.w), Math.round(a.c)]
+      );
+      n++;
+    }
+    res.json({ success: true, data: { snapshot_month: snapMonth, months: n } });
   } catch (err) {
     handleError(res, err);
   }

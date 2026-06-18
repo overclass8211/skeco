@@ -207,6 +207,8 @@ CREATE TABLE forecast_snapshots (
    - 단계 확률 기본값(§3-2 표) 그대로 적용 여부
    - 단위 정규화: 표시=백만원, 저장=`amount_krw`(원). 기존 시드 `expected_amount`(억)와의 정규화 방식
    - 전년 예상(⬜) 산출: Phase A는 작년 실적 근사 (정밀 비교는 Phase B 스냅샷)
-4. **Phase B(마케팅 생산예측 입력 → 수주 전환)**: Phase A 완료 후 별도 설계서로
+4. ✅ **Phase B 구현 완료**: `production_forecasts`+`forecast_snapshots` 테이블,
+   `/api/production-forecasts` CRUD+convert, `/api/forecast/snapshot`,
+   매출 포캐스트 내 "생산예측" 탭(입력→수주 전환). 수주 전환 시 leads(stage=won) 편입.
 
-> 현재 상태: **설계서 검토 단계**. 구현은 사용자 검토 완료 후 착수.
+> 현재 상태: **Phase A + B 구현 완료** (Vitest 650 통과 / E2E 3종 통과).

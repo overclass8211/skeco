@@ -272,6 +272,21 @@ const API = {
     },
     probabilities: () => API.get('/forecast/probabilities'),
     saveProbabilities: items => API.put('/forecast/probabilities', { items }),
+    snapshot: (snapshot_month, year) => API.post('/forecast/snapshot', { snapshot_month, year }),
+  },
+
+  // 생산예측 (Phase B — 마케팅 demand plan → 수주 전환)
+  productionForecasts: {
+    list: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+      ).toString();
+      return API.get('/production-forecasts' + (qs ? '?' + qs : ''));
+    },
+    create: body => API.post('/production-forecasts', body),
+    update: (id, body) => API.put(`/production-forecasts/${id}`, body),
+    remove: id => API.del(`/production-forecasts/${id}`),
+    convert: id => API.post(`/production-forecasts/${id}/convert`, {}),
   },
 
   // 활동

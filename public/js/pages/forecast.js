@@ -30,6 +30,7 @@ const ForecastPage = {
   },
 
   async render() {
+    this._prodLoaded = false;
     const now = new Date();
     if (!this.filters.year) this.filters.year = now.getFullYear();
     if (!this.filters.base_month) {
@@ -52,6 +53,12 @@ const ForecastPage = {
         </div>
       </div>
 
+      <div class="fcst-tabs" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px">
+        <button class="fcst-tab active" data-tab="trend" style="padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;border-bottom:2px solid var(--oci-red);margin-bottom:-2px;color:var(--oci-red)">📈 예측 추이</button>
+        <button class="fcst-tab" data-tab="prod" style="padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">🏭 생산예측 (마케팅)</button>
+      </div>
+
+      <div id="fcst-tab-trend">
       <div class="fcst-filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
         <select class="filter-select" id="fcst-year">
           ${yearOpts.map(y => `<option value="${y}" ${y === this.filters.year ? 'selected' : ''}>${y}년</option>`).join('')}
@@ -104,6 +111,26 @@ const ForecastPage = {
         </div>
         <div id="fcst-table" style="padding:4px 12px 12px"><div class="loading" style="padding:24px;text-align:center;color:var(--text-3)">불러오는 중...</div></div>
       </div>
+      </div>
+
+      <div id="fcst-tab-prod" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="filter-select" id="prod-period"><option value="">전체 기간</option></select>
+            <select class="filter-select" id="prod-status">
+              <option value="">전체 상태</option>
+              <option value="예측">예측</option>
+              <option value="수주전환">수주전환</option>
+              <option value="취소">취소</option>
+            </select>
+            <input class="search-input" id="prod-q" placeholder="고객사·품목 검색" style="width:180px">
+            <button class="btn btn-sm" id="prod-search">조회</button>
+          </div>
+          <button class="btn btn-primary btn-sm" id="prod-add">+ 생산예측 추가</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">마케팅이 입력한 고객×품목×월 생산예측입니다. <b>수주 전환</b> 시 파이프라인(수주)으로 편입되어 예측 추이에 자동 반영됩니다.</p>
+        <div class="card"><div id="prod-table" style="padding:4px 12px 12px"><div class="loading" style="padding:24px;text-align:center;color:var(--text-3)">불러오는 중...</div></div></div>
+      </div>
     `;
 
     await this._populateFilters();
@@ -126,6 +153,151 @@ const ForecastPage = {
     } catch (e) {
       console.warn('[Forecast] 필터 로드 실패', e);
     }
+    // 생산예측 기간 옵션 (해당 연도 12개월)
+    const pSel = document.getElementById('prod-period');
+    if (pSel) {
+      for (let i = 1; i <= 12; i++) {
+        const m = `${this.filters.year}-${String(i).padStart(2, '0')}`;
+        pSel.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`);
+      }
+    }
+  },
+
+  // ── 생산예측 (Phase B) ──────────────────────────────────────
+  async _loadProduction() {
+    const el = document.getElementById('prod-table');
+    const params = {
+      period: document.getElementById('prod-period')?.value || '',
+      status: document.getElementById('prod-status')?.value || '',
+      q: document.getElementById('prod-q')?.value.trim() || '',
+    };
+    try {
+      const r = await API.productionForecasts.list(params);
+      this._prodData = r?.data || [];
+      this._renderProduction();
+    } catch (e) {
+      el.innerHTML = `<div style="padding:20px;color:#dc2626">조회 실패: ${this._esc(e?.message || e)}</div>`;
+    }
+  },
+
+  _renderProduction() {
+    const el = document.getElementById('prod-table');
+    const d = this._prodData || [];
+    if (!d.length) {
+      el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px">생산예측이 없습니다. [+ 생산예측 추가]로 등록하세요.</div>`;
+      return;
+    }
+    const statusBadge = s => {
+      const c = s === '수주전환' ? ['#dcfce7', '#16a34a'] : s === '취소' ? ['#f1f5f9', '#64748b'] : ['#FDEEDF', '#D96A0E'];
+      return `<span style="background:${c[0]};color:${c[1]};font-size:11px;padding:2px 8px;border-radius:5px">${this._esc(s)}</span>`;
+    };
+    el.innerHTML = `<table class="data-table" style="font-size:12.5px;width:100%">
+      <thead><tr>
+        <th>기간</th><th>고객사</th><th>품목</th><th>사업구분</th>
+        <th style="text-align:right">수량</th><th style="text-align:right">단가(원)</th>
+        <th style="text-align:right">예상매출</th><th>상태</th><th style="text-align:right">액션</th>
+      </tr></thead>
+      <tbody>${d.map(r => `<tr>
+        <td>${this._esc(r.period)}</td>
+        <td>${this._esc(r.customer_name)}</td>
+        <td>${this._esc(r.product_name)}</td>
+        <td style="color:var(--text-2)">${this._esc(r.business_type || '-')}</td>
+        <td style="text-align:right">${(Number(r.forecast_qty) || 0).toLocaleString('ko-KR')} ${this._esc(r.unit || '')}</td>
+        <td style="text-align:right;font-family:monospace">${(Number(r.unit_price) || 0).toLocaleString('ko-KR')}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:600">${this._won(Number(r.expected_revenue) / 1000000)}</td>
+        <td>${statusBadge(r.status)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          ${r.status === '수주전환'
+            ? '<span style="font-size:11px;color:var(--text-3)">전환완료</span>'
+            : `<button class="btn btn-xs prod-convert" data-id="${r.id}" style="font-size:11px;padding:2px 8px">수주 전환</button>
+               <button class="btn btn-xs prod-del" data-id="${r.id}" style="font-size:11px;padding:2px 6px;color:#dc2626">삭제</button>`}
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    el.querySelectorAll('.prod-convert').forEach(b =>
+      b.addEventListener('click', () => this._convert(parseInt(b.dataset.id, 10)))
+    );
+    el.querySelectorAll('.prod-del').forEach(b =>
+      b.addEventListener('click', () => this._deleteProd(parseInt(b.dataset.id, 10)))
+    );
+  },
+
+  _openProdForm() {
+    if (typeof Modal === 'undefined') return;
+    const BIZ = ['식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스'];
+    const months = Array.from({ length: 12 }, (_, i) => `${this.filters.year}-${String(i + 1).padStart(2, '0')}`);
+    Modal.open({
+      title: '🏭 생산예측 추가',
+      width: 460,
+      body: `<div style="padding:4px">
+        <div class="form-row"><label class="form-label">고객사 *</label><input class="form-input" id="pf-cust" placeholder="예: 삼성전자"></div>
+        <div class="form-row"><label class="form-label">품목 *</label><input class="form-input" id="pf-prod" placeholder="예: 식각가스 C4F6"></div>
+        <div class="form-row-2" style="display:flex;gap:10px">
+          <div class="form-row" style="flex:1"><label class="form-label">사업구분</label>
+            <select class="form-input" id="pf-biz">${BIZ.map(b => `<option>${b}</option>`).join('')}</select></div>
+          <div class="form-row" style="flex:1"><label class="form-label">기간(월) *</label>
+            <select class="form-input" id="pf-period">${months.map(m => `<option>${m}</option>`).join('')}</select></div>
+        </div>
+        <div class="form-row-2" style="display:flex;gap:10px">
+          <div class="form-row" style="flex:1"><label class="form-label">수량</label><input type="number" class="form-input" id="pf-qty" value="0"></div>
+          <div class="form-row" style="flex:1"><label class="form-label">단위</label><input class="form-input" id="pf-unit" value="kg"></div>
+        </div>
+        <div class="form-row"><label class="form-label">단가(원)</label><input type="number" class="form-input" id="pf-price" value="0"></div>
+        <div style="background:var(--surface-2);border-radius:6px;padding:8px 12px;margin:8px 0;font-size:13px">예상매출: <b id="pf-rev" style="color:var(--oci-red)">₩0</b></div>
+        <div style="text-align:right"><button class="btn btn-primary btn-sm" id="pf-save">저장</button></div>
+      </div>`,
+    });
+    const calc = () => {
+      const rev = (parseFloat(document.getElementById('pf-qty').value) || 0) * (parseFloat(document.getElementById('pf-price').value) || 0);
+      document.getElementById('pf-rev').textContent = '₩' + Math.round(rev).toLocaleString('ko-KR');
+    };
+    document.getElementById('pf-qty').addEventListener('input', calc);
+    document.getElementById('pf-price').addEventListener('input', calc);
+    document.getElementById('pf-save').addEventListener('click', async () => {
+      const body = {
+        customer_name: document.getElementById('pf-cust').value.trim(),
+        product_name: document.getElementById('pf-prod').value.trim(),
+        business_type: document.getElementById('pf-biz').value,
+        period: document.getElementById('pf-period').value,
+        forecast_qty: parseFloat(document.getElementById('pf-qty').value) || 0,
+        unit: document.getElementById('pf-unit').value.trim() || 'kg',
+        unit_price: parseFloat(document.getElementById('pf-price').value) || 0,
+      };
+      if (!body.customer_name || !body.product_name) {
+        if (typeof Toast !== 'undefined') Toast.error('고객사·품목은 필수입니다');
+        return;
+      }
+      try {
+        await API.productionForecasts.create(body);
+        if (typeof Toast !== 'undefined') Toast.success('생산예측 추가됨');
+        if (typeof Modal !== 'undefined') Modal.close();
+        this._loadProduction();
+      } catch (e) {
+        if (typeof Toast !== 'undefined') Toast.error(e?.message || '저장 실패');
+      }
+    });
+  },
+
+  async _convert(id) {
+    if (!confirm('이 생산예측을 수주(파이프라인)로 전환할까요?')) return;
+    try {
+      await API.productionForecasts.convert(id);
+      if (typeof Toast !== 'undefined') Toast.success('수주 전환 완료 — 예측 추이에 반영됩니다');
+      this._loadProduction();
+      this._load(); // 예측 추이 재계산
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error(e?.message || '전환 실패');
+    }
+  },
+
+  async _deleteProd(id) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    try {
+      await API.productionForecasts.remove(id);
+      this._loadProduction();
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error(e?.message || '삭제 실패');
+    }
   },
 
   _bindEvents() {
@@ -146,6 +318,30 @@ const ForecastPage = {
         });
         this._renderTable();
       });
+    });
+
+    // 탭 전환 (예측 추이 / 생산예측)
+    document.querySelectorAll('.fcst-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        const tab = t.dataset.tab;
+        document.querySelectorAll('.fcst-tab').forEach(x => {
+          const on = x.dataset.tab === tab;
+          x.style.color = on ? 'var(--oci-red)' : 'var(--text-3)';
+          x.style.borderBottomColor = on ? 'var(--oci-red)' : 'transparent';
+          x.style.fontWeight = on ? '600' : '500';
+        });
+        document.getElementById('fcst-tab-trend').style.display = tab === 'trend' ? '' : 'none';
+        document.getElementById('fcst-tab-prod').style.display = tab === 'prod' ? '' : 'none';
+        if (tab === 'prod' && !this._prodLoaded) {
+          this._prodLoaded = true;
+          this._loadProduction();
+        }
+      });
+    });
+    document.getElementById('prod-search').addEventListener('click', () => this._loadProduction());
+    document.getElementById('prod-add').addEventListener('click', () => this._openProdForm());
+    document.getElementById('prod-q').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this._loadProduction();
     });
   },
 

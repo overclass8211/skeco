@@ -546,9 +546,51 @@ async function initTables() {
           'ALTER TABLE leads ADD COLUMN win_probability TINYINT UNSIGNED NULL AFTER stage'
         );
       }
+      // business_type ENUM → VARCHAR (stage와 동일 — 사업영역 자유 확장 + 호환)
+      const [bc] = await pool.query("SHOW COLUMNS FROM leads WHERE Field='business_type'");
+      if (/enum/i.test(bc[0]?.Type || '')) {
+        await pool.query(`ALTER TABLE leads MODIFY business_type VARCHAR(50) DEFAULT '식각가스'`);
+      }
     } catch (e) {
       console.warn('  ⚠ 포캐스트 확률 컬럼 마이그레이션 스킵:', e.message);
     }
+
+    // ── Phase B: 생산예측 (마케팅 demand plan) ───────────────────
+    await pool.query(`CREATE TABLE IF NOT EXISTS production_forecasts (
+      id                INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id       INT NULL,
+      customer_name     VARCHAR(200) NOT NULL,
+      product_id        INT NULL,
+      product_name      VARCHAR(150) NOT NULL,
+      business_type     VARCHAR(50) NULL,
+      period            CHAR(7) NOT NULL COMMENT 'YYYY-MM (생산/납품 예측월)',
+      forecast_qty      DECIMAL(15,2) DEFAULT 0,
+      unit              VARCHAR(20) DEFAULT 'kg',
+      unit_price        DECIMAL(15,2) DEFAULT 0 COMMENT '단가(원)',
+      expected_revenue  DECIMAL(18,2) DEFAULT 0 COMMENT '예상매출(원) = 수량×단가',
+      currency          VARCHAR(10) DEFAULT 'KRW',
+      status            VARCHAR(20) DEFAULT '예측' COMMENT '예측 | 수주전환 | 취소',
+      converted_lead_id INT NULL,
+      assigned_to       INT NULL,
+      note              TEXT,
+      created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_period (period),
+      INDEX idx_status (status),
+      INDEX idx_customer (customer_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    // ── Phase B: 월별 포캐스트 스냅샷 (정밀 전년/추세 비교) ───────
+    await pool.query(`CREATE TABLE IF NOT EXISTS forecast_snapshots (
+      id             INT AUTO_INCREMENT PRIMARY KEY,
+      snapshot_month CHAR(7) NOT NULL COMMENT '스냅샷 시점(YYYY-MM)',
+      target_month   CHAR(7) NOT NULL COMMENT '예측 대상월(YYYY-MM)',
+      expected_krw   DECIMAL(18,2) DEFAULT 0,
+      weighted_krw   DECIMAL(18,2) DEFAULT 0,
+      committed_krw  DECIMAL(18,2) DEFAULT 0,
+      created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_snap (snapshot_month, target_month)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
     // ── leads.stage ENUM → VARCHAR 마이그레이션 (idempotent) ──
     // ENUM은 단계 추가/삭제 불가 → VARCHAR로 변환하여 자유로운 stage_key 허용
