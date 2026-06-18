@@ -39,6 +39,7 @@ const ROLE_PAGES = {
   team_lead: [
     'dashboard',
     'pipeline',
+    'forecast', // 매출 포캐스트 (재무 민감 — team_lead 이상)
     'leads',
     'customers',
     'calendar',
@@ -61,6 +62,7 @@ const ROLE_PAGES = {
   executive: [
     'dashboard',
     'pipeline',
+    'forecast',
     'leads',
     'customers',
     'calendar',
@@ -84,6 +86,7 @@ const ROLE_PAGES = {
   admin: [
     'dashboard',
     'pipeline',
+    'forecast',
     'leads',
     'customers',
     'calendar',

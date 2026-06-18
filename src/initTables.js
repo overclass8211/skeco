@@ -482,6 +482,7 @@ async function initTables() {
       role         VARCHAR(20)  NOT NULL DEFAULT 'active',  -- active/won/lost/dropped
       sort_order   INT          NOT NULL DEFAULT 0,
       color        VARCHAR(20)  DEFAULT '#93B4F9',
+      win_probability TINYINT UNSIGNED NULL,                -- 매출 포캐스트: 단계 기본 수주확률(%)
       is_active    TINYINT(1)   DEFAULT 1,
       created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -490,21 +491,63 @@ async function initTables() {
 
     // 기본 시드 (idempotent — stage_key UNIQUE)
     const defaultStages = [
-      { key: 'lead', label: '리드 발굴', role: 'active', order: 10, color: '#93B4F9' },
-      { key: 'review', label: '검토/미팅', role: 'active', order: 20, color: '#5585F5' },
-      { key: 'proposal', label: '제안/견적', role: 'active', order: 30, color: '#2357E8' },
-      { key: 'bidding', label: '입찰', role: 'active', order: 40, color: '#F59C00' },
-      { key: 'negotiation', label: '협상/계약', role: 'active', order: 50, color: '#17A85A' },
-      { key: 'won', label: '수주 완료', role: 'won', order: 90, color: '#0F7A3F' },
-      { key: 'lost', label: '실주', role: 'lost', order: 95, color: '#6B7280' },
-      { key: 'dropped', label: '드롭', role: 'dropped', order: 99, color: '#E63329' },
+      { key: 'lead', label: '리드 발굴', role: 'active', order: 10, color: '#93B4F9', prob: 10 },
+      { key: 'review', label: '검토/미팅', role: 'active', order: 20, color: '#5585F5', prob: 25 },
+      {
+        key: 'proposal',
+        label: '제안/견적',
+        role: 'active',
+        order: 30,
+        color: '#2357E8',
+        prob: 50,
+      },
+      { key: 'bidding', label: '입찰', role: 'active', order: 40, color: '#F59C00', prob: 65 },
+      {
+        key: 'negotiation',
+        label: '협상/계약',
+        role: 'active',
+        order: 50,
+        color: '#17A85A',
+        prob: 80,
+      },
+      { key: 'won', label: '수주 완료', role: 'won', order: 90, color: '#0F7A3F', prob: 100 },
+      { key: 'lost', label: '실주', role: 'lost', order: 95, color: '#6B7280', prob: 0 },
+      { key: 'dropped', label: '드롭', role: 'dropped', order: 99, color: '#E63329', prob: 0 },
     ];
     for (const s of defaultStages) {
       await pool.query(
-        `INSERT IGNORE INTO pipeline_stages (stage_key, label, role, sort_order, color)
-         VALUES (?,?,?,?,?)`,
-        [s.key, s.label, s.role, s.order, s.color]
+        `INSERT IGNORE INTO pipeline_stages (stage_key, label, role, sort_order, color, win_probability)
+         VALUES (?,?,?,?,?,?)`,
+        [s.key, s.label, s.role, s.order, s.color, s.prob]
       );
+    }
+
+    // ── 매출 포캐스트: 단계 확률 컬럼/시드 (idempotent) ──────────
+    // 기존 DB(컬럼 없음)에 ALTER, NULL 인 단계에 기본 확률 주입(사용자 편집 보존)
+    try {
+      const [pc] = await pool.query(
+        "SHOW COLUMNS FROM pipeline_stages WHERE Field='win_probability'"
+      );
+      if (!pc.length) {
+        await pool.query(
+          'ALTER TABLE pipeline_stages ADD COLUMN win_probability TINYINT UNSIGNED NULL AFTER color'
+        );
+      }
+      for (const s of defaultStages) {
+        await pool.query(
+          'UPDATE pipeline_stages SET win_probability=? WHERE stage_key=? AND win_probability IS NULL',
+          [s.prob, s.key]
+        );
+      }
+      // 딜별 확률 override 컬럼 (NULL = 단계 기본값)
+      const [lc] = await pool.query("SHOW COLUMNS FROM leads WHERE Field='win_probability'");
+      if (!lc.length) {
+        await pool.query(
+          'ALTER TABLE leads ADD COLUMN win_probability TINYINT UNSIGNED NULL AFTER stage'
+        );
+      }
+    } catch (e) {
+      console.warn('  ⚠ 포캐스트 확률 컬럼 마이그레이션 스킵:', e.message);
     }
 
     // ── leads.stage ENUM → VARCHAR 마이그레이션 (idempotent) ──

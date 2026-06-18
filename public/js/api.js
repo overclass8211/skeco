@@ -262,6 +262,18 @@ const API = {
     dashboard: () => API.get('/customers/dashboard'),
   },
 
+  // 매출 포캐스트 (파이프라인 가중 예측)
+  forecast: {
+    get: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+      ).toString();
+      return API.get('/forecast' + (qs ? '?' + qs : ''));
+    },
+    probabilities: () => API.get('/forecast/probabilities'),
+    saveProbabilities: items => API.put('/forecast/probabilities', { items }),
+  },
+
   // 활동
   activities: {
     create: body => API.post('/activities', body),

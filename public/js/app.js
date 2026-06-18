@@ -13,6 +13,7 @@ const App = {
     orders: { obj: () => OrdersPage, title: '주문관리 (OMS)', crumb: 'OMS / 주문관리' },
     cost: { obj: () => CostPage, title: '원가관리', crumb: 'ERP / 원가관리' },
     pipeline: { obj: () => PipelinePage, title: '파이프라인', crumb: '영업관리 / 파이프라인' },
+    forecast: { obj: () => ForecastPage, title: '매출 포캐스트', crumb: '메인 / 매출 포캐스트' },
     leads: { obj: () => LeadsPage, title: '영업 리드', crumb: '영업관리 / 리드' },
     projects: { obj: () => ProjectsPage, title: '프로젝트', crumb: '영업관리 / 프로젝트' },
     customers: { obj: () => CustomersPage, title: '고객사', crumb: '영업관리 / 고객사' },

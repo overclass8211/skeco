@@ -55,7 +55,7 @@ const spaGlobals = {
   // 공통 컴포넌트
   Combobox: 'readonly', LinkedContracts: 'readonly', LinkedQuotes: 'readonly', LinkedProposals: 'readonly', LinkedSupport: 'readonly', LinkedPayments: 'readonly', Customer360View: 'readonly', ReadReceipts: 'readonly', ViewToggle: 'readonly', KpiBar: 'readonly', StageProgress: 'readonly', BulkPaste: 'readonly',
   // pages/*.js (app.js 에서 참조)
-  DashboardPage: 'readonly', PipelinePage: 'readonly', LeadsPage: 'readonly',
+  DashboardPage: 'readonly', PipelinePage: 'readonly', ForecastPage: 'readonly', LeadsPage: 'readonly',
   ProjectsPage: 'readonly', CustomersPage: 'readonly', CalendarPage: 'readonly',
   TeamPage: 'readonly', BoardPage: 'readonly', MeetingPage: 'readonly',
   MeetingListPage: 'readonly', AdminPage: 'readonly', SettingsPage: 'readonly',
