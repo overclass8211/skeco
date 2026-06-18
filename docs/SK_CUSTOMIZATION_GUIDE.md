@@ -48,7 +48,7 @@
 - **신규 DB 생성**: `sk_mat_crm` (utf8mb4) + `schema.sql` 적용 (23개 코어 테이블 + 시드).
   나머지 메뉴/스테이지 테이블은 서버 부팅 시 `src/initTables.js`가 자동 생성.
 - **`schema.sql` 수정**: 내부 하드코딩을 `oci_crm` → `sk_mat_crm`으로 교체.
-- **`.claude/launch.json`**: `sk-crm` / port 3001.
+- **`.claude/launch.json`**: `sk-crm` / port **3002** (OCI 로컬 3001 충돌 회피).
 
 > ⚠️ **주의 기록**: `schema.sql`은 상단에 `DROP DATABASE ...; CREATE DATABASE ...; USE ...;`를
 > 하드코딩한다. 최초 적용 시 이 줄이 `oci_crm`을 가리켜 **로컬 oci_crm DB가 1회 드롭/재시드**되었다.

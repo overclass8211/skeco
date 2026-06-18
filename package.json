@@ -1,7 +1,7 @@
 {
-  "name": "oci-crm",
+  "name": "sk-eco-materials-crm",
   "version": "1.0.0",
-  "description": "OCI CRM - 핑거세일즈 기반 태양광 영업 관리 시스템",
+  "description": "SK ecoplant materials CRM - OCI 소스 기반 포크, 영업 관리 시스템",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
