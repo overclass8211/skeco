@@ -22,8 +22,8 @@ router.post('/chat', requireFeature('ai.assistant'), async (req, res) => {
     const { messages, context } = req.body;
     const ctx = await getCrmContext();
 
-    const systemPrompt = `당신은 OCI의 영업관리 AI 어시스턴트입니다.
-OCI는 태양광 모듈, EPC, ESS, 전기 사업을 영위하는 회사입니다.
+    const systemPrompt = `당신은 SK에코플랜트 머티리얼즈의 영업관리 AI 어시스턴트입니다.
+SK에코플랜트 머티리얼즈는 반도체·디스플레이용 핵심소재(식각가스, 프리커서, Wet Chemical, 디스플레이 소재, 포토소재)와 통합서비스를 공급하는 회사입니다.
 
 현재 CRM 현황:
 - 활성 리드: ${ctx.stats.active_leads}건
@@ -212,7 +212,7 @@ router.post('/report', async (req, res) => {
       `SELECT name, category, current_price, change_pct, currency FROM products WHERE ABS(change_pct) > 2 ORDER BY ABS(change_pct) DESC LIMIT 5`
     );
 
-    const prompt = `OCI 영업팀의 ${label} 보고서를 작성해주세요.
+    const prompt = `SK에코플랜트 머티리얼즈 영업팀의 ${label} 보고서를 작성해주세요.
 
 기간: 최근 ${period}일
 
@@ -274,7 +274,7 @@ router.get('/insights', async (req, res) => {
       ORDER BY COALESCE(bidding_deadline, expected_close_date) ASC LIMIT 5
     `);
 
-    const prompt = `OCI CRM 현황을 분석해 핵심 인사이트 5가지를 제공해주세요.
+    const prompt = `SK에코플랜트 머티리얼즈 CRM 현황을 분석해 핵심 인사이트 5가지를 제공해주세요.
 
 현황:
 - 활성 리드: ${ctx.stats.active_leads}건
@@ -373,7 +373,7 @@ router.get('/usage/today', async (req, res) => {
 // ──────────────────────────────────────────────────────────────────────────────
 router.post('/export', async (req, res) => {
   try {
-    const { format = 'docx', content = '', title = 'OCI 보고서' } = req.body;
+    const { format = 'docx', content = '', title = 'SK에코플랜트 머티리얼즈 보고서' } = req.body;
     if (!content) return res.status(400).json({ success: false, error: '내용이 없습니다' });
 
     // ── 마크다운 파서 ────────────────────────────────────────────────────────
@@ -450,7 +450,7 @@ router.post('/export', async (req, res) => {
       const children = [
         // 표지
         new Paragraph({
-          children: [new TextRun({ text: 'OCI (주)', color: '888888', size: 22 })],
+          children: [new TextRun({ text: 'SK에코플랜트 머티리얼즈', color: '888888', size: 22 })],
           alignment: AlignmentType.CENTER,
           spacing: { after: 80 },
         }),
@@ -528,14 +528,18 @@ router.post('/export', async (req, res) => {
       children.push(
         new Paragraph({
           children: [
-            new TextRun({ text: `OCI CRM AI 자동생성  |  ${dateKo}`, color: 'bbbbbb', size: 18 }),
+            new TextRun({
+              text: `SK ecoplant materials CRM AI 자동생성  |  ${dateKo}`,
+              color: 'bbbbbb',
+              size: 18,
+            }),
           ],
           alignment: AlignmentType.RIGHT,
         })
       );
 
       const doc = new Document({
-        creator: 'OCI CRM AI',
+        creator: 'SK ecoplant materials CRM AI',
         title: stripEmoji(title),
         sections: [
           {
@@ -570,8 +574,8 @@ router.post('/export', async (req, res) => {
       const pptxgen = require('pptxgenjs');
       const pptx = new pptxgen();
       pptx.layout = 'LAYOUT_WIDE'; // 33.87cm × 19.05cm
-      pptx.author = 'OCI CRM AI';
-      pptx.company = 'OCI';
+      pptx.author = 'SK ecoplant materials CRM AI';
+      pptx.company = 'SK에코플랜트 머티리얼즈';
       pptx.title = stripEmoji(title);
 
       const C = {
@@ -596,7 +600,7 @@ router.post('/export', async (req, res) => {
         line: { type: 'none' },
       });
       // 로고 텍스트
-      cover.addText('OCI (주)', {
+      cover.addText('SK에코플랜트 머티리얼즈', {
         x: 0.6,
         y: 0.4,
         w: 4,
@@ -619,7 +623,7 @@ router.post('/export', async (req, res) => {
       });
       // 날짜
       cover.addText(dateKo, { x: 0.6, y: 4.0, w: 6, h: 0.5, fontSize: 16, color: '7fafd8' });
-      cover.addText('OCI CRM AI 자동생성', {
+      cover.addText('SK ecoplant materials CRM AI 자동생성', {
         x: 0.6,
         y: 4.6,
         w: 6,
@@ -670,7 +674,7 @@ router.post('/export', async (req, res) => {
             color: C.text,
           });
         });
-        toc.addText(dateKo + ' | OCI CRM', {
+        toc.addText(dateKo + ' | SK ecoplant materials CRM', {
           x: 0,
           y: 7.2,
           w: '96%',
@@ -784,15 +788,18 @@ router.post('/export', async (req, res) => {
           fill: { color: 'e5e7eb' },
           line: { type: 'none' },
         });
-        slide.addText(`${dateKo}  |  OCI CRM AI  |  ${si + 1} / ${sections.length}`, {
-          x: 0,
-          y: 7.15,
-          w: '96%',
-          h: 0.3,
-          fontSize: 9,
-          color: C.muted,
-          align: 'right',
-        });
+        slide.addText(
+          `${dateKo}  |  SK ecoplant materials CRM AI  |  ${si + 1} / ${sections.length}`,
+          {
+            x: 0,
+            y: 7.15,
+            w: '96%',
+            h: 0.3,
+            fontSize: 9,
+            color: C.muted,
+            align: 'right',
+          }
+        );
       }
 
       const buffer = await pptx.write('nodebuffer');

@@ -1,5 +1,5 @@
 // ============================================================
-// AI Assistant — OCI CRM
+// AI Assistant — SK ecoplant materials CRM
 // Claude API 스트리밍 기반 AI 어시스턴트
 // ============================================================
 const AI = {
@@ -45,7 +45,7 @@ const AI = {
       pipeline: '파이프라인 현황 분석을 도와드립니다. 수주 가능성이 높은 리드를 알아볼까요?',
       customers: '고객사 브리핑이나 영업 전략을 도와드립니다.',
       reports: '주간/월간 보고서를 생성해드릴 수 있습니다. "주간보고서 작성해줘"라고 입력해보세요.',
-      default: 'OCI CRM AI 어시스턴트입니다. 영업 현황, 리드 분석, 보고서 작성 등을 도와드립니다.',
+      default: 'SK ecoplant materials CRM AI 어시스턴트입니다. 영업 현황, 리드 분석, 보고서 작성 등을 도와드립니다.',
     };
     const text = welcomes[ctx] || welcomes.default;
     this.appendBotMessage(text);
@@ -235,7 +235,7 @@ const AI = {
     if (lastMsg) {
       const now = new Date();
       const ds = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-      const docTitle = `OCI_영업_보고서_${ds}`;
+      const docTitle = `SK에코머티리얼즈_영업_보고서_${ds}`;
       const botDiv = this.appendBotMessage(
         `📊 이전 내용으로 ${preferredFmt.toUpperCase()} 파일을 준비합니다...`
       );
@@ -254,7 +254,7 @@ const AI = {
     try {
       // 현재 대화 맥락을 포함해 보고서 작성 요청
       const prompt =
-        `다음 주제에 대해 OCI 영업팀을 위한 보고서를 작성해줘.\n` +
+        `다음 주제에 대해 SK에코플랜트 머티리얼즈 영업팀을 위한 보고서를 작성해줘.\n` +
         `마크다운 형식(# 제목, ## 소제목, - 항목)으로 구성하고, ` +
         `표가 필요하면 마크다운 테이블을 사용해줘.\n주제: ${topic}`;
       const messages = [...this.messages.slice(-8), { role: 'user', content: prompt }];
@@ -270,7 +270,7 @@ const AI = {
         const now = new Date();
         const ds = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
         const safeTopic = topic.replace(/[^가-힣a-zA-Z0-9]/g, '_').slice(0, 18);
-        const docTitle = `OCI_${safeTopic}_${ds}`;
+        const docTitle = `SK에코머티리얼즈_${safeTopic}_${ds}`;
         this._appendDownloadBar(botDiv.parentElement, fullText, docTitle, [fmt]);
       }
     } catch (err) {
@@ -295,7 +295,7 @@ const AI = {
         // 보고서 완료 → 다운로드 버튼 표시
         const now = new Date();
         const ds = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        const docTitle = `OCI_영업_${label}보고서_${ds}`;
+        const docTitle = `SK에코머티리얼즈_영업_${label}보고서_${ds}`;
         this._appendDownloadBar(botDiv.parentElement, fullText, docTitle, formats);
       }
     } catch (err) {
@@ -428,7 +428,7 @@ const AI = {
         this._appendDownloadBar(
           botDiv.parentElement,
           fullText,
-          `OCI_${customerName}_고객사브리핑_${ds}`,
+          `SK에코머티리얼즈_${customerName}_고객사브리핑_${ds}`,
           ['docx', 'pptx']
         );
         // ✅ 고객사 화면 브리핑 완료 배지 업데이트
@@ -456,7 +456,7 @@ const AI = {
         const now = new Date();
         const ds = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
         const safeName = leadName.replace(/[^가-힣a-zA-Z0-9]/g, '_').slice(0, 20);
-        this._appendDownloadBar(botDiv.parentElement, fullText, `OCI_${safeName}_영업요약_${ds}`, [
+        this._appendDownloadBar(botDiv.parentElement, fullText, `SK에코머티리얼즈_${safeName}_영업요약_${ds}`, [
           'docx',
           'pptx',
         ]);
