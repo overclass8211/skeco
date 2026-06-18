@@ -254,6 +254,8 @@ const API = {
     proposals: id => API.get(`/customers/${id}/proposals`),
     // 연결된 수금일정 역방향 조회 (모달 [💳 수금] 탭용)
     payments: id => API.get(`/customers/${id}/payments`),
+    // 고객 360뷰 — 모든 접점 통합 집계 + 최근 타임라인 (모달 [🎯 360뷰] 탭용)
+    view360: id => API.get(`/customers/${id}/360view`),
     // v6.0.0 Phase A4: AI 추출 회사명 → 정규화 매칭 (계약 등록 시 자동 연결용)
     match: name => API.get(`/customers/match?name=${encodeURIComponent(name)}`),
     // v6.0.0: KPI 대시보드 (5개 모듈 통일)

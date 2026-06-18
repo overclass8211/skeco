@@ -1293,4 +1293,253 @@ router.get('/:id/payments', validateId, async (req, res) => {
   }
 });
 
+// ────────────────────────────────────────────────────────────
+// 고객 360뷰: GET /api/customers/:id/360view
+//   한 고객의 모든 접점(딜·견적·제안·계약·수금·지원·활동)을
+//   단일 호출로 집계 + 최근 통합 타임라인 반환.
+//   기존 탭 엔드포인트와 동일한 매칭 규칙 사용
+//   (customer_id 우선, NULL 이면 customer_name fallback).
+// ────────────────────────────────────────────────────────────
+router.get('/:id/360view', validateId, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const [[c]] = await pool.query('SELECT * FROM customers WHERE id=?', [id]);
+    if (!c) return res.status(404).json({ success: false, error: '고객사 없음' });
+    const name = c.name;
+    // customer_id 매칭 + customer_name fallback 공통 조건
+    const byCust = '(customer_id = ? OR (customer_id IS NULL AND customer_name = ?))';
+    const p = [id, name]; // byCust 바인딩 파라미터
+
+    const [
+      [dealAgg],
+      pipelineRows,
+      [quoteAgg],
+      [propAgg],
+      [contractAgg],
+      [payAgg],
+      [supportAgg],
+      [actAgg],
+      recentActs,
+      recentQuotes,
+      recentProps,
+      recentContracts,
+      recentPays,
+      recentSupport,
+    ] = await Promise.all([
+      // 딜(leads) — 합계
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt, COALESCE(SUM(expected_amount),0) AS amt
+           FROM leads WHERE customer_name = ?`,
+          [name]
+        )
+        .then(r => r[0]),
+      // 딜 — 단계별 분포 (파이프라인)
+      pool
+        .query(
+          `SELECT stage, COUNT(*) AS cnt, COALESCE(SUM(expected_amount),0) AS amt
+           FROM leads WHERE customer_name = ? GROUP BY stage ORDER BY cnt DESC`,
+          [name]
+        )
+        .then(r => r[0]),
+      // 견적
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt, COALESCE(SUM(total_amount),0) AS amt
+           FROM quotes WHERE ${byCust}`,
+          p
+        )
+        .then(r => r[0]),
+      // 제안
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt, COALESCE(SUM(expected_amount),0) AS amt
+           FROM proposals WHERE ${byCust}`,
+          p
+        )
+        .then(r => r[0]),
+      // 계약
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt, COALESCE(SUM(contract_amount),0) AS amt,
+                SUM(CASE WHEN status IN ('approved','completed') THEN 1 ELSE 0 END) AS active_cnt
+           FROM contracts WHERE ${byCust}`,
+          p
+        )
+        .then(r => r[0]),
+      // 수금(payment_schedules)
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt,
+                COALESCE(SUM(scheduled_amount),0) AS scheduled,
+                COALESCE(SUM(CASE WHEN recognized_at IS NOT NULL THEN supply_amount ELSE 0 END),0) AS recognized,
+                SUM(CASE WHEN due_date < CURDATE() AND recognized_at IS NULL THEN 1 ELSE 0 END) AS overdue_cnt
+           FROM payment_schedules WHERE ${byCust}`,
+          p
+        )
+        .then(r => r[0]),
+      // 고객지원(support_tickets)
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt,
+                SUM(CASE WHEN resolved_at IS NULL AND closed_at IS NULL THEN 1 ELSE 0 END) AS open_cnt
+           FROM support_tickets WHERE customer_id = ?`,
+          [id]
+        )
+        .then(r => r[0]),
+      // 활동(activities — leads 경유)
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt
+           FROM activities a JOIN leads l ON a.lead_id = l.id
+          WHERE l.customer_name = ?`,
+          [name]
+        )
+        .then(r => r[0]),
+      // ── 최근 N건 (타임라인 머지용) ──
+      pool
+        .query(
+          `SELECT a.activity_type, a.title, a.performed_at AS dt
+           FROM activities a JOIN leads l ON a.lead_id = l.id
+          WHERE l.customer_name = ? ORDER BY a.performed_at DESC LIMIT 5`,
+          [name]
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT quote_no, name, total_amount, status, COALESCE(quote_date, created_at) AS dt
+           FROM quotes WHERE ${byCust} ORDER BY dt DESC LIMIT 5`,
+          p
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT proposal_no, proposal_title, expected_amount, status, COALESCE(proposal_date, created_at) AS dt
+           FROM proposals WHERE ${byCust} ORDER BY dt DESC LIMIT 5`,
+          p
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT contract_no, title, contract_amount, status, COALESCE(start_date, created_at) AS dt
+           FROM contracts WHERE ${byCust} ORDER BY dt DESC LIMIT 5`,
+          p
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT contract_name, stage_name, scheduled_amount, status, COALESCE(due_date, created_at) AS dt
+           FROM payment_schedules WHERE ${byCust} ORDER BY dt DESC LIMIT 5`,
+          p
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT ticket_no, title, status, created_at AS dt
+           FROM support_tickets WHERE customer_id = ? ORDER BY created_at DESC LIMIT 5`,
+          [id]
+        )
+        .then(r => r[0]),
+    ]);
+
+    // 통합 타임라인 (시간 내림차순, 상위 20)
+    const timeline = [
+      ...recentActs.map(r => ({
+        type: 'activity',
+        icon: '📌',
+        title: r.title || r.activity_type,
+        date: r.dt,
+      })),
+      ...recentQuotes.map(r => ({
+        type: 'quote',
+        icon: '💰',
+        title: `견적 ${r.quote_no || ''} ${r.name || ''}`.trim(),
+        date: r.dt,
+        amount: Number(r.total_amount) || 0,
+        status: r.status,
+      })),
+      ...recentProps.map(r => ({
+        type: 'proposal',
+        icon: '📄',
+        title: `제안 ${r.proposal_no || ''} ${r.proposal_title || ''}`.trim(),
+        date: r.dt,
+        amount: Number(r.expected_amount) || 0,
+        status: r.status,
+      })),
+      ...recentContracts.map(r => ({
+        type: 'contract',
+        icon: '📜',
+        title: `계약 ${r.contract_no || ''} ${r.title || ''}`.trim(),
+        date: r.dt,
+        amount: Number(r.contract_amount) || 0,
+        status: r.status,
+      })),
+      ...recentPays.map(r => ({
+        type: 'payment',
+        icon: '💳',
+        title: `수금 ${r.contract_name || ''} ${r.stage_name || ''}`.trim(),
+        date: r.dt,
+        amount: Number(r.scheduled_amount) || 0,
+        status: r.status,
+      })),
+      ...recentSupport.map(r => ({
+        type: 'support',
+        icon: '🎫',
+        title: `지원 ${r.ticket_no || ''} ${r.title || ''}`.trim(),
+        date: r.dt,
+        status: r.status,
+      })),
+    ]
+      .filter(e => e.date)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 20);
+
+    res.json({
+      success: true,
+      data: {
+        customer: {
+          id: c.id,
+          name: c.name,
+          industry: c.industry ?? null,
+          region: c.region ?? null,
+          country: c.country ?? null,
+          contact_person: c.contact_person ?? null,
+          phone: c.phone ?? null,
+          email: c.email ?? null,
+          created_at: c.created_at ?? null,
+        },
+        summary: {
+          deals: { count: Number(dealAgg.cnt) || 0, total_expected: Number(dealAgg.amt) || 0 },
+          quotes: { count: Number(quoteAgg.cnt) || 0, total_amount: Number(quoteAgg.amt) || 0 },
+          proposals: { count: Number(propAgg.cnt) || 0, total_expected: Number(propAgg.amt) || 0 },
+          contracts: {
+            count: Number(contractAgg.cnt) || 0,
+            total_amount: Number(contractAgg.amt) || 0,
+            active_count: Number(contractAgg.active_cnt) || 0,
+          },
+          payments: {
+            count: Number(payAgg.cnt) || 0,
+            scheduled_total: Number(payAgg.scheduled) || 0,
+            recognized_total: Number(payAgg.recognized) || 0,
+            overdue_count: Number(payAgg.overdue_cnt) || 0,
+          },
+          support: {
+            count: Number(supportAgg.cnt) || 0,
+            open_count: Number(supportAgg.open_cnt) || 0,
+          },
+          activities: { count: Number(actAgg.cnt) || 0 },
+        },
+        pipeline: pipelineRows.map(r => ({
+          stage: r.stage,
+          count: Number(r.cnt) || 0,
+          amount: Number(r.amt) || 0,
+        })),
+        timeline,
+      },
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 module.exports = router;

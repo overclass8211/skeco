@@ -851,6 +851,11 @@ const CustomersPage = {
                    border-bottom:2px solid var(--oci-red);margin-bottom:-2px;color:var(--oci-red)">
             📋 정보·수정
           </button>
+          <button class="cust-mtab" data-mtab="view360"
+            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
+                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
+            🎯 360뷰 <span id="cm-view360-cnt" class="badge badge-blue" style="font-size:10px">…</span>
+          </button>
           <button class="cust-mtab" data-mtab="deals"
             style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
                    border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
@@ -900,6 +905,11 @@ const CustomersPage = {
 
         <!-- ⚠️ 탭 전환 시 모달 크기 변동 방지: 고정 높이 + 내부 스크롤 -->
         <div id="cm-tab-wrap" style="min-height:720px;max-height:720px;overflow-y:auto;padding-right:4px">
+
+        <!-- 360뷰 탭 — 모든 접점 통합 (Customer360View 주입점) -->
+        <div id="cm-tab-view360" style="display:none">
+          <div id="c360-customer"><div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px">⏳ 360뷰 집계 중...</div></div>
+        </div>
 
         <!-- 정보·수정 탭 -->
         <div id="cm-tab-info">
@@ -1057,7 +1067,7 @@ const CustomersPage = {
         t.classList.add('active');
         t.style.color = 'var(--oci-red)';
         t.style.borderBottomColor = 'var(--oci-red)';
-        ['info', 'deals', 'brief', 'group', 'quotes', 'proposals', 'contracts', 'support', 'payments'].forEach(k => {
+        ['info', 'view360', 'deals', 'brief', 'group', 'quotes', 'proposals', 'contracts', 'support', 'payments'].forEach(k => {
           const el = document.getElementById('cm-tab-' + k);
           if (el) el.style.display = k === t.dataset.mtab ? '' : 'none';
         });
@@ -1116,6 +1126,19 @@ const CustomersPage = {
     this._loadModalDeals(id);
     this._loadModalGroup(id);
     this._loadCachedBrief(id); // ← 저장된 최신 브리핑 자동 표시
+
+    // 360뷰 — 모든 접점 통합 집계 + 카운트 배지 (#cm-view360-cnt)
+    if (typeof Customer360View !== 'undefined') {
+      Customer360View.render('#c360-customer', 'customer', id)
+        .then(result => {
+          const badge = document.getElementById('cm-view360-cnt');
+          if (badge) badge.textContent = String(result?.count || 0);
+        })
+        .catch(() => {
+          const badge = document.getElementById('cm-view360-cnt');
+          if (badge) badge.textContent = '0';
+        });
+    }
 
     // v6.0.0 Step 2 + Phase B: 연결된 계약 목록 (best-effort)
     // Phase B: 탭 카운트 배지 갱신 (#cm-contracts-cnt)
