@@ -24,12 +24,12 @@ const PipelinePage = {
         </select>
         <select class="filter-select" id="pipe-business">
           <option value="">전체 사업</option>
-          <option value="태양광">태양광</option>
-          <option value="모듈">모듈</option>
-          <option value="EPC">EPC</option>
-          <option value="ESS">ESS</option>
-          <option value="전기">전기</option>
-          <option value="설치">설치</option>
+          <option value="식각가스">식각가스</option>
+          <option value="프리커서">프리커서</option>
+          <option value="Wet Chemical">Wet Chemical</option>
+          <option value="디스플레이소재">디스플레이소재</option>
+          <option value="포토소재">포토소재</option>
+          <option value="통합서비스">통합서비스</option>
         </select>
         <select class="filter-select" id="pipe-assigned">
           <option value="">전체 담당자</option>

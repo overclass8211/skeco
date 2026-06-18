@@ -903,7 +903,7 @@ const ProjectsPage = {
       columns: [
         { key: 'name', label: '프로젝트명', required: true, maxLength: 200 },
         { key: 'customer_name', label: '고객사', maxLength: 200 },
-        { key: 'project_type', label: '유형', default: '태양광', maxLength: 50 },
+        { key: 'project_type', label: '유형', default: '식각가스', maxLength: 50 },
         {
           key: 'contract_amount',
           label: '계약금액',
@@ -1098,13 +1098,14 @@ const ProjectsPage = {
           <div class="form-field">
             <label class="form-label">유형</label>
             <select class="form-control" id="p-type">
-              <option ${project.project_type === '태양광' ? 'selected' : ''}>태양광</option>
-              <option ${project.project_type === 'ESS' ? 'selected' : ''}>ESS</option>
-              <option ${project.project_type === '모듈' ? 'selected' : ''}>모듈</option>
-              <option ${project.project_type === 'EPC' ? 'selected' : ''}>EPC</option>
-              <option ${project.project_type === '전기' ? 'selected' : ''}>전기</option>
+              <option ${project.project_type === '식각가스' ? 'selected' : ''}>식각가스</option>
+              <option ${project.project_type === '프리커서' ? 'selected' : ''}>프리커서</option>
+              <option ${project.project_type === 'Wet Chemical' ? 'selected' : ''}>Wet Chemical</option>
+              <option ${project.project_type === '디스플레이소재' ? 'selected' : ''}>디스플레이소재</option>
+              <option ${project.project_type === '포토소재' ? 'selected' : ''}>포토소재</option>
+              <option ${project.project_type === '통합서비스' ? 'selected' : ''}>통합서비스</option>
               ${
-                project.project_type && !['태양광', 'ESS', '모듈', 'EPC', '전기'].includes(project.project_type)
+                project.project_type && !['식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스'].includes(project.project_type)
                   ? `<option selected>${esc(project.project_type)}</option>`
                   : ''
               }

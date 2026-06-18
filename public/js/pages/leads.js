@@ -40,11 +40,12 @@ const LeadsPage = {
 
         <select class="filter-select" id="leads-business-type">
           <option value="" data-label="common.all">전체 사업유형</option>
-          <option value="태양광" data-label="business.solar">태양광</option>
-          <option value="풍력" data-label="business.wind">풍력</option>
-          <option value="ESS" data-label="business.ess">ESS</option>
-          <option value="수소" data-label="business.hydrogen">수소</option>
-          <option value="기타" data-label="business.other">기타</option>
+          <option value="식각가스">식각가스</option>
+          <option value="프리커서">프리커서</option>
+          <option value="Wet Chemical">Wet Chemical</option>
+          <option value="디스플레이소재">디스플레이소재</option>
+          <option value="포토소재">포토소재</option>
+          <option value="통합서비스">통합서비스</option>
         </select>
 
         <select class="filter-select" id="leads-region">
@@ -751,7 +752,7 @@ const LeadsPage = {
       columns: [
         { key: 'customer_name', label: '고객사', required: true, maxLength: 200 },
         { key: 'project_name', label: '프로젝트명', required: true, maxLength: 200 },
-        { key: 'business_type', label: '사업유형', default: '태양광', maxLength: 50 },
+        { key: 'business_type', label: '사업유형', default: '식각가스', maxLength: 50 },
         {
           key: 'capacity_mw',
           label: '규모(MW)',

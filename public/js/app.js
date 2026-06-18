@@ -737,12 +737,12 @@ const App = {
             <div class="form-row">
               <label class="form-label" data-label="leads.business_type">사업 유형</label>
               <select class="form-input" name="business_type">
-                <option value="태양광" data-label="business.solar" ${lead?.business_type === '태양광' ? 'selected' : ''}>태양광</option>
-                <option value="모듈"   data-label="business.module" ${lead?.business_type === '모듈' ? 'selected' : ''}>모듈</option>
-                <option value="EPC"    data-label="business.epc"    ${lead?.business_type === 'EPC' ? 'selected' : ''}>EPC</option>
-                <option value="ESS"    data-label="business.ess"    ${lead?.business_type === 'ESS' ? 'selected' : ''}>ESS</option>
-                <option value="전기"   data-label="business.electric" ${lead?.business_type === '전기' ? 'selected' : ''}>전기</option>
-                <option value="설치"   data-label="business.install" ${lead?.business_type === '설치' ? 'selected' : ''}>설치</option>
+                <option value="식각가스"     ${lead?.business_type === '식각가스' ? 'selected' : ''}>식각가스</option>
+                <option value="프리커서"     ${lead?.business_type === '프리커서' ? 'selected' : ''}>프리커서</option>
+                <option value="Wet Chemical" ${lead?.business_type === 'Wet Chemical' ? 'selected' : ''}>Wet Chemical</option>
+                <option value="디스플레이소재" ${lead?.business_type === '디스플레이소재' ? 'selected' : ''}>디스플레이소재</option>
+                <option value="포토소재"     ${lead?.business_type === '포토소재' ? 'selected' : ''}>포토소재</option>
+                <option value="통합서비스"   ${lead?.business_type === '통합서비스' ? 'selected' : ''}>통합서비스</option>
               </select>
             </div>
             <div class="form-row">

@@ -63,8 +63,8 @@ const DashboardPage = {
                 .join('')}
             </div>
             <div style="display:flex;gap:6px;align-items:center">
-              <span class="badge badge-amber">● <span data-label="business.solar">태양광</span></span>
-              <span class="badge badge-blue">● <span data-label="business.electric">전기</span>/<span data-label="business.ess">ESS</span></span>
+              <span class="badge badge-amber">● 반도체 소재</span>
+              <span class="badge badge-blue">● 디스플레이·통합</span>
             </div>
           </div>
           <div class="card-body"><div class="chart-wrap"><canvas id="chart-monthly"></canvas></div></div>
@@ -323,21 +323,21 @@ const DashboardPage = {
         <div class="insight-icon">⚠️</div>
         <div class="ai-insight-body">
           <span class="ai-insight-tag warning">주의</span>
-          <div class="ai-insight-text">원가 변동 알림 — 폴리실리콘 +7.15% 상승, 견적 재검토 필요</div>
+          <div class="ai-insight-text">단가 변동 알림 — 식각가스 C4F6 +5.93% 상승, 견적 재검토 필요</div>
         </div>
       </div>
       <div class="ai-insight-item">
         <div class="insight-icon">🚨</div>
         <div class="ai-insight-body">
           <span class="ai-insight-tag urgent">긴급</span>
-          <div class="ai-insight-text">입찰 마감 임박 — 한국동서발전 30MW EPC 입찰 진행중</div>
+          <div class="ai-insight-text">입찰 마감 임박 — 삼성전자 평택 P4 식각가스 연간공급 입찰 진행중</div>
         </div>
       </div>
       <div class="ai-insight-item">
         <div class="insight-icon">🌍</div>
         <div class="ai-insight-body">
           <span class="ai-insight-tag info">정보</span>
-          <div class="ai-insight-text">해외 신규 리드 — VPL Corp 50MW · ReNew Power 200MW 진행중</div>
+          <div class="ai-insight-text">해외 신규 리드 — Micron 식각가스 · Intel SOC 하드마스크 진행중</div>
         </div>
       </div>
       <div style="padding:10px 14px;border-top:1px solid var(--border)">
@@ -415,8 +415,9 @@ const DashboardPage = {
   },
 
   renderMonthlyChart(data, year, period) {
-    const SOLAR = ['태양광', '모듈', 'EPC'];
-    const ELEC = ['ESS', '전기', '설치'];
+    // 반도체 소재군 vs 디스플레이·통합서비스군 (2계열 누적)
+    const SOLAR = ['식각가스', '프리커서', 'Wet Chemical', '포토소재'];
+    const ELEC = ['디스플레이소재', '통합서비스'];
     const titleEl = document.getElementById('monthly-chart-title');
     let labels, solarData, elecData;
 
@@ -498,8 +499,8 @@ const DashboardPage = {
       data: {
         labels,
         datasets: [
-          { label: '태양광/EPC', data: solarData, backgroundColor: '#F59C00', borderRadius: 4 },
-          { label: '전기/ESS', data: elecData, backgroundColor: '#1664E5', borderRadius: 4 },
+          { label: '반도체 소재', data: solarData, backgroundColor: '#F58220', borderRadius: 4 },
+          { label: '디스플레이·통합', data: elecData, backgroundColor: '#1664E5', borderRadius: 4 },
         ],
       },
       options: {

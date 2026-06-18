@@ -949,7 +949,7 @@ const AdminPage = {
           </div>
           <div class="form-row">
             <label class="form-label">팀</label>
-            <input class="form-input" name="team" value="${esc(m?.team || '')}" placeholder="예: 태양광, 전기/ESS, CS팀">
+            <input class="form-input" name="team" value="${esc(m?.team || '')}" placeholder="예: 식각가스, 디스플레이소재, 통합서비스">
           </div>
           <div class="form-row">
             <label class="form-label">이메일</label>

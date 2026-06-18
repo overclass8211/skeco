@@ -20,7 +20,7 @@ CREATE TABLE team_members (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL,
   role ENUM('CS', 'Field', 'Sales') NOT NULL,
-  team VARCHAR(50) COMMENT '태양광/전기ESS/해외',
+  team VARCHAR(50) COMMENT '식각가스/프리커서/디스플레이소재/포토소재/통합서비스/해외영업',
   email VARCHAR(100),
   monthly_token_limit INT DEFAULT 100000,
   phone VARCHAR(50),
@@ -59,7 +59,7 @@ CREATE TABLE leads (
   customer_id INT,
   customer_name VARCHAR(200) NOT NULL,
   project_name VARCHAR(300) NOT NULL,
-  business_type ENUM('태양광', '모듈', 'EPC', 'ESS', '전기', '설치') DEFAULT '태양광',
+  business_type ENUM('식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스') DEFAULT '식각가스',
   region ENUM('국내', '해외') DEFAULT '국내',
   capacity_mw DECIMAL(10,2) COMMENT '용량 (MW)',
   expected_amount DECIMAL(15,2) COMMENT '예상 금액 (억원)',
@@ -86,7 +86,7 @@ CREATE TABLE leads (
 CREATE TABLE products (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
-  category VARCHAR(50) COMMENT '원자재/모듈/부품/인건비',
+  category VARCHAR(50) COMMENT '식각가스/프리커서/Wet Chemical/디스플레이 소재/포토소재/통합서비스',
   unit VARCHAR(20) COMMENT '$/kg, $/장, ₩/대 등',
   current_price DECIMAL(15,4),
   currency VARCHAR(10) DEFAULT 'USD',
@@ -446,87 +446,87 @@ CREATE TABLE IF NOT EXISTS google_meet_sessions (
 -- 샘플 데이터 INSERT
 -- =====================================================
 
--- 팀원 (CS 2 / Field 9 / Sales 10 = 21명)
+-- 팀원 (SK에코플랜트 머티리얼즈 반도체·디스플레이 소재 영업조직)
 INSERT INTO team_members (name, role, team, email, avatar_color) VALUES
-('이필드', 'Field', '태양광', 'lee.field@oci.co.kr', '#E63329'),
-('박세일즈', 'Sales', '태양광', 'park.sales@oci.co.kr', '#1e5fe8'),
-('정필드', 'Field', '해외', 'jung.field@oci.co.kr', '#7c4dff'),
-('김CS', 'CS', '태양광', 'kim.cs@oci.co.kr', '#17a85a'),
-('최세일즈', 'Sales', '전기/ESS', 'choi.sales@oci.co.kr', '#f59c00'),
-('한필드', 'Field', '전기/ESS', 'han.field@oci.co.kr', '#e83535'),
-('윤세일즈', 'Sales', '해외', 'yoon.sales@oci.co.kr', '#0ea5e9'),
-('서CS', 'CS', '전기/ESS', 'seo.cs@oci.co.kr', '#10b981');
+('이식각', 'Sales', '식각가스', 'lee.etch@skecomaterials.com', '#EA002C'),
+('박전구체', 'Sales', '프리커서', 'park.precursor@skecomaterials.com', '#1e5fe8'),
+('정디스플', 'Field', '디스플레이소재', 'jung.display@skecomaterials.com', '#7c4dff'),
+('김포토', 'Sales', '포토소재', 'kim.photo@skecomaterials.com', '#17a85a'),
+('최통합', 'Sales', '통합서비스', 'choi.svc@skecomaterials.com', '#F58220'),
+('한해외', 'Field', '해외영업', 'han.global@skecomaterials.com', '#e83535'),
+('윤웨트', 'Sales', 'Wet Chemical', 'yoon.wet@skecomaterials.com', '#0ea5e9'),
+('서기술', 'CS', '기술지원', 'seo.tech@skecomaterials.com', '#10b981');
 
--- 고객사
+-- 고객사 (반도체·디스플레이 제조사)
 INSERT INTO customers (name, region, country, industry, contact_person, phone, email) VALUES
-('한국동서발전', '국내', '대한민국', '발전', '김부장', '02-1234-5678', 'kim@ewp.kr'),
-('한화에너지', '국내', '대한민국', '에너지', '이팀장', '02-2345-6789', 'lee@hanwha.com'),
-('SK에코플랜트', '국내', '대한민국', '건설', '박과장', '02-3456-7890', 'park@skeco.com'),
-('GS E&R', '국내', '대한민국', '에너지', '정상무', '02-4567-8901', 'jung@gsenr.com'),
-('SK이노베이션', '국내', '대한민국', '에너지', '최부장', '02-5678-9012', 'choi@skinc.com'),
-('한국남부발전', '국내', '대한민국', '발전', '한차장', '051-111-2222', 'han@kospo.kr'),
-('두산에너빌리티', '국내', '대한민국', '에너지', '강부장', '055-333-4444', 'kang@doosan.com'),
-('VPL Corp', '해외', '베트남', '에너지', 'Nguyen Van', '+84-28-1234-5678', 'nguyen@vpl.vn'),
-('ReNew Power', '해외', '인도', '에너지', 'Rajesh Kumar', '+91-11-2345-6789', 'rajesh@renew.in'),
-('AGL Energy', '해외', '호주', '에너지', 'David Smith', '+61-2-3456-7890', 'david@agl.au'),
-('SoftBank Energy', '해외', '일본', '에너지', 'Tanaka Hiroshi', '+81-3-4567-8901', 'tanaka@sbe.jp');
+('삼성전자', '국내', '대한민국', '반도체', '김상무', '031-200-1114', 'kim@samsung.com'),
+('SK하이닉스', '국내', '대한민국', '반도체', '이부장', '031-630-4114', 'lee@skhynix.com'),
+('삼성디스플레이', '국내', '대한민국', '디스플레이', '박팀장', '041-535-1114', 'park@samsung.com'),
+('LG디스플레이', '국내', '대한민국', '디스플레이', '정수석', '02-3777-1114', 'jung@lgdisplay.com'),
+('DB하이텍', '국내', '대한민국', '반도체(파운드리)', '최과장', '041-630-1114', 'choi@dbhitek.com'),
+('키파운드리', '국내', '대한민국', '반도체(파운드리)', '한차장', '043-270-1114', 'han@keyfoundry.com'),
+('Micron', '해외', '미국', '반도체', 'John Carter', '+1-208-368-4000', 'jcarter@micron.com'),
+('BOE', '해외', '중국', '디스플레이', 'Wang Lei', '+86-10-6436-8888', 'wanglei@boe.com'),
+('TCL CSOT', '해외', '중국', '디스플레이', 'Li Hua', '+86-755-3331-8888', 'lihua@tcl.com'),
+('Kioxia', '해외', '일본', '반도체', 'Sato Kenji', '+81-3-6478-2700', 'sato@kioxia.com'),
+('Intel', '해외', '미국', '반도체', 'Mark Davis', '+1-408-765-8080', 'mdavis@intel.com');
 
--- 상품 / 원가 (OnERP 연동 항목)
+-- 상품 / 단가 (반도체·디스플레이 핵심소재 — OnERP 연동 항목)
 INSERT INTO products (name, category, unit, current_price, currency, previous_price, change_pct, last_updated) VALUES
-('폴리실리콘 (Poly-Si)', '원자재', '$/kg', 7.8200, 'USD', 7.2980, 7.15, '2025-04-28'),
-('웨이퍼 (Mono PERC)', '원자재', '$/개', 0.1420, 'USD', 0.1450, -2.07, '2025-04-25'),
-('태양광 셀 (TOPCon)', '원자재', '$/W', 0.0680, 'USD', 0.0680, 0.00, '2025-04-20'),
-('태양광 모듈 (500W)', '모듈', '$/장', 94.5000, 'USD', 91.0500, 3.79, '2025-04-28'),
-('인버터 (100kW)', '부품', '₩/대', 4820000.00, 'KRW', 4888000.00, -1.39, '2025-04-22'),
-('리튬 배터리 셀 (LFP)', '원자재', '$/kWh', 68.4000, 'USD', 72.1500, -5.20, '2025-04-28'),
-('설치 인건비 (현장)', '인건비', '₩/인일', 185000.00, 'KRW', 180400.00, 2.55, '2025-04-01'),
-('가대/구조물 (지상형)', '부품', '₩/kW', 78000.00, 'KRW', 76000.00, 2.63, '2025-04-15'),
-('케이블/전선 (DC)', '부품', '₩/m', 4200.00, 'KRW', 4150.00, 1.20, '2025-04-10');
+('식각가스 C4F6', '식각가스', '$/kg', 1250.0000, 'USD', 1180.0000, 5.93, '2026-06-10'),
+('식각가스 CH3F', '식각가스', '$/kg', 980.0000, 'USD', 1010.0000, -2.97, '2026-06-10'),
+('프리커서 Hf 전구체 (HfCl4계)', '프리커서', '$/kg', 4200.0000, 'USD', 3950.0000, 6.33, '2026-06-08'),
+('프리커서 Zr 전구체', '프리커서', '$/kg', 3850.0000, 'USD', 3700.0000, 4.05, '2026-06-08'),
+('Wet Chemical 고선택비 인산', 'Wet Chemical', '₩/L', 18500.00, 'KRW', 17800.00, 3.93, '2026-06-05'),
+('OLED 블루 도판트', '디스플레이 소재', '₩/g', 4200000.00, 'KRW', 4350000.00, -3.45, '2026-06-05'),
+('HTL 정공수송층 소재', '디스플레이 소재', '₩/g', 1850000.00, 'KRW', 1790000.00, 3.35, '2026-06-02'),
+('ArF 포토레지스트 (PR)', '포토소재', '₩/L', 9800000.00, 'KRW', 9500000.00, 3.16, '2026-06-09'),
+('SOC 하드마스크', '포토소재', '₩/kg', 2750000.00, 'KRW', 2680000.00, 2.61, '2026-06-09');
 
--- 원가 변동 이력 (최근 3개월)
+-- 단가 변동 이력 (최근 3개월) — product 1: C4F6, product 4: Zr 전구체
 INSERT INTO cost_history (product_id, price, recorded_at) VALUES
-(1, 7.28, '2025-02-01'), (1, 7.35, '2025-02-15'), (1, 7.42, '2025-03-01'),
-(1, 7.55, '2025-03-15'), (1, 7.68, '2025-04-01'), (1, 7.82, '2025-04-28'),
-(4, 90.10, '2025-02-01'), (4, 90.80, '2025-02-15'), (4, 91.20, '2025-03-01'),
-(4, 92.00, '2025-03-15'), (4, 93.10, '2025-04-01'), (4, 94.50, '2025-04-28');
+(1, 1120.00, '2026-03-10'), (1, 1150.00, '2026-04-10'), (1, 1180.00, '2026-05-10'),
+(1, 1210.00, '2026-05-25'), (1, 1230.00, '2026-06-05'), (1, 1250.00, '2026-06-10'),
+(4, 3600.00, '2026-03-08'), (4, 3650.00, '2026-04-08'), (4, 3700.00, '2026-05-08'),
+(4, 3780.00, '2026-05-25'), (4, 3820.00, '2026-06-05'), (4, 3850.00, '2026-06-08');
 
--- 영업 리드 (파이프라인 단계별)
+-- 영업 리드 (파이프라인 단계별) — capacity_mw 미사용(소재사업) → 0
 INSERT INTO leads (customer_id, customer_name, project_name, business_type, region, capacity_mw, expected_amount, currency, stage, assigned_to, expected_close_date, bidding_deadline, notes) VALUES
-(1, '한국동서발전', '30MW 태양광 EPC', 'EPC', '국내', 30.00, 88.00, 'KRW', 'bidding', 2, '2025-05-01', '2025-05-01', '입찰 마감 D-3'),
-(2, '한화에너지', '충남 50MW 모듈 공급', '모듈', '국내', 50.00, 67.00, 'KRW', 'proposal', 1, '2025-06-15', NULL, '제안서 제출 완료'),
-(9, 'ReNew Power', '라자스탄 200MW 모듈', '모듈', '해외', 200.00, 7280.00, 'USD', 'proposal', 2, '2025-07-30', NULL, '$52M 견적 진행중'),
-(3, 'SK에코플랜트', '경북 상주 20MW 태양광', '태양광', '국내', 20.00, 42.00, 'KRW', 'lead', 1, '2025-09-01', NULL, '초기 접촉 단계'),
-(4, 'GS E&R', '전남 해남 100MW EPC', 'EPC', '국내', 100.00, 220.00, 'KRW', 'review', 3, '2025-10-30', NULL, '기술 미팅 일정 조율중'),
-(10, 'AGL Energy', 'NSW 80MW 모듈 공급', '모듈', '해외', 80.00, 4760.00, 'AUD', 'negotiation', 3, '2025-05-20', NULL, 'A$34M 협상중'),
-(5, 'SK이노베이션', '울산 공장 지붕형 태양광', '설치', '국내', 5.00, 15.00, 'KRW', 'negotiation', 2, '2025-05-10', NULL, '계약 직전 단계'),
-(8, 'VPL Corp', '호치민 50MW 태양광', '태양광', '해외', 50.00, 3920.00, 'USD', 'lead', 3, '2025-12-01', NULL, '베트남 초기 컨택'),
-(6, '한국남부발전', '제주 해상풍력 연계 ESS', 'ESS', '국내', 0, 85.00, 'KRW', 'lead', 5, '2025-11-15', NULL, '연계 기술 검토중'),
-(7, '두산에너빌리티', '부산 ESS 연계형 10MWh', 'ESS', '국내', 0, 31.00, 'KRW', 'proposal', 5, '2025-08-01', NULL, '견적 검토중'),
-(11, 'SoftBank Energy', '도쿄 지역 전력망 공급', '전기', '해외', 0, 36400.00, 'JPY', 'review', 1, '2025-09-20', NULL, '¥4.2B 규모'),
-(NULL, '한국서부발전', '새만금 100MW 태양광 EPC', 'EPC', '국내', 100.00, 241.00, 'KRW', 'bidding', 1, '2025-05-15', '2025-05-15', '대형 입찰 진행중'),
-(NULL, '충남 태안 ESS', 'ESS 10MWh 공급', 'ESS', '국내', 0, 18.40, 'KRW', 'won', 2, '2025-04-27', NULL, '수주 완료'),
-(NULL, '경기 안성 발전소', '20MW 태양광 (취소)', '태양광', '국내', 20.00, 34.00, 'KRW', 'dropped', 6, '2025-04-25', NULL, '예산 미확보로 드롭');
+(1, '삼성전자', '평택 P4 식각가스 C4F6 연간공급', '식각가스', '국내', 0, 120.00, 'KRW', 'bidding', 1, '2026-07-15', '2026-07-10', '연간 단가계약 입찰 진행'),
+(2, 'SK하이닉스', 'M16 프리커서 Hf 전구체 공급', '프리커서', '국내', 0, 95.00, 'KRW', 'proposal', 2, '2026-08-20', NULL, 'DRAM 미세공정용 제안서 제출'),
+(3, '삼성디스플레이', 'A6 OLED 블루도판트 공급', '디스플레이소재', '국내', 0, 60.00, 'KRW', 'proposal', 3, '2026-08-30', NULL, '고효율 발광소재 평가 통과'),
+(4, 'LG디스플레이', '파주 HTL/ETL 소재 평가', '디스플레이소재', '국내', 0, 28.00, 'KRW', 'review', 3, '2026-10-30', NULL, '패널 신뢰성 평가 진행중'),
+(1, '삼성전자', '화성 ArF PR 국산화 PoC', '포토소재', '국내', 0, 45.00, 'KRW', 'lead', 4, '2026-11-01', NULL, '국산화 초기 검토'),
+(2, 'SK하이닉스', '청주 Wet Chemical 고선택비 인산', 'Wet Chemical', '국내', 0, 38.00, 'KRW', 'negotiation', 7, '2026-07-20', NULL, '단가 협상 진행중'),
+(7, 'Micron', 'Hiroshima 식각가스 CH3F 공급', '식각가스', '해외', 0, 5200.00, 'USD', 'proposal', 6, '2026-09-30', NULL, '$5.2M 견적 진행'),
+(8, 'BOE', 'B12 OLED 소재 패키지', '디스플레이소재', '해외', 0, 3200.00, 'USD', 'lead', 6, '2026-12-01', NULL, '중국 패널사 초기 컨택'),
+(5, 'DB하이텍', '부천 식각가스 통합공급(BSGS)', '통합서비스', '국내', 0, 52.00, 'KRW', 'negotiation', 5, '2026-07-25', NULL, 'Gas+물류 통합 패키지'),
+(10, 'Kioxia', 'Yokkaichi 프리커서 Zr 공급', '프리커서', '해외', 0, 410000.00, 'JPY', 'proposal', 6, '2026-09-10', NULL, '3D NAND 적층공정 대응'),
+(11, 'Intel', 'Arizona SOC 하드마스크 공급', '포토소재', '해외', 0, 6100.00, 'USD', 'review', 1, '2026-10-15', NULL, 'EUV 공정 평가 협의'),
+(NULL, '삼성전자 평택 P5', 'BSGS 통합서비스 + Gas 패키지', '통합서비스', '국내', 0, 180.00, 'KRW', 'bidding', 5, '2026-07-18', '2026-07-12', '대형 통합공급 입찰'),
+(NULL, '삼성디스플레이 A5', 'OLED 블루도판트 초도물량', '디스플레이소재', '국내', 0, 24.00, 'KRW', 'won', 3, '2026-05-30', NULL, '초도물량 수주 완료'),
+(NULL, '중국 신규 패널사', 'T9 식각가스 (보류)', '식각가스', '해외', 0, 30.00, 'KRW', 'dropped', 6, '2026-05-20', NULL, '수출규제 검토로 보류');
 
--- 프로젝트 (수주 완료 후)
+-- 프로젝트 (수주 완료 후) — 소재 양산공급
 INSERT INTO projects (name, customer_name, project_type, contract_amount, estimated_cost, margin_pct, status, due_date, assigned_to) VALUES
-('충남 태안 ESS 10MWh', '한국남부발전', 'ESS', 18.40, 14.20, 22.83, '진행중', '2025-09-30', 2),
-('전북 군산 30MW EPC', '한국중부발전', '태양광', 72.00, 58.60, 18.61, '납기지연', '2025-04-30', 1),
-('경남 진주 모듈 공급', 'LS Electric', '모듈', 28.00, 21.50, 23.21, '제조중', '2025-06-15', 3);
+('평택 P4 C4F6 연간공급', '삼성전자', '식각가스', 120.00, 92.00, 23.33, '진행중', '2026-12-31', 1),
+('M16 Hf 전구체 양산공급', 'SK하이닉스', '프리커서', 95.00, 74.50, 21.58, '제조중', '2026-09-30', 2),
+('A6 OLED 블루도판트 공급', '삼성디스플레이', '디스플레이소재', 60.00, 47.00, 21.67, '진행중', '2026-08-31', 3);
 
 -- 영업 활동
 INSERT INTO activities (lead_id, activity_type, title, content, performed_by) VALUES
-(1, '입찰', '한국동서발전 입찰서 제출', '30MW EPC 입찰 서류 제출 완료', 2),
-(2, '제안서', '한화에너지 50MW 제안서 제출', '태양광 모듈 공급 견적 제출', 1),
-(7, '미팅', 'SK이노베이션 계약 협의', '울산 공장 현장 실사 및 계약 조건 협의', 2),
-(13, '수주', '충남 태안 ESS 수주 완료', '계약금액 ₩18.4억', 2),
-(14, '드롭', '경기 안성 프로젝트 드롭', '예산 미확보로 연기', 6),
-(8, '전화', 'VPL Corp 초기 컨택', '베트남 호치민 사이트 50MW 가능성 논의', 3),
-(5, '미팅', 'GS E&R 기술 미팅', '해남 100MW EPC 사양 검토', 3);
+(1, '입찰', '삼성전자 평택 P4 식각가스 입찰', 'C4F6 연간 단가계약 입찰서 제출', 1),
+(2, '제안서', 'SK하이닉스 Hf 전구체 제안서 제출', 'M16 DRAM 미세공정용 프리커서 제안', 2),
+(6, '미팅', 'SK하이닉스 Wet Chemical 단가협의', '청주 고선택비 인산 단가 협상 미팅', 7),
+(13, '수주', '삼성디스플레이 블루도판트 초도 수주', 'A5 OLED 블루도판트 초도물량 계약', 3),
+(14, '드롭', '중국 패널사 식각가스 보류', '수출규제 검토로 진행 보류', 6),
+(8, '전화', 'BOE 초기 컨택', 'B12 OLED 소재 패키지 가능성 논의', 6),
+(4, '미팅', 'LG디스플레이 소재 평가 미팅', '파주 HTL/ETL 신뢰성 평가 검토', 3);
 
 -- =====================================================
 -- 완료
 -- =====================================================
-SELECT '✅ OCI CRM Database 초기화 완료' AS message;
+SELECT '✅ SK ecoplant materials CRM Database 초기화 완료' AS message;
 SELECT
   (SELECT COUNT(*) FROM team_members) AS '팀원',
   (SELECT COUNT(*) FROM customers) AS '고객사',

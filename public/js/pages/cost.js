@@ -132,10 +132,12 @@ const CostPage = {
           <div class="form-field">
             <label class="form-label">분류</label>
             <select class="form-control" id="cp-category">
-              <option ${p.category === '원자재' ? 'selected' : ''}>원자재</option>
-              <option ${p.category === '모듈' ? 'selected' : ''}>모듈</option>
-              <option ${p.category === '부품' ? 'selected' : ''}>부품</option>
-              <option ${p.category === '인건비' ? 'selected' : ''}>인건비</option>
+              <option ${p.category === '식각가스' ? 'selected' : ''}>식각가스</option>
+              <option ${p.category === '프리커서' ? 'selected' : ''}>프리커서</option>
+              <option ${p.category === 'Wet Chemical' ? 'selected' : ''}>Wet Chemical</option>
+              <option ${p.category === '디스플레이 소재' ? 'selected' : ''}>디스플레이 소재</option>
+              <option ${p.category === '포토소재' ? 'selected' : ''}>포토소재</option>
+              <option ${p.category === '통합서비스' ? 'selected' : ''}>통합서비스</option>
             </select>
           </div>
           <div class="form-field">
@@ -209,15 +211,15 @@ const CostPage = {
           <div class="card-body">
             <div class="form-grid">
               <div class="form-field full">
-                <label class="form-label">프로젝트 규모 (MW)</label>
+                <label class="form-label">예상 물량 (톤/월)</label>
                 <input class="form-control mono" id="calc-mw" type="number" value="30">
               </div>
               <div class="form-field">
                 <label class="form-label">사업 유형</label>
                 <select class="form-control" id="calc-type">
-                  <option value="solar">태양광 EPC</option>
-                  <option value="module">모듈 공급</option>
-                  <option value="ess">ESS 공급</option>
+                  <option value="식각가스">식각가스</option>
+                  <option value="디스플레이소재">디스플레이소재</option>
+                  <option value="통합서비스">통합서비스</option>
                 </select>
               </div>
               <div class="form-field">
@@ -284,7 +286,7 @@ const CostPage = {
     const type = document.getElementById('calc-type').value;
     const mult = parseFloat(document.getElementById('calc-install').value);
 
-    const baseRate = type === 'solar' ? 2.34 : type === 'module' ? 1.58 : 3.12;
+    const baseRate = type === '식각가스' ? 2.34 : type === '디스플레이소재' ? 1.58 : 3.12;
     const total = mw * baseRate * mult;
     const equip = total * 0.65;
     const inst = total * 0.26;
