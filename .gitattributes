@@ -1,0 +1,15 @@
+# 줄바꿈 정규화 — 저장소는 LF 로 통일 (Windows 작업 시 CRLF 경고 제거)
+* text=auto eol=lf
+
+# 바이너리 (정규화 제외)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.Zip binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
