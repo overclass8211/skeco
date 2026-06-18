@@ -1,0 +1,61 @@
+{
+  "name": "SK ecoplant materials CRM",
+  "short_name": "SK materials",
+  "description": "SK ecoplant materials 영업 CRM — 리드/고객/회의록 AI 통합 관리",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#EA002C",
+  "lang": "ko",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/assets/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/assets/sk-ecoplant-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "명함 촬영",
+      "short_name": "명함 촬영",
+      "description": "카메라로 명함을 찍어 바로 고객사로 등록",
+      "url": "/?action=scan-card",
+      "icons": [
+        {
+          "src": "/assets/shortcut-scan.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "회의록 AI",
+      "short_name": "회의록",
+      "description": "회의 녹음 → AI 요약 회의록으로 바로 이동",
+      "url": "/?action=meeting",
+      "icons": [
+        {
+          "src": "/assets/shortcut-meeting.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

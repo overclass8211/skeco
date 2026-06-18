@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SK ecoplant materials 워드마크 (PoC 재현 SVG)
+     공식 벡터/PNG 확보 시 admin 로고 업로드로 교체하면 정확히 일치합니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 80" width="270" height="80" role="img" aria-label="SK ecoplant materials">
+  <defs>
+    <linearGradient id="sk-ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F58220"/>
+      <stop offset="1" stop-color="#EA002C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 리본(나비) 마크 — SK 우상단 -->
+  <g>
+    <path d="M62 10 L84 22 L62 34 Z" fill="#F58220"/>
+    <path d="M104 10 L82 22 L104 34 Z" fill="#EA002C"/>
+    <circle cx="83" cy="22" r="3.4" fill="#EA002C"/>
+  </g>
+
+  <!-- SK (레드, 굵게) -->
+  <text x="4" y="60" font-family="'Noto Sans KR', Arial, system-ui, sans-serif"
+        font-size="52" font-weight="800" fill="#EA002C" letter-spacing="-1">SK</text>
+
+  <!-- ecoplant (코랄) / materials (다크) 2단 -->
+  <text x="112" y="38" font-family="'Noto Sans KR', Arial, system-ui, sans-serif"
+        font-size="27" font-weight="500" fill="#EE5A47" letter-spacing="-0.5">ecoplant</text>
+  <text x="112" y="64" font-family="'Noto Sans KR', Arial, system-ui, sans-serif"
+        font-size="24" font-weight="700" fill="#3A3A3A" letter-spacing="0.3">materials</text>
+</svg>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#E63329">
+  <meta name="robots" content="noindex, nofollow">
+  <title>제안 공유 — OCI CRM</title>
+  <style>
+    /* OCI CRM 외부 공유 페이지 — 단독 디자인 (사이드바 없음, 인쇄 친화) */
+    :root {
+      --oci-red: #E63329;
+      --oci-red-dark: #B5261E;
+      --oci-red-light: #FCE9E8;
+      --bg: #F5F6F8;
+      --surface: #FFFFFF;
+      --surface-2: #FAFBFC;
+      --border: #E4E7EB;
+      --text-1: #1F2329;
+      --text-2: #4E5969;
+      --text-3: #86909C;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    /* ── 헤더 ───────────────────────────────────────────── */
+    .ps-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .ps-logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--oci-red);
+      letter-spacing: -0.5px;
+    }
+    .ps-logo-sub {
+      font-size: 12px;
+      color: var(--text-3);
+      padding-top: 4px;
+    }
+    .ps-header-right {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    /* ── 컨테이너 ────────────────────────────────────────── */
+    .ps-container {
+      max-width: 880px;
+      margin: 28px auto;
+      padding: 0 20px;
+    }
+
+    /* ── 로딩 ───────────────────────────────────────────── */
+    .ps-loading {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-3);
+    }
+    .ps-loading-spinner {
+      display: inline-block;
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--oci-red);
+      border-radius: 50%;
+      animation: ps-spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes ps-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── 에러 상태 ──────────────────────────────────────── */
+    .ps-error {
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 48px 32px;
+      text-align: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    }
+    .ps-error-icon {
+      font-size: 56px;
+      margin-bottom: 12px;
+    }
+    .ps-error h1 {
+      font-size: 20px;
+      color: var(--oci-red);
+      margin: 0 0 8px;
+    }
+    .ps-error p {
+      color: var(--text-2);
+      margin: 0 0 4px;
+      font-size: 13px;
+    }
+
+    /* ── 정상 — 카드 ─────────────────────────────────────── */
+    .ps-card {
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 32px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+      margin-bottom: 16px;
+    }
+    .ps-title-block {
+      border-bottom: 2px solid var(--oci-red);
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+    }
+    .ps-no {
+      display: inline-block;
+      background: var(--oci-red-light);
+      color: var(--oci-red);
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .ps-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin: 0;
+      line-height: 1.35;
+    }
+
+    /* ── 메타 정보 ────────────────────────────────────────── */
+    .ps-meta {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px 24px;
+      margin-bottom: 24px;
+    }
+    .ps-meta-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .ps-meta-label {
+      width: 90px;
+      font-size: 12px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+    .ps-meta-value {
+      font-size: 14px;
+      color: var(--text-1);
+      font-weight: 500;
+    }
+
+    /* ── 섹션 ─────────────────────────────────────────────── */
+    .ps-section {
+      margin-bottom: 22px;
+    }
+    .ps-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin: 0 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ps-summary {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--text-1);
+      white-space: pre-wrap;
+    }
+    .ps-empty {
+      text-align: center;
+      padding: 18px;
+      color: var(--text-3);
+      font-size: 12px;
+      background: var(--surface-2);
+      border-radius: 6px;
+    }
+
+    /* ── 파일 목록 ──────────────────────────────────────── */
+    .ps-files {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ps-file {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .ps-file:hover {
+      background: var(--oci-red-light);
+      border-color: var(--oci-red);
+    }
+    .ps-file-icon {
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .ps-file-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .ps-file-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ps-file-meta {
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+    .ps-file-download {
+      flex-shrink: 0;
+      background: var(--oci-red);
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 0.15s ease;
+    }
+    .ps-file-download:hover {
+      background: var(--oci-red-dark);
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .ps-footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-3);
+      padding: 18px 0 24px;
+    }
+    .ps-footer-expires {
+      display: inline-block;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      color: #92400E;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+
+    /* ── 반응형 ────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .ps-meta { grid-template-columns: 1fr; }
+      .ps-card { padding: 22px 18px; }
+      .ps-title { font-size: 20px; }
+      .ps-file { flex-wrap: wrap; }
+      .ps-file-download { width: 100%; text-align: center; }
+    }
+
+    /* ── 인쇄 ──────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .ps-card { box-shadow: none; padding: 0; }
+      .ps-file-download { display: none; }
+      .ps-footer { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="ps-header">
+    <div>
+      <div class="ps-logo">OCI CRM</div>
+      <div class="ps-logo-sub">제안 공유</div>
+    </div>
+    <div class="ps-header-right" id="ps-shared-until-header"></div>
+  </header>
+
+  <main class="ps-container" id="ps-root">
+    <!-- 초기 로딩 상태 — JS 로딩 후 _renderXxx() 가 교체 -->
+    <div class="ps-loading">
+      <div class="ps-loading-spinner" aria-label="로딩 중"></div>
+      <div>제안 정보를 불러오는 중...</div>
+    </div>
+  </main>
+
+  <footer class="ps-footer">
+    Powered by OCI CRM · 외부 공유 페이지는 비공개 정보가 포함될 수 있습니다.
+  </footer>
+
+  <script src="/js/pages/proposal-share.js"></script>
+</body>
+</html>

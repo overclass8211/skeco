@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#E63329"/>
+  <text x="50%" y="50%" font-family="'IBM Plex Mono', 'Helvetica', sans-serif" font-size="180" font-weight="700"
+        fill="#ffffff" text-anchor="middle" dominant-baseline="central" letter-spacing="-4">OCI</text>
+  <text x="50%" y="78%" font-family="'IBM Plex Mono', 'Helvetica', sans-serif" font-size="56" font-weight="500"
+        fill="#ffffff" text-anchor="middle" letter-spacing="6" opacity="0.85">CRM AI</text>
+</svg>

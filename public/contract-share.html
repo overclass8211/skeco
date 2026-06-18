@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#E63329">
+  <meta name="robots" content="noindex, nofollow">
+  <title>계약 검토 — OCI CRM</title>
+  <style>
+    :root {
+      --oci-red: #E63329;
+      --oci-red-dark: #B5261E;
+      --oci-red-light: #FCE9E8;
+      --bg: #F5F6F8;
+      --surface: #FFFFFF;
+      --surface-2: #FAFBFC;
+      --border: #E4E7EB;
+      --text-1: #1F2329;
+      --text-2: #4E5969;
+      --text-3: #86909C;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .cs-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .cs-logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--oci-red);
+      letter-spacing: -0.5px;
+    }
+    .cs-role-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .cs-role-viewer { background: #e0e7ff; color: #3730a3; }
+    .cs-role-commenter { background: #fef3c7; color: #92400e; }
+    .cs-role-approver { background: #dcfce7; color: #14532d; }
+    .cs-main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 18px;
+    }
+    .cs-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .cs-card h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+      color: var(--text-1);
+    }
+    .cs-kv-row {
+      display: flex;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 13px;
+    }
+    .cs-kv-row:last-child { border-bottom: 0; }
+    .cs-kv-key {
+      width: 120px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+    .cs-kv-val { flex: 1; color: var(--text-1); }
+    .cs-files { list-style: none; padding: 0; margin: 0; }
+    .cs-file {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+    .cs-file-name { font-weight: 500; }
+    .cs-file-size { font-size: 11px; color: var(--text-3); margin-left: 8px; }
+    .cs-btn {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .cs-btn-primary { background: var(--oci-red); color: #fff; }
+    .cs-btn-primary:hover { background: var(--oci-red-dark); }
+    .cs-btn-ghost { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+    .cs-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .cs-loading { text-align: center; padding: 60px 20px; color: var(--text-3); }
+    .cs-comments { margin-top: 12px; }
+    .cs-comment {
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border-left: 3px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .cs-comment-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-3);
+      margin-bottom: 4px;
+    }
+    .cs-comment-body { font-size: 13px; white-space: pre-wrap; }
+    .cs-comment-type {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .cs-type-general { background: #e5e7eb; color: #374151; }
+    .cs-type-revise { background: #fef3c7; color: #92400e; }
+    .cs-type-approve { background: #dcfce7; color: #14532d; }
+    .cs-type-reject { background: #fee2e2; color: #7f1d1d; }
+    .cs-comment-form {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .cs-input, .cs-textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .cs-textarea { min-height: 70px; resize: vertical; }
+    .cs-form-row { margin-bottom: 8px; display: flex; gap: 8px; }
+    .cs-form-row .cs-input { flex: 1; }
+    .cs-comment-type-select {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .cs-toast {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      padding: 10px 14px;
+      background: #16a34a;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 13px;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .cs-toast.error { background: #dc2626; }
+    @media (max-width: 600px) {
+      .cs-card { padding: 14px 16px; }
+      .cs-kv-row { flex-direction: column; }
+      .cs-kv-key { width: auto; margin-bottom: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cs-header">
+    <div>
+      <div class="cs-logo">OCI CRM · 계약 검토</div>
+      <div style="font-size: 11px; color: var(--text-3); margin-top: 2px">읽기 전용 · 댓글 작성 (권한별)</div>
+    </div>
+    <div id="cs-role-badge"></div>
+  </div>
+
+  <div class="cs-main" id="cs-root">
+    <div class="cs-loading">⏳ 불러오는 중...</div>
+  </div>
+
+  <script src="/js/contract-share.js"></script>
+</body>
+</html>

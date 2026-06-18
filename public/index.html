@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SK ecoplant materials CRM</title>
+
+<!-- PWA — manifest + 메타 ─────────────────────────────────── -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#EA002C">
+<meta name="description" content="SK ecoplant materials 영업 CRM — 리드/고객/회의록 AI 통합 관리">
+<!-- iOS Safari (manifest 미지원) — 별도 메타 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SK ecoplant materials">
+<link rel="apple-touch-icon" href="/assets/pwa-icon.svg">
+<link rel="icon" type="image/svg+xml" href="/assets/pwa-icon.svg">
+<link rel="icon" type="image/svg+xml" href="/assets/sk-ecoplant-logo.svg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/styles.css">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+
+<!-- Service Worker 등록 — 부팅 차단 안 함 (defer 후 load 이벤트) -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.warn('[SW] 등록 실패:', err.message);
+      });
+    });
+  }
+</script>
+</head>
+<body>
+
+<!-- ============== SIDEBAR ============== -->
+<aside class="sidebar">
+  <div class="sidebar-logo" data-action="navigate" data-page="dashboard" title="대시보드 홈">
+    <!-- 로고 이미지 — server.js 의 GET / 동적 핸들러가 __LOGO_URL__ 을 현재 로고로 치환 -->
+    <!-- → 페이지 로드 즉시 정확한 로고 표시 (기본 SVG Flash 없음) -->
+    <img id="sidebar-logo-img" src="__LOGO_URL__" alt="Logo" class="logo-img">
+    <div class="logo-divider"></div>
+    <div class="logo-sub">CRM <span style="color:var(--sk-orange);font-weight:700">AI</span></div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section" data-section-key="main">
+      <div class="nav-section-title" data-label="menu.section_main">메인</div>
+      <a class="nav-item active" data-page="dashboard" data-action="navigate" data-menu-key="dashboard" data-feature="crm.dashboard">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm7 0a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1V4zM3 11a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm7 0a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-3z"/></svg>
+        <span data-label="menu.dashboard">대시보드</span>
+      </a>
+      <a class="nav-item" data-page="pipeline" data-action="navigate" data-feature="crm.pipeline" data-menu-key="pipeline">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/></svg>
+        <span data-label="menu.pipeline">파이프라인</span>
+        <span class="nav-badge" id="nav-pipeline-count">0</span>
+      </a>
+    </div>
+
+    <div class="nav-section" data-section-key="erp">
+      <div class="nav-section-title" data-label="menu.section_erp"> ERP </div>
+      <a class="nav-item" data-page="orders" data-action="navigate" data-menu-key="orders" data-feature="erp.integration">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
+        <span data-label="menu.orders">ERP 연계</span>
+        <span class="nav-badge" data-label="common.coming_soon" style="background:var(--amber);color:#fff;font-size:9px">준비중</span>
+      </a>
+      <!-- 원가관리 — team_lead 이상 (RBAC 자동 적용 via authService ROLE_PAGES/API_LEVEL_MAP) -->
+      <a class="nav-item" data-page="cost" data-action="navigate" data-menu-key="cost">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm3 5a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1zm3-1a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1zm4 2a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.cost">원가관리</span>
+      </a>
+    </div>
+
+    <div class="nav-section" data-section-key="sales">
+      <div class="nav-section-title" data-label="menu.section_sales">영업관리</div>
+      <a class="nav-item" data-page="leads" data-action="navigate" data-menu-key="leads">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
+        <span data-label="menu.leads">영업 리드</span>
+        <span class="nav-badge" id="nav-leads-count">0</span>
+      </a>
+      <a class="nav-item" data-page="projects" data-action="navigate" data-menu-key="projects">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.projects">프로젝트</span>
+      </a>
+      <a class="nav-item" data-page="customers" data-action="navigate" data-menu-key="customers">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/></svg>
+        <span data-label="menu.customers">고객사</span>
+      </a>
+      <a class="nav-item" data-page="calendar" data-action="navigate" data-feature="crm.calendar" data-menu-key="calendar">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.calendar">영업 캘린더</span>
+      </a>
+      <a class="nav-item" data-page="quotes" data-action="navigate" data-feature="crm.quotes" data-menu-key="quotes">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6a1 1 0 010 2H7a1 1 0 010-2zm0 4h6a1 1 0 010 2H7a1 1 0 010-2zm0 4h4a1 1 0 110 2H7a1 1 0 110-2z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.quotes">견적서</span>
+      </a>
+      <a class="nav-item" data-page="proposals" data-action="navigate" data-feature="crm.proposals" data-menu-key="proposals">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.proposals">제안</span>
+      </a>
+      <a class="nav-item" data-page="contracts" data-action="navigate" data-feature="crm.contracts" data-menu-key="contracts">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V4H6zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 4a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1zm0 4a1 1 0 011-1h3a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.contracts">계약</span>
+      </a>
+      <!-- P2 매출관리 -->
+      <a class="nav-item" data-page="revenue" data-action="navigate" data-feature="crm.revenue" data-menu-key="revenue">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+        <span data-label="menu.revenue">매출관리</span>
+      </a>
+      <!-- v8.0.0 SFR-011 수금관리 -->
+      <a class="nav-item" data-page="payments" data-action="navigate" data-feature="crm.payments" data-menu-key="payments">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.payments">수금관리</span>
+      </a>
+    </div>
+
+    <!-- 고객지원(A/S) — P1 신설 섹션 -->
+    <div class="nav-section" data-section-key="cs">
+      <div class="nav-section-title" data-label="menu.section_cs">고객지원</div>
+      <a class="nav-item" data-page="support" data-action="navigate" data-feature="crm.support" data-menu-key="support">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 011 1v.01a1 1 0 11-2 0V8a1 1 0 011-1zm0 3a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.support">A/S 티켓</span>
+      </a>
+    </div>
+
+    <div class="nav-section" data-section-key="analysis">
+      <div class="nav-section-title" data-label="menu.section_analysis">분석</div>
+      <a class="nav-item" data-page="team" data-action="navigate" data-menu-key="team">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+        <span data-label="menu.team">팀 현황</span>
+      </a>
+      <a class="nav-item" data-page="reports" data-action="navigate" data-menu-key="reports" data-feature="crm.reports">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.reports">리포트</span>
+      </a>
+      <a class="nav-item" data-page="report-builder" data-action="navigate" data-menu-key="report-builder" data-feature="crm.report_builder">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"/></svg>
+        <span data-label="menu.report-builder">리포트 빌더</span>
+      </a>
+    </div>
+
+    <div class="nav-section" data-section-key="comm">
+      <div class="nav-section-title" data-label="menu.section_comm">소통</div>
+      <a class="nav-item" data-page="board" data-action="navigate" data-feature="crm.board" data-menu-key="board">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/><path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/></svg>
+        <span data-label="menu.board">커뮤니케이션</span>
+      </a>
+    </div>
+
+    <div class="nav-section" data-section-key="ai">
+      <div class="nav-section-title" data-label="menu.section_ai">AI 기능</div>
+      <a class="nav-item" data-action="ai-open" data-feature="ai.assistant" data-menu-key="ai-assistant">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 14a6 6 0 110-12 6 6 0 010 12zm1-9a1 1 0 10-2 0v4a1 1 0 00.553.894l3 1.5a1 1 0 10.894-1.788L11 10.382V7z"/></svg>
+        <span data-label="menu.ai-assistant">AI 어시스턴트</span>
+        <span class="nav-badge ai-badge">AI</span>
+      </a>
+      <a class="nav-item" data-page="meeting" data-action="navigate" data-feature="ai.meeting" data-menu-key="meeting">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.meeting">회의록 AI</span>
+      </a>
+      <a class="nav-item" data-page="meeting-list" data-action="navigate" data-feature="ai.meeting" data-menu-key="meeting-list">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.meeting-list">회의록 목록</span>
+      </a>
+    </div>
+
+    <div class="nav-section" data-section-key="system">
+      <div class="nav-section-title" data-label="menu.section_system">시스템</div>
+      <a class="nav-item" data-page="admin" data-action="navigate" data-menu-key="admin">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/></svg>
+        <span data-label="menu.admin">관리자</span>
+      </a>
+      <a class="nav-item" data-page="settings" data-action="navigate" data-menu-key="settings">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.settings">설정</span>
+      </a>
+      <!-- 개발자 옵션: superadmin 전용 (JS에서 역할 기반 show/hide) -->
+      <a class="nav-item nav-item-dev" data-page="dev" data-action="navigate" data-feature="dev.options" data-menu-key="dev" style="display:none"
+         title="개발자 전용 옵션 패널">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        <span data-label="menu.dev">개발자 옵션</span>
+        <span class="nav-badge" style="background:#8B5CF6;color:#fff;font-size:9px">DEV</span>
+      </a>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="user-badge"></div>
+  </div>
+</aside>
+
+<!-- 모바일 사이드바 오버레이 -->
+<div class="sidebar-overlay" id="sidebar-overlay" data-action="close-nav"></div>
+
+<!-- ============== MAIN AREA ============== -->
+<main class="main">
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <!-- 모바일 햄버거 버튼 -->
+      <button class="mobile-menu-btn icon-btn" id="mobile-menu-btn" data-title-label="topbar.menu" title="메뉴" style="display:none" data-action="toggle-nav">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <h1 class="page-title" id="page-title">대시보드</h1>
+      <span class="page-breadcrumb" id="page-breadcrumb">홈 / 대시보드</span>
+    </div>
+    <div class="topbar-right">
+      <!-- 공통 위젯: 세션타임 / 토큰 / 테마 / 폰트 -->
+      <div class="topbar-widgets">
+        <span class="widget-item" title="세션 경과 시간">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 0a8 8 0 108 8A8 8 0 008 0zm0 14.5A6.5 6.5 0 1114.5 8 6.5 6.5 0 018 14.5zM8.5 4H7v5l4.25 2.55.75-1.23-3.5-2.07z"/></svg>
+          <span id="session-time">00:00:00</span>
+        </span>
+        <span class="widget-divider"></span>
+        <span class="widget-item" title="오늘 사용 AI 토큰" id="token-widget">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 1L1 4v5c0 4 3 6 7 7 4-1 7-3 7-7V4L8 1zm0 2.2L13 5v4c0 2.7-1.9 4.4-5 5.3-3.1-0.9-5-2.6-5-5.3V5l5-1.8z"/></svg>
+          <span id="token-count">0</span> tok
+        </span>
+        <span class="widget-divider"></span>
+        <button class="widget-btn" id="theme-toggle" title="테마 전환 (라이트/다크)">
+          <svg id="theme-icon" viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 11.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zM8 1v2M8 13v2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M1 8h2M13 8h2M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <div class="font-size-ctrl" title="폰트 크기 조절">
+          <button class="font-size-btn" id="font-decrease" title="폰트 축소">−</button>
+          <span id="font-scale-label">100%</span>
+          <button class="font-size-btn" id="font-increase" title="폰트 확대">+</button>
+        </div>
+      </div>
+
+      <span class="topbar-date" id="topbar-date"></span>
+
+      <!-- 전체 검색 (Cmd+K / Ctrl+K) -->
+      <button class="icon-btn" data-title-label="topbar.search" title="전체 검색 (Ctrl+K)" id="global-search-btn" data-action="open-search" data-feature="crm.search">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+      </button>
+
+      <!-- 온보딩 가이드 (언제든 다시 보기) -->
+      <button class="icon-btn" title="🎓 SK ecoplant materials CRM 가이드 — 5단계 시작 가이드 다시 보기" id="onboarding-btn" data-action="open-onboarding">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/></svg>
+      </button>
+
+      <!-- 알림 버튼 -->
+      <div class="notif-wrap" data-feature="crm.notifications" style="position:relative">
+        <button class="icon-btn" data-title-label="topbar.notifications" title="알림" id="notif-btn">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
+          <span class="badge-dot" style="display:none"></span>
+        </button>
+        <!-- 알림 패널 -->
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-header">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span data-label="topbar.notifications">알림</span>
+              <span class="badge badge-red" id="notif-badge"></span>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="notif-all-btn"
+              style="font-size:11px;padding:2px 8px;color:var(--text-2)"
+              title="알림 전체 목록 보기" data-label="topbar.see_all">전체 보기</button>
+          </div>
+          <div class="notif-list"></div>
+        </div>
+      </div>
+
+      <!-- 녹음 중 인디케이터 (MeetingPage 녹음 시에만 표시) -->
+      <button class="btn btn-rec-indicator" id="rec-global-indicator" style="display:none"
+              data-action="navigate" data-page="meeting"
+              title="녹음 중 — 클릭하면 회의록 화면으로 이동">
+        <span class="rec-dot-blink"></span>
+        <span id="rec-global-time">00:00</span>
+        <span style="font-size:11px" data-label="topbar.recording">녹음 중</span>
+      </button>
+
+      <!-- AI 어시스턴트 버튼 -->
+      <button class="btn btn-ai" id="btn-ai-toggle" data-feature="ai.assistant" title="AI 어시스턴트">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zM9 9V5a1 1 0 012 0v4h3a1 1 0 110 2h-4a1 1 0 01-1-1z"/></svg>
+        AI 어시스턴트
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENT AREA -->
+  <div class="content" id="content">
+    <div class="loading">데이터 로딩중...</div>
+  </div>
+</main>
+
+<!-- ============== AI PANEL ============== -->
+<div class="ai-overlay" id="ai-overlay" data-action="ai-close"></div>
+<div class="ai-panel" id="ai-panel">
+  <div class="ai-panel-header">
+    <div class="ai-panel-title">
+      <div class="ai-status-dot"></div>
+      <span>SK ecoplant materials AI 어시스턴트</span>
+    </div>
+    <div class="ai-panel-actions">
+      <button class="ai-icon-btn" title="대화 복사" id="ai-btn-copy">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14"><path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z"/><path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/></svg>
+      </button>
+      <button class="ai-icon-btn" title="대화 초기화" id="ai-btn-clear">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+      </button>
+      <button class="ai-icon-btn" id="ai-btn-close">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 퀵 액션 -->
+  <div class="ai-quick-actions" id="ai-quick-actions">
+    <button class="ai-quick-btn" data-ai-report="weekly">📊 주간보고서</button>
+    <button class="ai-quick-btn" data-ai-prompt="파이프라인 분석해줘">🔍 파이프라인</button>
+    <button class="ai-quick-btn" data-ai-prompt="수주 가능성 높은 리드 알려줘">🏆 수주예측</button>
+    <button class="ai-quick-btn" data-ai-prompt="입찰 임박한 건 알려줘">⚠️ 긴급입찰</button>
+  </div>
+
+  <!-- 메시지 목록 -->
+  <div class="ai-message-list" id="ai-message-list"></div>
+
+  <!-- 입력창 -->
+  <div class="ai-input-area">
+    <textarea
+      id="ai-input"
+      class="ai-textarea"
+      placeholder="질문을 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
+      rows="1"
+    ></textarea>
+    <button class="ai-send-btn" id="ai-send-btn" title="전송">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ============== MODAL ============== -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<!-- ============== TOAST ============== -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" crossorigin="anonymous"></script>
+<!-- 리포트 빌더 PDF 내보내기용 — jsPDF + html2canvas (한국어 폰트 완벽 지원)
+     html2canvas: 임시 DOM 을 이미지화 → jsPDF 에 삽입 → 한국어 깨짐 0
+     defer 로 첫 페이지 로드 부담 없음 (사용 시점에만 평가) -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer crossorigin="anonymous"></script>
+<script src="/js/api.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/components/combobox.js"></script>
+<script src="/js/components/viewToggle.js"></script>
+<script src="/js/components/kpiBar.js"></script>
+<script src="/js/components/stageProgress.js"></script>
+<script src="/js/components/linkedContracts.js"></script>
+<script src="/js/components/linkedQuotes.js"></script>
+<script src="/js/components/linkedProposals.js"></script>
+<script src="/js/components/linkedSupport.js"></script>
+<script src="/js/components/linkedPayments.js"></script>
+<script src="/js/components/readReceipts.js"></script>
+<script src="/js/components/bulkPaste.js"></script>
+<script src="/js/labels.js"></script>
+<script src="/js/ai.js"></script>
+<script src="/js/search.js"></script>
+<script src="/js/email.js"></script>
+<script src="/js/shortcuts.js"></script>
+<script src="/js/exportMenu.js"></script>
+<script src="/js/emptyState.js"></script>
+<script src="/js/onboarding.js"></script>
+<script src="/js/offlineQueue.js"></script>
+<script src="/js/pages/orders.js"></script>
+<script src="/js/pages/dashboard.js"></script>
+<script src="/js/pages/pipeline.js"></script>
+<script src="/js/pages/leads.js"></script>
+<script src="/js/pages/projects.js"></script>
+<script src="/js/pages/customers.js"></script>
+<script src="/js/pages/team.js"></script>
+<script src="/js/pages/reports.js"></script>
+<script src="/js/pages/report-builder.js"></script>
+<script src="/js/pages/settings.js"></script>
+<script src="/js/pages/meeting.js"></script>
+<script src="/js/pages/meeting-list.js"></script>
+<script src="/js/pages/calendar.js"></script>
+<script src="/js/pages/quotes.js"></script>
+<script src="/js/pages/proposals.js"></script>
+<script src="/js/pages/contracts.js"></script>
+<script src="/js/pages/payments.js"></script>
+<script src="/js/pages/revenue.js"></script>
+<script src="/js/pages/support.js"></script>
+<script src="/js/pages/board.js"></script>
+<script src="/js/pages/admin.js"></script>
+<script src="/js/pages/notifications-list.js"></script>
+<script src="/js/pages/cost.js"></script>
+<script src="/js/pages/dev.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

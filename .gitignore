@@ -1,0 +1,99 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+server_out.txt
+server_err.txt
+*.log
+npm-debug.log*
+
+# Uploads (사용자 업로드 파일)
+public/uploads/
+
+# OCI 포크 작업 잔재 (SK 격리) — 압축본/임시 산출물
+*.Zip
+*.zip
+C:*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build output
+dist/
+build/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temp files
+*.tmp
+*.bak
+_db_update.js
+
+# DB 백업 스냅샷 (클린징/연동 작업 시 자동 생성 — 용량 큼, 커밋 금지)
+mock-data/backup-*.json
+
+# Husky
+.husky/_
+.claude/
+server_out_new.txt
+server_run.txt
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ─────────────────────────────────────────────────────────
+# Capacitor (네이티브 모바일 빌드 — v6.0.0)
+# 핵심 원칙: 플랫폼 구조는 git 에 포함, 빌드 산출물/캐시는 제외
+# ─────────────────────────────────────────────────────────
+
+# Android — 빌드 산출물
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/captures/
+android/.idea/
+android/app/release/
+android/app/debug/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# iOS — 빌드 산출물
+ios/App/build/
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/DerivedData/
+ios/.swiftpm/
+
+# Capacitor 빌드 캐시 / lock
+.gradle/
+
+# 시크릿 / 키스토어 (절대 commit 금지)
+android/app/*.keystore
+android/app/*.jks
+android/keystore.properties
+ios/App/*.p12
+ios/App/*.mobileprovision
+*.cer

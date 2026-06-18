@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: oci-crm-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-oci_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-oci_crm}
+      JWT_SECRET: ${JWT_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+    volumes:
+      - uploads:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - oci-net
+
+  db:
+    image: mariadb:11
+    container_name: oci-crm-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:-oci_crm}
+      MARIADB_USER: ${DB_USER:-oci_user}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - oci-net
+
+volumes:
+  db-data:
+  uploads:
+
+networks:
+  oci-net:
+    driver: bridge

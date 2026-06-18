@@ -1,0 +1,40 @@
+{
+  "appId": "kr.oci.crmai",
+  "appName": "OCI CRM AI",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://oci-crm.duckdns.org",
+    "cleartext": false,
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "allowNavigation": [
+      "oci-crm.duckdns.org",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "cdn.jsdelivr.net",
+      "*.kakao.com",
+      "dapi.kakao.com"
+    ]
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff",
+    "limitsNavigationsToAppBoundDomains": false,
+    "scheme": "OCI CRM AI"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#ffffff",
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#E63329",
+      "showSpinner": false
+    }
+  }
+}

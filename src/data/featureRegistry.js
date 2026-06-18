@@ -1,0 +1,596 @@
+'use strict';
+// =============================================================
+// Feature Registry — 모든 기능 플래그의 단일 진실 소스 (SSOT)
+//
+// 🎯 목적:
+//   - 신규/변경/삭제 시 이 파일만 수정하면 자동으로 DB 동기화
+//   - git diff 로 기능 변경 이력 추적
+//   - dev_features 테이블 시드 + UI 메타데이터 + 의존성 정의 통합
+//
+// 🔄 동기화 메커니즘 (src/initTables.js#syncFeatureFlags):
+//   서버 부팅 시:
+//   1) 매니페스트 → DB UPSERT (메타데이터 갱신, is_enabled 보존)
+//   2) DB 에 있는데 매니페스트에 없는 항목 → is_deprecated = 1
+//   3) Deprecated 는 자동 삭제 안 함 (수동 정리만)
+//
+// 📝 신규 기능 추가 시:
+//   1) 아래 FEATURE_REGISTRY 배열에 항목 추가
+//   2) 코드에서 data-feature="..." 또는 requireFeature('...') 사용
+//   3) pm2 restart → 자동 DB 반영
+//
+// ⚠️ 기존 key 변경 금지:
+//   - 같은 기능의 이름 바꾸기는 OK (feature_name, description)
+//   - feature_key 변경은 사실상 "삭제 + 새 등록" 효과 (사용자 설정 리셋)
+//
+// 📊 필드 정의:
+//   key:               UNIQUE 식별자. 'category.name' 형식 권장
+//   name:              사용자 표시명 (한국어)
+//   description:       기능 설명 1줄
+//   category:          UI 그룹화. enum: ai|auth|crm|data|integration|realtime|security|dev
+//   risk_level:        토글 위험도. safe|medium|high|critical
+//                       - safe:     끄든 켜든 큰 영향 없음 (UI 토글 수준)
+//                       - medium:   끄면 일부 사용자 불편
+//                       - high:     끄면 핵심 기능 영향 (대시보드/리포트/알림)
+//                       - critical: 끄면 보안/안정성 위협 (rate_limit, CSP)
+//   required_features: 의존성 (이 기능을 쓰려면 require 해야 하는 다른 feature_key 들)
+//   affects_routes:    영향받는 API 라우트 (개발자 참고용)
+//   affects_tables:    영향받는 DB 테이블 (개발자 참고용)
+//   is_experimental:   실험적 기능 (UI에 배지 표시)
+//   default_enabled:   신규 설치 시 기본값 (true = ON, false = OFF)
+// =============================================================
+
+const FEATURE_REGISTRY = [
+  // ─── 🤖 AI 기능 ──────────────────────────────────────────────
+  {
+    key: 'ai.assistant',
+    name: 'AI 어시스턴트 채팅',
+    description: 'Gemini 기반 AI 채팅 및 보고서 자동 생성',
+    category: 'ai',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/ai',
+    affects_tables: 'ai_usage',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'ai.ocr',
+    name: '명함 OCR 인식',
+    description: 'Google Vision AI 기반 명함 자동 파싱',
+    category: 'ai',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/customers/ocr',
+    affects_tables: 'customers',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'ai.intelligence',
+    name: '고객사 AI 인텔리전스',
+    description: '고객사별 영업 전략 AI 분석 리포트',
+    category: 'ai',
+    risk_level: 'medium',
+    required_features: ['ai.assistant'],
+    affects_routes: '/api/customers/:id/intelligence',
+    affects_tables: 'customers',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'ai.lead_summary',
+    name: '리드 AI 요약',
+    description: '리드 활동 이력 AI 자동 요약',
+    category: 'ai',
+    risk_level: 'medium',
+    required_features: ['ai.assistant'],
+    affects_routes: '/api/ai/summarize-lead',
+    affects_tables: 'leads,activities',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'ai.meeting',
+    name: '회의록 AI 분석',
+    description: '음성 녹음 STT + AI 회의록 자동 작성 (Gemini 멀티모달)',
+    category: 'ai',
+    risk_level: 'medium',
+    required_features: ['ai.assistant'],
+    affects_routes: '/api/meetings/transcribe,/api/meetings/transcribe-async',
+    affects_tables: 'meeting_minutes',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'ai.token_recharge',
+    name: 'AI 토큰 자동충전',
+    description: '월간 토큰 한도 임계값 도달 시 자동 재충전',
+    category: 'ai',
+    risk_level: 'medium',
+    required_features: ['ai.assistant'],
+    affects_routes: '/api/admin/token-recharge',
+    affects_tables: 'team_members,token_recharge_log',
+    is_experimental: false,
+    default_enabled: false,
+  },
+
+  // ─── 🔐 인증 & 보안 ──────────────────────────────────────────
+  {
+    key: 'auth.google',
+    name: 'Google OAuth 로그인',
+    description: 'Google 계정 소셜 로그인 + Calendar/Meet/Gmail 통합 인증',
+    category: 'auth',
+    risk_level: 'high',
+    required_features: [],
+    affects_routes: '/api/google',
+    affects_tables: 'google_oauth_tokens',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'auth.otp',
+    name: 'OTP 2차 인증 (TOTP)',
+    description: 'Google Authenticator 기반 TOTP 인증',
+    category: 'auth',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/auth/setup-otp,/api/auth/login-otp',
+    affects_tables: 'users',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'auth.biometric',
+    name: '생체인증 (WebAuthn)',
+    description: 'Fingerprint/FaceID 로그인 (실험적)',
+    category: 'auth',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/auth/bio,/api/auth/login-webauthn',
+    affects_tables: 'users',
+    is_experimental: true,
+    default_enabled: true,
+  },
+
+  // ─── 📧 Gmail 통합 (Phase G1+G2+G3) ─────────────────────────
+  {
+    key: 'gmail.read',
+    name: 'Gmail 읽기 + 자동 매칭',
+    description: '고객사/리드 이메일과 송수신 메일 자동 매칭 (G1)',
+    category: 'integration',
+    risk_level: 'medium',
+    required_features: ['auth.google'],
+    affects_routes: '/api/gmail/messages,/api/gmail/match/lead/:id,/api/gmail/match/customer/:id',
+    affects_tables: 'google_oauth_tokens',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'gmail.send',
+    name: 'Gmail 발송',
+    description: 'CRM 내부에서 Gmail API 로 메일 직접 발송 (G2)',
+    category: 'integration',
+    risk_level: 'medium',
+    required_features: ['auth.google'],
+    affects_routes: '/api/gmail/send',
+    affects_tables: 'activities',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'gmail.sync',
+    name: 'Gmail 백그라운드 동기화',
+    description: '5분 주기로 새 메일 자동 매칭 → 활동 이력 기록 (G3)',
+    category: 'integration',
+    risk_level: 'medium',
+    required_features: ['auth.google', 'gmail.read'],
+    affects_routes: '/api/gmail/sync-settings,/api/gmail/sync-now',
+    affects_tables: 'activities,google_oauth_tokens',
+    is_experimental: false,
+    default_enabled: false,
+  },
+
+  // ─── 📋 CRM 기능 ────────────────────────────────────────────
+  {
+    key: 'crm.dashboard',
+    name: '대시보드',
+    description: '5대 KPI, 파이프라인 펀넬, 월별 추이, 실시간 알림',
+    category: 'crm',
+    risk_level: 'high',
+    required_features: [],
+    affects_routes: '/api/dashboard',
+    affects_tables: 'leads,activities,projects',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.pipeline',
+    name: '파이프라인 칸반보드',
+    description: '드래그앤드롭 영업 단계 관리 (8단계)',
+    category: 'crm',
+    risk_level: 'high',
+    required_features: [],
+    affects_routes: '/api/leads,/api/pipeline/stages',
+    affects_tables: 'leads',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.calendar',
+    name: '영업 캘린더',
+    description: '일정 등록 + Google Calendar 양방향 동기화',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/calendar',
+    affects_tables: 'calendar_events',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.meeting_rec',
+    name: '회의록 + Google Meet 연동',
+    description: 'Google Meet 링크 생성 + 회의록 자동 연결',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: ['auth.google'],
+    affects_routes: '/api/meetings,/api/google/calendar/create',
+    affects_tables: 'meeting_minutes,google_meet_sessions',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.board',
+    name: '커뮤니케이션 게시판',
+    description: '팀 공지·자유게시판·FAQ·댓글',
+    category: 'crm',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/board',
+    affects_tables: 'announcements,comments,faq,announcement_views',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.reports',
+    name: '리포트 (고정 차트)',
+    description: '매출/원가/리드/팀 성과 4종 분석 차트',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/dashboard/stats,/api/dashboard/monthly',
+    affects_tables: 'leads,projects',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.report_builder',
+    name: '리포트 빌더 (drag & drop)',
+    description: '사용자 정의 리포트 — 차원/지표 드래그앤드롭 + 자동 차트 추천',
+    category: 'crm',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/report-builder',
+    affects_tables: 'report_definitions,leads',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.proposals',
+    name: '제안 (제안관리 아카이브)',
+    description: '제안 건 관리 + RFP 등록 + AI 제안전략 + 파일 아카이브 + 이메일 발송 + 리비전',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/proposals',
+    affects_tables:
+      'proposals,proposal_files,proposal_revisions,proposal_history,proposal_email_logs',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.support',
+    name: '고객지원 (A/S 티켓)',
+    description:
+      '고객 지원 티켓 접수·상태전환(설정형 워크플로우)·담당 할당 + 고객/딜 연결 + 댓글(내부/공개) + 첨부 + 변경이력',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/support',
+    affects_tables:
+      'support_tickets,support_settings,support_comments,support_files,support_history',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.contracts',
+    name: '계약 (계약관리 + AI 법무 검토)',
+    description:
+      '계약 아카이빙 (4단계 상태) + 첨부 파일 + 고객/리드/제안/견적 연결 + AI 법무 검토 (한국법 특화) + 감사 추적',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/contracts',
+    affects_tables: 'contracts,contract_files,contract_history,contract_legal_reviews',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.contracts.esign',
+    name: '계약 전자서명 (모두싸인)',
+    description: '모두싸인 OAuth 2.0 연동 — 계약서 서명 요청/추적/완료본 다운로드 + Webhook 수신',
+    category: 'crm',
+    risk_level: 'high',
+    required_features: ['crm.contracts'],
+    affects_routes: '/api/contracts/esign,/api/webhooks/modusign',
+    affects_tables: 'esign_oauth_tokens,esign_events,contracts',
+    is_experimental: true,
+    default_enabled: false,
+  },
+  {
+    key: 'crm.payments',
+    name: '수금관리',
+    description: '수금 스케줄 · 실적 등록 · 미수금 관리 · 세금계산서 · 매출 대시보드 (SFR-011)',
+    category: 'crm',
+    risk_level: 'high',
+    required_features: [],
+    affects_routes: '/api/payments',
+    affects_tables: 'payment_schedules,payment_records,tax_invoices,payment_templates',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.revenue',
+    name: '매출관리',
+    description: '청구차수 · 매출 예정/확정(세금계산서 발행 시) · 매출 실적 집계 (P2)',
+    category: 'crm',
+    risk_level: 'high',
+    required_features: [],
+    affects_routes: '/api/revenue',
+    affects_tables: 'payment_schedules,tax_invoices',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.payments.tax_invoice',
+    name: '세금계산서 발행 (바로빌)',
+    description: '바로빌 API 연동 — 세금계산서 발행 요청 · 국세청 전송 · 취소 (Phase 2)',
+    category: 'integration',
+    risk_level: 'high',
+    required_features: ['crm.payments'],
+    affects_routes: '/api/payments/tax-invoices',
+    affects_tables: 'tax_invoices',
+    is_experimental: true,
+    default_enabled: false,
+  },
+  {
+    key: 'crm.quotes',
+    name: '견적서',
+    description: '견적서 작성/편집/리비전 + 자동 채번 + PDF 내보내기',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/quotes',
+    affects_tables: 'quotes,quote_items',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.search',
+    name: '글로벌 검색 (Cmd+K)',
+    description: '리드/고객/프로젝트/회의록/활동 통합 검색',
+    category: 'crm',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/search',
+    affects_tables: 'leads,customers,projects,meeting_minutes,activities',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'crm.notifications',
+    name: '알림 시스템',
+    description: '마감 초과/임박, 입찰 마감, 납기, 오늘 일정 자동 알림',
+    category: 'crm',
+    risk_level: 'high',
+    required_features: [],
+    affects_routes: '/api/notifications',
+    affects_tables: 'leads,projects,calendar_events',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'email.templates',
+    name: '이메일 템플릿 시스템',
+    description: '시스템 + 사용자 정의 템플릿, 변수 자동 치환 ({{my_company}} 등)',
+    category: 'crm',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/email-templates',
+    affects_tables: 'email_templates',
+    is_experimental: false,
+    default_enabled: true,
+  },
+
+  // ─── 🔌 외부 연동 ────────────────────────────────────────────
+  {
+    key: 'erp.integration',
+    name: 'ERP 연동 (OnERP/가온아이)',
+    description: '외부 ERP 시스템 데이터 동기화 (준비중)',
+    category: 'integration',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/products/erp',
+    affects_tables: 'products,cost_history',
+    is_experimental: true,
+    default_enabled: true,
+  },
+  {
+    key: 'webhook.system',
+    name: 'Webhook 시스템',
+    description: '외부 시스템 알림 발송 (Google Calendar/Gmail 동기화 webhook)',
+    category: 'integration',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '/api/webhooks',
+    affects_tables: 'webhooks',
+    is_experimental: false,
+    default_enabled: true,
+  },
+
+  // ─── 📊 데이터 처리 ─────────────────────────────────────────
+  {
+    key: 'data.excel_exp',
+    name: '엑셀 내보내기',
+    description: '테이블 데이터 Excel/CSV 파일 다운로드',
+    category: 'data',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'data.excel_imp',
+    name: '엑셀 가져오기',
+    description: 'Excel 파일로 데이터 일괄 등록',
+    category: 'data',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'data.bulk_paste',
+    name: 'Copy & Paste 일괄 등록',
+    description: '엑셀 복붙으로 빠른 데이터 등록',
+    category: 'data',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+
+  // ─── 📡 실시간 / PWA ────────────────────────────────────────
+  {
+    key: 'realtime.ws',
+    name: 'WebSocket 실시간 알림',
+    description: '리드 변경사항 + 공지사항 브라우저 푸시 알림',
+    category: 'realtime',
+    risk_level: 'medium',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'pwa.offline',
+    name: 'PWA 오프라인 회의록 녹음',
+    description: 'IndexedDB 큐 + 온라인 복귀 시 자동 동기화 (Service Worker)',
+    category: 'realtime',
+    risk_level: 'safe',
+    required_features: ['ai.meeting'],
+    affects_routes: '/sw.js',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+
+  // ─── 🌐 다국어 ──────────────────────────────────────────────
+  {
+    key: 'i18n.labels',
+    name: '다국어 라벨 시스템 (워드 사전)',
+    description: '한/영/일/중 4개 언어 라벨 + 관리자 커스터마이징',
+    category: 'data',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/labels,/api/admin/labels',
+    affects_tables: 'admin_labels,admin_label_audit',
+    is_experimental: false,
+    default_enabled: true,
+  },
+
+  // ─── 🛡️ 보안 정책 ──────────────────────────────────────────
+  {
+    key: 'security.rate_limit',
+    name: 'API Rate Limiting',
+    description: '분당 요청 수 제한으로 DDoS 방어 (300/15min)',
+    category: 'security',
+    risk_level: 'critical',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'security.csp',
+    name: 'Content Security Policy',
+    description: 'XSS 방어 CSP 헤더 적용 (Helmet)',
+    category: 'security',
+    risk_level: 'critical',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: '',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
+    key: 'security.encrypt',
+    name: '토큰/OTP 암호화 저장',
+    description: 'AES-256-GCM 기반 민감정보 암호화 (OAuth tokens, OTP secrets)',
+    category: 'security',
+    risk_level: 'critical',
+    required_features: [],
+    affects_routes: '',
+    affects_tables: 'users,google_oauth_tokens',
+    is_experimental: false,
+    default_enabled: true,
+  },
+
+  // ─── 🛠️ 개발자 도구 ─────────────────────────────────────────
+  {
+    key: 'dev.options',
+    name: '개발자 옵션 패널',
+    description: '이 화면 자체 (superadmin 전용 — 토글 OFF 시 본인 발 묶기 주의)',
+    category: 'dev',
+    risk_level: 'critical',
+    required_features: [],
+    affects_routes: '/api/admin/dev',
+    affects_tables: 'dev_features,dev_features_audit',
+    is_experimental: false,
+    default_enabled: true,
+  },
+];
+
+// 카테고리 메타데이터 (UI 그룹화용)
+const CATEGORY_META = {
+  ai: { label: '🤖 AI 기능', color: '#7C4DFF', display_order: 1 },
+  auth: { label: '🔐 인증 & 보안', color: '#E63329', display_order: 2 },
+  crm: { label: '📋 CRM 기능', color: '#1664E5', display_order: 3 },
+  integration: { label: '🔌 외부 연동', color: '#F59C00', display_order: 4 },
+  data: { label: '📊 데이터 처리', color: '#0F7A3F', display_order: 5 },
+  realtime: { label: '📡 실시간 / PWA', color: '#17A85A', display_order: 6 },
+  security: { label: '🛡️ 보안 정책', color: '#6B7280', display_order: 7 },
+  dev: { label: '🛠️ 개발자 도구', color: '#8B5CF6', display_order: 8 },
+};
+
+// 위험도 메타데이터 (UI 배지용)
+const RISK_LEVEL_META = {
+  safe: { label: '안전', color: '#0F7A3F', badge: '✅', confirm: false },
+  medium: { label: '주의', color: '#F59C00', badge: '⚠️', confirm: false },
+  high: { label: '높음', color: '#E63329', badge: '🔥', confirm: true },
+  critical: { label: '치명적', color: '#7C0000', badge: '⛔', confirm: true },
+};
+
+module.exports = {
+  FEATURE_REGISTRY,
+  CATEGORY_META,
+  RISK_LEVEL_META,
+};

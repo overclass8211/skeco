@@ -1,0 +1,427 @@
+/* ============================================================
+   Finger Sales AI CRM — 로그인 페이지
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --brand-dark:   #0a1628;
+  --brand-mid:    #0f2550;
+  --brand-blue:   #1a5bb8;
+  --accent:       #EA002C;
+  --accent-glow:  rgba(234, 0, 44, 0.4);
+  --brand-text:   #ffffff;
+  --form-bg:      #ffffff;
+  --form-text:    #1a1a2e;
+  --input-bg:     #f5f7fb;
+  --input-border: #dde3ef;
+  --input-focus:  #1a5bb8;
+  --muted:        #8892a4;
+  --radius:       12px;
+  --shadow:       0 20px 60px rgba(0,0,0,.15);
+}
+
+body {
+  font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  background: var(--brand-dark);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── 전체 레이아웃 ── */
+.login-wrapper {
+  display: flex;
+  height: 100vh;
+}
+
+/* ────────────────────────────────────────────────────────────
+   좌측 브랜딩 패널
+   ──────────────────────────────────────────────────────────── */
+.brand-panel {
+  position: relative;
+  width: 58%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-mid) 60%, #0d3a7a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 배경 애니메이션 */
+.brand-bg { position: absolute; inset: 0; pointer-events: none; }
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.18;
+  animation: float 8s ease-in-out infinite;
+}
+.orb-1 { width: 500px; height: 500px; background: #1a5bb8; top: -100px; left: -100px; animation-delay: 0s; }
+.orb-2 { width: 400px; height: 400px; background: var(--accent); bottom: -80px; right: -60px; animation-delay: 3s; }
+.orb-3 { width: 300px; height: 300px; background: #3788d8; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 1.5s; }
+
+@keyframes float {
+  0%,100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-30px) scale(1.05); }
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* 브랜드 콘텐츠 */
+.brand-content {
+  position: relative;
+  z-index: 1;
+  padding: 40px 56px;
+  max-width: 620px;
+  width: 100%;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 48px;
+}
+.logo-mark {
+  font-size: 32px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -1px;
+  background: var(--accent);
+  padding: 4px 14px;
+  border-radius: 6px;
+}
+.logo-label {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255,255,255,.75);
+  letter-spacing: 2px;
+}
+
+.brand-headline h1 {
+  font-size: 44px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin-bottom: 14px;
+}
+.hl-accent {
+  background: linear-gradient(90deg, #e63946, #ff8c42);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.brand-tagline {
+  font-size: 17px;
+  color: rgba(255,255,255,.65);
+  margin-bottom: 40px;
+}
+
+/* 후킹 메시지 */
+.hook-messages { display: flex; flex-direction: column; gap: 14px; margin-bottom: 40px; }
+.hook-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255,255,255,.75);
+  line-height: 1.5;
+}
+.hook-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+/* 통계 */
+.brand-stats {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: var(--radius);
+  backdrop-filter: blur(10px);
+  margin-bottom: 24px;
+}
+.stat-item { text-align: center; }
+.stat-num  { display: block; font-size: 22px; font-weight: 800; color: #fff; }
+.stat-label{ display: block; font-size: 11px; color: rgba(255,255,255,.5); margin-top: 2px; }
+.stat-divider { width: 1px; height: 32px; background: rgba(255,255,255,.15); }
+
+.brand-bottom {
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
+}
+
+/* ────────────────────────────────────────────────────────────
+   우측 폼 패널
+   ──────────────────────────────────────────────────────────── */
+.form-panel {
+  width: 42%;
+  background: var(--form-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 32px 24px;
+}
+
+.form-container {
+  width: 100%;
+  max-width: 380px;
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.form-logo-sm {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+  background: rgba(230,57,70,.08);
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+.form-header h2 {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--form-text);
+  margin-bottom: 6px;
+}
+.form-header p {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 로그인 탭 */
+.login-tabs {
+  display: flex;
+  background: var(--input-bg);
+  border-radius: var(--radius);
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+.ltab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .2s;
+}
+.ltab:hover { color: var(--form-text); }
+.ltab.active {
+  background: #fff;
+  color: var(--brand-blue);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  font-weight: 600;
+}
+
+/* 탭 패널 */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* 입력 필드 */
+.input-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+.input-wrap input {
+  width: 100%;
+  padding: 13px 14px 13px 42px;
+  background: var(--input-bg);
+  border: 1.5px solid var(--input-border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--form-text);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.input-wrap input:focus {
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px rgba(26,91,184,.12);
+}
+.input-ico {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+.btn-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+}
+
+/* 옵션 행 */
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+.chk-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--form-text);
+  cursor: pointer;
+}
+.chk-label input[type=checkbox] { accent-color: var(--brand-blue); width: 15px; height: 15px; }
+
+/* 로그인 버튼 */
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--brand-blue), #0f2550);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .2s, transform .1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-submit:hover  { opacity: .9; }
+.btn-submit:active { transform: scale(.99); }
+.btn-submit:disabled { opacity: .6; cursor: not-allowed; }
+
+/* 에러 */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff1f2;
+  border: 1px solid #ffc9cc;
+  color: #c0392b;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-top: 14px;
+}
+
+/* OTP */
+.otp-desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.otp-inputs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.otp-digit {
+  width: 46px;
+  height: 54px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  border: 1.5px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  outline: none;
+  transition: border-color .2s;
+}
+.otp-digit:focus { border-color: var(--brand-blue); }
+.btn-back {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+.btn-back:hover { color: var(--form-text); }
+
+/* 생체인식 */
+.bio-center { display: flex; flex-direction: column; align-items: center; padding: 16px 0; }
+.bio-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f0f4ff, #e8eeff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: var(--brand-blue);
+  cursor: pointer;
+  transition: transform .2s, box-shadow .2s;
+  margin-bottom: 16px;
+  border: 2px solid var(--input-border);
+}
+.bio-icon:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(26,91,184,.2); }
+.bio-icon.scanning {
+  animation: pulse-bio 1s ease-in-out infinite;
+  border-color: var(--brand-blue);
+}
+@keyframes pulse-bio {
+  0%,100% { box-shadow: 0 0 0 0 rgba(26,91,184,.4); }
+  50%      { box-shadow: 0 0 0 16px rgba(26,91,184,0); }
+}
+.bio-hint { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.6; margin-bottom: 8px; }
+.bio-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.6;
+  margin-top: 14px;
+  background: var(--input-bg);
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+/* 폼 하단 */
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── 반응형 ── */
+@media (max-width: 860px) {
+  .brand-panel { display: none; }
+  .form-panel  { width: 100%; }
+}
+@media (max-width: 480px) {
+  .form-panel { padding: 24px 16px; }
+}

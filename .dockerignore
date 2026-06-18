@@ -1,0 +1,17 @@
+node_modules
+.env
+.env.*
+!.env.example
+coverage
+.nyc_output
+.git
+.husky
+tests
+*.test.mjs
+*.md
+docker-compose*.yml
+Dockerfile
+.dockerignore
+server_out.txt
+server_err.txt
+public/uploads
