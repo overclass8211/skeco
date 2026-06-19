@@ -864,6 +864,57 @@ async function initTables() {
       INDEX idx_fvi_mat (customer_material_id, month)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // ── Phase 3: 사업장/담당자/샘플평가 ───────────────────────
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_sites (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id   INT          NOT NULL,
+      site_name     VARCHAR(120) NOT NULL,                 -- 사업장/Fab (예: 평택)
+      line          VARCHAR(120) DEFAULT NULL,             -- 라인 (예: P3)
+      process       VARCHAR(120) DEFAULT NULL,             -- 공정 (식각/증착/포토/세정)
+      region        VARCHAR(60)  DEFAULT NULL,
+      note          VARCHAR(500) DEFAULT NULL,
+      created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_cs_customer (customer_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_contacts (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id   INT          NOT NULL,
+      name          VARCHAR(80)  NOT NULL,
+      role          VARCHAR(30)  DEFAULT 'etc',            -- 구매/기술/품질/SCM/기타
+      dept          VARCHAR(120) DEFAULT NULL,
+      email         VARCHAR(160) DEFAULT NULL,
+      phone         VARCHAR(40)  DEFAULT NULL,
+      is_primary    TINYINT(1)   DEFAULT 0,
+      note          VARCHAR(500) DEFAULT NULL,
+      created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_cc_customer (customer_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    // 샘플 요청→발송→평가→승인 (qualification = status 로 표현)
+    await pool.query(`CREATE TABLE IF NOT EXISTS sample_requests (
+      id                  INT AUTO_INCREMENT PRIMARY KEY,
+      sample_no           VARCHAR(30)  NOT NULL UNIQUE,
+      customer_id         INT          NOT NULL,
+      customer_material_id INT         DEFAULT NULL,
+      requested_at        DATE         DEFAULT NULL,
+      purpose             VARCHAR(255) DEFAULT NULL,
+      lot_no              VARCHAR(60)  DEFAULT NULL,
+      sent_at             DATE         DEFAULT NULL,
+      qty                 DECIMAL(12,2) DEFAULT NULL,
+      unit                VARCHAR(10)  DEFAULT 'kg',
+      status              VARCHAR(20)  DEFAULT 'requested',  -- requested/sent/evaluating/passed/conditional/failed
+      result              VARCHAR(500) DEFAULT NULL,
+      owner_id            INT          DEFAULT NULL,
+      note                VARCHAR(500) DEFAULT NULL,
+      created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_sr_customer (customer_id),
+      INDEX idx_sr_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 사용자 인증 테이블 ──────────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS users (
       id               INT AUTO_INCREMENT PRIMARY KEY,

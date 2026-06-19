@@ -176,6 +176,8 @@ const Customer360Page = {
     this._custId = id;
     this._fcData = null;
     this._cmpVer = null;
+    this._samples = null;
+    this._quality = null;
     localStorage.setItem('c360_last', String(id));
     const body = document.getElementById('c360-body');
     if (body) body.innerHTML = `<div class="c360-empty">불러오는 중…</div>`;
@@ -245,6 +247,9 @@ const Customer360Page = {
         ${[
           ['lifecycle', '라이프사이클'],
           ['forecast', '포캐스트'],
+          ['samples', '샘플/평가'],
+          ['quality', '품질'],
+          ['org', '조직'],
           ['deals', '영업기회'],
           ['timeline', '활동'],
           ['brief', 'AI 브리핑'],
@@ -270,6 +275,9 @@ const Customer360Page = {
     const m = {
       lifecycle: () => this._tabLifecycle(),
       forecast: () => this._tabForecast(),
+      samples: () => this._tabSamples(),
+      quality: () => this._tabQuality(),
+      org: () => this._tabOrg(),
       deals: () => this._tabDeals(),
       timeline: () => this._tabTimeline(),
       brief: () => this._tabBrief(),
@@ -291,6 +299,15 @@ const Customer360Page = {
       if (!this._fcData) this._loadForecast();
       else this._bindForecast(el);
     }
+    if (this._tab === 'samples') {
+      if (!this._samples) this._loadSamples();
+      else this._bindSamples(el);
+    }
+    if (this._tab === 'quality') {
+      if (!this._quality) this._loadQuality();
+      else this._bindQuality(el);
+    }
+    if (this._tab === 'org') this._bindOrg(el);
     if (this._tab === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
       el.querySelectorAll('[data-edit-mat]').forEach(b =>
@@ -566,7 +583,8 @@ const Customer360Page = {
           <option value="">현재 (비교 안 함)</option>
           ${verOpts}
         </select>
-        <button class="btn btn-primary btn-sm" id="fc-snapshot" style="margin-left:auto">현재 스냅샷 저장</button>
+        <button class="btn btn-ghost btn-sm" id="fc-sync-capa" style="margin-left:auto" title="생산예측 모듈의 수량을 생산가능(CAPA)으로 반영">생산예측 연동(CAPA)</button>
+        <button class="btn btn-primary btn-sm" id="fc-snapshot">현재 스냅샷 저장</button>
       </div>
       <div class="c360-sec" style="margin-top:0">월별 합계 ${cmp ? `<span style="font-size:11px;color:var(--text-3);font-weight:500">· Δ고객 = 현재 − ${esc(this._cmpVer.version.label)}</span>` : ''}</div>
       <table class="data-table" style="font-size:12px">
@@ -581,6 +599,7 @@ const Customer360Page = {
   _bindForecast(scope) {
     const root = scope || document;
     root.querySelector('#fc-snapshot')?.addEventListener('click', () => this._saveSnapshot());
+    root.querySelector('#fc-sync-capa')?.addEventListener('click', () => this._syncCapa());
     root.querySelector('#fc-ver')?.addEventListener('change', e => this._onVersionChange(e.target.value));
     root.querySelectorAll('[data-fc-edit]').forEach(b =>
       b.addEventListener('click', () => {
@@ -589,6 +608,18 @@ const Customer360Page = {
         this._openForecastModal({ id: mat.id, material_name: mat.material_name, demand_unit: mat.unit });
       })
     );
+  },
+
+  async _syncCapa() {
+    try {
+      const res = await API.post(`/customer360/${this._custId}/forecast/sync-capa`, {});
+      Toast.success(`생산예측 연동 완료 — ${res.data.updated}건 CAPA 반영`);
+      this._fcData = null;
+      this._cmpVer = null;
+      await this._loadForecast();
+    } catch (_) {
+      /* Toast */
+    }
   },
 
   async _onVersionChange(vid) {
@@ -655,6 +686,380 @@ const Customer360Page = {
         },
       },
     });
+  },
+
+  // ── 샘플/평가 탭 ─────────────────────────────────────────
+  _SMP_STATUS: {
+    requested: '요청', sent: '발송', evaluating: '평가중', passed: '승인', conditional: '조건부', failed: '불합격',
+  },
+  _matOptions(selId) {
+    const mats = (this._data && this._data.lifecycle && this._data.lifecycle.materials) || [];
+    return (
+      '<option value="">(소재 미지정)</option>' +
+      mats
+        .map(m => `<option value="${m.id}" ${selId === m.id ? 'selected' : ''}>${esc(m.material_name)}</option>`)
+        .join('')
+    );
+  },
+  _tabSamples() {
+    if (!this._samples) return '<div id="c360-smp"><div class="c360-empty">불러오는 중…</div></div>';
+    return `<div id="c360-smp">${this._renderSamples()}</div>`;
+  },
+  async _loadSamples() {
+    try {
+      const res = await API.get(`/customer360/${this._custId}/samples`);
+      this._samples = res.data || [];
+    } catch (_) {
+      this._samples = [];
+    }
+    const host = document.getElementById('c360-smp');
+    if (host) {
+      host.innerHTML = this._renderSamples();
+      this._bindSamples(host.parentElement || document);
+    }
+  },
+  _renderSamples() {
+    const list = this._samples;
+    const table = list.length
+      ? `<table class="data-table" style="font-size:12px"><thead><tr>
+          <th>샘플번호</th><th>소재</th><th>목적</th><th>Lot</th><th>발송일</th><th>상태</th><th>결과</th><th></th>
+        </tr></thead><tbody>
+        ${list
+          .map(s => {
+            const st = this._SMP_STATUS[s.status] || s.status;
+            const cls = s.status === 'passed' ? 'pill-info' : s.status === 'failed' ? 'pill-danger' : s.status === 'conditional' ? 'pill-warn' : 'pill-mut';
+            return `<tr>
+            <td class="mono">${esc(s.sample_no)}</td>
+            <td>${esc(s.material_name ? s.material_name.split(' · ')[0] : '-')}</td>
+            <td>${esc(s.purpose || '-')}</td>
+            <td class="mono">${esc(s.lot_no || '-')}</td>
+            <td>${s.sent_at ? String(s.sent_at).slice(0, 10) : '-'}</td>
+            <td><span class="pill ${cls}">${esc(st)}</span></td>
+            <td>${esc(s.result || '-')}</td>
+            <td style="text-align:right"><button class="lc-mini" data-smp-edit="${s.id}">수정</button></td>
+          </tr>`;
+          })
+          .join('')}
+        </tbody></table>`
+      : '<div class="c360-empty">등록된 샘플 요청이 없습니다.</div>';
+    return `<div class="c360-sec" style="margin-top:0">샘플/평가 이력
+        <button class="btn btn-primary btn-sm btn-add" id="smp-add">+ 샘플 등록</button>
+      </div>${table}`;
+  },
+  _bindSamples(scope) {
+    const root = scope || document;
+    root.querySelector('#smp-add')?.addEventListener('click', () => this._openSampleModal(null));
+    root.querySelectorAll('[data-smp-edit]').forEach(b =>
+      b.addEventListener('click', () => this._openSampleModal(this._samples.find(s => s.id === Number(b.dataset.smpEdit))))
+    );
+  },
+  _openSampleModal(s) {
+    const stOpts = Object.entries(this._SMP_STATUS)
+      .map(([k, l]) => `<option value="${k}" ${s && s.status === k ? 'selected' : ''}>${l}</option>`)
+      .join('');
+    Modal.open({
+      title: s ? '샘플 수정' : '샘플 등록',
+      width: 520,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row"><label class="form-label">소재</label>
+            <select class="form-input" id="s-mat">${this._matOptions(s ? s.customer_material_id : null)}</select></div>
+          <div class="form-row"><label class="form-label">목적 *</label>
+            <input class="form-input" id="s-purpose" value="${s ? esc(s.purpose || '') : ''}" placeholder="고객 평가용 초도 샘플"></div>
+          <div class="form-row-3">
+            <div class="form-row"><label class="form-label">Lot No</label><input class="form-input" id="s-lot" value="${s ? esc(s.lot_no || '') : ''}"></div>
+            <div class="form-row"><label class="form-label">발송일</label><input class="form-input" id="s-sent" type="date" value="${s && s.sent_at ? String(s.sent_at).slice(0, 10) : ''}"></div>
+            <div class="form-row"><label class="form-label">상태</label><select class="form-input" id="s-status">${stOpts}</select></div>
+          </div>
+          <div class="form-row"><label class="form-label">결과/비고</label><input class="form-input" id="s-result" value="${s ? esc(s.result || '') : ''}"></div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="s-cancel">취소</button><button class="btn btn-primary" id="s-save">저장</button>`,
+      bind: { '#s-cancel': () => Modal.close(), '#s-save': () => this._saveSample(s) },
+    });
+  },
+  async _saveSample(s) {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const payload = {
+      customer_material_id: v('s-mat') || null,
+      purpose: v('s-purpose'),
+      lot_no: v('s-lot') || null,
+      sent_at: v('s-sent') || null,
+      status: v('s-status'),
+      result: v('s-result') || null,
+    };
+    if (!payload.purpose && !payload.customer_material_id) {
+      Toast.error('목적 또는 소재를 입력하세요');
+      return;
+    }
+    try {
+      if (s) await API.put(`/customer360/samples/${s.id}`, payload);
+      else await API.post(`/customer360/${this._custId}/samples`, payload);
+      Toast.success(s ? '샘플 수정 완료' : '샘플 등록 완료');
+      Modal.close();
+      this._samples = null;
+      await this._select(this._custId);
+      this._tab = 'samples';
+      this._renderTab();
+    } catch (_) {
+      /* Toast */
+    }
+  },
+
+  // ── 품질 탭 ───────────────────────────────────────────────
+  _Q_STATUS: { open: '미해결', in_progress: '처리중', resolved: '완료' },
+  _tabQuality() {
+    if (!this._quality) return '<div id="c360-q"><div class="c360-empty">불러오는 중…</div></div>';
+    return `<div id="c360-q">${this._renderQuality()}</div>`;
+  },
+  async _loadQuality() {
+    try {
+      const res = await API.get(`/customer360/${this._custId}/quality`);
+      this._quality = res.data || [];
+    } catch (_) {
+      this._quality = [];
+    }
+    const host = document.getElementById('c360-q');
+    if (host) {
+      host.innerHTML = this._renderQuality();
+      this._bindQuality(host.parentElement || document);
+    }
+  },
+  _renderQuality() {
+    const list = this._quality;
+    const table = list.length
+      ? `<table class="data-table" style="font-size:12px"><thead><tr>
+          <th>케이스</th><th>소재</th><th>유형</th><th>심각도</th><th>상태</th><th>제목</th><th>발생일</th><th></th>
+        </tr></thead><tbody>
+        ${list
+          .map(q => {
+            const sevCls = q.severity === 'high' ? 'pill-danger' : q.severity === 'medium' ? 'pill-warn' : 'pill-mut';
+            const stCls = q.status === 'resolved' ? 'pill-info' : q.status === 'in_progress' ? 'pill-warn' : 'pill-danger';
+            return `<tr>
+            <td class="mono">${esc(q.case_no)}</td>
+            <td>${esc(q.material_name ? q.material_name.split(' · ')[0] : '-')}</td>
+            <td>${esc(q.type)}</td>
+            <td><span class="pill ${sevCls}">${esc(q.severity)}</span></td>
+            <td><span class="pill ${stCls}">${esc(this._Q_STATUS[q.status] || q.status)}</span></td>
+            <td>${esc(q.title)}</td>
+            <td>${q.opened_at ? String(q.opened_at).slice(0, 10) : '-'}</td>
+            <td style="text-align:right"><button class="lc-mini" data-q-edit="${q.id}">수정</button></td>
+          </tr>`;
+          })
+          .join('')}
+        </tbody></table>`
+      : '<div class="c360-empty">등록된 품질 케이스가 없습니다.</div>';
+    return `<div class="c360-sec" style="margin-top:0">품질 케이스 (VOC/NCR/Audit)
+        <button class="btn btn-primary btn-sm btn-add" id="q-add">+ 케이스 등록</button>
+      </div>${table}`;
+  },
+  _bindQuality(scope) {
+    const root = scope || document;
+    root.querySelector('#q-add')?.addEventListener('click', () => this._openQualityModal(null));
+    root.querySelectorAll('[data-q-edit]').forEach(b =>
+      b.addEventListener('click', () => this._openQualityModal(this._quality.find(q => q.id === Number(b.dataset.qEdit))))
+    );
+  },
+  _openQualityModal(q) {
+    const sel = (cur, arr) => arr.map(o => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`).join('');
+    const stOpts = Object.entries(this._Q_STATUS)
+      .map(([k, l]) => `<option value="${k}" ${q && q.status === k ? 'selected' : ''}>${l}</option>`)
+      .join('');
+    Modal.open({
+      title: q ? '품질 케이스 수정' : '품질 케이스 등록',
+      width: 520,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row"><label class="form-label">제목 *</label>
+            <input class="form-input" id="q-title" value="${q ? esc(q.title) : ''}" placeholder="순도 편차 클레임"></div>
+          <div class="form-row"><label class="form-label">소재</label>
+            <select class="form-input" id="q-mat">${this._matOptions(q ? q.customer_material_id : null)}</select></div>
+          <div class="form-row-3">
+            <div class="form-row"><label class="form-label">유형</label><select class="form-input" id="q-type">${sel(q ? q.type : 'VOC', ['VOC', 'NCR', 'Audit', 'PCN', 'CoA'])}</select></div>
+            <div class="form-row"><label class="form-label">심각도</label><select class="form-input" id="q-sev">${sel(q ? q.severity : 'medium', ['high', 'medium', 'low'])}</select></div>
+            <div class="form-row"><label class="form-label">상태</label><select class="form-input" id="q-status">${stOpts}</select></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">발생일</label><input class="form-input" id="q-opened" type="date" value="${q && q.opened_at ? String(q.opened_at).slice(0, 10) : ''}"></div>
+            <div class="form-row"><label class="form-label">비고</label><input class="form-input" id="q-notes" value="${q ? esc(q.notes || '') : ''}"></div>
+          </div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="q-cancel">취소</button><button class="btn btn-primary" id="q-save">저장</button>`,
+      bind: { '#q-cancel': () => Modal.close(), '#q-save': () => this._saveQuality(q) },
+    });
+  },
+  async _saveQuality(q) {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const title = v('q-title');
+    if (!title) {
+      Toast.error('제목을 입력하세요');
+      return;
+    }
+    const payload = {
+      title,
+      customer_material_id: v('q-mat') || null,
+      type: v('q-type'),
+      severity: v('q-sev'),
+      status: v('q-status'),
+      opened_at: v('q-opened') || null,
+      notes: v('q-notes') || null,
+    };
+    try {
+      if (q) await API.put(`/customer360/quality/${q.id}`, payload);
+      else await API.post(`/customer360/${this._custId}/quality`, payload);
+      Toast.success(q ? '케이스 수정 완료' : '케이스 등록 완료');
+      Modal.close();
+      this._quality = null;
+      await this._select(this._custId);
+      this._tab = 'quality';
+      this._renderTab();
+    } catch (_) {
+      /* Toast */
+    }
+  },
+
+  // ── 조직 탭 (사업장 / 담당자) ────────────────────────────
+  _ROLES: ['구매', '기술', '품질', 'SCM', '기타'],
+  _tabOrg() {
+    const org = this._data.organization || { sites: [], contacts: [] };
+    const sites = org.sites.length
+      ? `<table class="data-table" style="font-size:12px"><thead><tr><th>사업장</th><th>라인</th><th>공정</th><th>지역</th><th></th></tr></thead><tbody>
+          ${org.sites
+            .map(s => `<tr><td><strong>${esc(s.site_name)}</strong></td><td>${esc(s.line || '-')}</td><td>${esc(s.process || '-')}</td><td>${esc(s.region || '-')}</td>
+              <td style="text-align:right"><button class="lc-mini" data-site-edit="${s.id}">수정</button><button class="lc-mini" data-site-del="${s.id}" style="color:var(--oci-red)">삭제</button></td></tr>`)
+            .join('')}
+        </tbody></table>`
+      : '<div class="c360-empty" style="padding:24px">등록된 사업장이 없습니다.</div>';
+    const contacts = org.contacts.length
+      ? `<table class="data-table" style="font-size:12px"><thead><tr><th>이름</th><th>역할</th><th>부서</th><th>이메일</th><th>연락처</th><th></th></tr></thead><tbody>
+          ${org.contacts
+            .map(c => `<tr><td><strong>${esc(c.name)}</strong>${c.is_primary ? ' <span class="pill pill-info">주</span>' : ''}</td><td>${esc(c.role || '-')}</td><td>${esc(c.dept || '-')}</td><td class="mono" style="font-size:11px">${esc(c.email || '-')}</td><td class="mono">${esc(c.phone || '-')}</td>
+              <td style="text-align:right"><button class="lc-mini" data-ct-edit="${c.id}">수정</button><button class="lc-mini" data-ct-del="${c.id}" style="color:var(--oci-red)">삭제</button></td></tr>`)
+            .join('')}
+        </tbody></table>`
+      : '<div class="c360-empty" style="padding:24px">등록된 담당자가 없습니다.</div>';
+    return `
+      <div class="c360-sec" style="margin-top:0">사업장 / Fab / 라인
+        <button class="btn btn-primary btn-sm btn-add" id="site-add">+ 사업장</button>
+      </div>${sites}
+      <div class="c360-sec">담당자 (구매/기술/품질/SCM)
+        <button class="btn btn-primary btn-sm btn-add" id="ct-add">+ 담당자</button>
+      </div>${contacts}`;
+  },
+  _bindOrg(scope) {
+    const root = scope || document;
+    const org = this._data.organization || { sites: [], contacts: [] };
+    root.querySelector('#site-add')?.addEventListener('click', () => this._openSiteModal(null));
+    root.querySelector('#ct-add')?.addEventListener('click', () => this._openContactModal(null));
+    root.querySelectorAll('[data-site-edit]').forEach(b =>
+      b.addEventListener('click', () => this._openSiteModal(org.sites.find(s => s.id === Number(b.dataset.siteEdit))))
+    );
+    root.querySelectorAll('[data-site-del]').forEach(b =>
+      b.addEventListener('click', () => this._deleteOrg('sites', Number(b.dataset.siteDel)))
+    );
+    root.querySelectorAll('[data-ct-edit]').forEach(b =>
+      b.addEventListener('click', () => this._openContactModal(org.contacts.find(c => c.id === Number(b.dataset.ctEdit))))
+    );
+    root.querySelectorAll('[data-ct-del]').forEach(b =>
+      b.addEventListener('click', () => this._deleteOrg('contacts', Number(b.dataset.ctDel)))
+    );
+  },
+  async _deleteOrg(kind, id) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    try {
+      await API.del(`/customer360/${kind}/${id}`);
+      Toast.success('삭제 완료');
+      await this._select(this._custId);
+      this._tab = 'org';
+      this._renderTab();
+    } catch (_) {
+      /* Toast */
+    }
+  },
+  _openSiteModal(s) {
+    Modal.open({
+      title: s ? '사업장 수정' : '사업장 추가',
+      width: 480,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row"><label class="form-label">사업장명 *</label><input class="form-input" id="st-name" value="${s ? esc(s.site_name) : ''}" placeholder="평택"></div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">라인</label><input class="form-input" id="st-line" value="${s ? esc(s.line || '') : ''}" placeholder="P3"></div>
+            <div class="form-row"><label class="form-label">공정</label><input class="form-input" id="st-proc" value="${s ? esc(s.process || '') : ''}" placeholder="식각/증착"></div>
+          </div>
+          <div class="form-row"><label class="form-label">지역</label><input class="form-input" id="st-region" value="${s ? esc(s.region || '') : ''}"></div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="st-cancel">취소</button><button class="btn btn-primary" id="st-save">저장</button>`,
+      bind: { '#st-cancel': () => Modal.close(), '#st-save': () => this._saveSite(s) },
+    });
+  },
+  async _saveSite(s) {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const name = v('st-name');
+    if (!name) {
+      Toast.error('사업장명을 입력하세요');
+      return;
+    }
+    const payload = { site_name: name, line: v('st-line') || null, process: v('st-proc') || null, region: v('st-region') || null };
+    try {
+      if (s) await API.put(`/customer360/sites/${s.id}`, payload);
+      else await API.post(`/customer360/${this._custId}/sites`, payload);
+      Toast.success('저장 완료');
+      Modal.close();
+      await this._select(this._custId);
+      this._tab = 'org';
+      this._renderTab();
+    } catch (_) {
+      /* Toast */
+    }
+  },
+  _openContactModal(c) {
+    const roleOpts = this._ROLES.map(r => `<option value="${r}" ${c && c.role === r ? 'selected' : ''}>${r}</option>`).join('');
+    Modal.open({
+      title: c ? '담당자 수정' : '담당자 추가',
+      width: 480,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">이름 *</label><input class="form-input" id="ct-name" value="${c ? esc(c.name) : ''}"></div>
+            <div class="form-row"><label class="form-label">역할</label><select class="form-input" id="ct-role">${roleOpts}</select></div>
+          </div>
+          <div class="form-row"><label class="form-label">부서</label><input class="form-input" id="ct-dept" value="${c ? esc(c.dept || '') : ''}"></div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">이메일</label><input class="form-input" id="ct-email" value="${c ? esc(c.email || '') : ''}"></div>
+            <div class="form-row"><label class="form-label">연락처</label><input class="form-input" id="ct-phone" value="${c ? esc(c.phone || '') : ''}"></div>
+          </div>
+          <label class="form-label" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ct-primary" ${c && c.is_primary ? 'checked' : ''}> 대표 담당자</label>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="ct-cancel">취소</button><button class="btn btn-primary" id="ct-save">저장</button>`,
+      bind: { '#ct-cancel': () => Modal.close(), '#ct-save': () => this._saveContact(c) },
+    });
+  },
+  async _saveContact(c) {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const name = v('ct-name');
+    if (!name) {
+      Toast.error('이름을 입력하세요');
+      return;
+    }
+    const payload = {
+      name,
+      role: v('ct-role'),
+      dept: v('ct-dept') || null,
+      email: v('ct-email') || null,
+      phone: v('ct-phone') || null,
+      is_primary: document.getElementById('ct-primary')?.checked ? 1 : 0,
+    };
+    try {
+      if (c) await API.put(`/customer360/contacts/${c.id}`, payload);
+      else await API.post(`/customer360/${this._custId}/contacts`, payload);
+      Toast.success('저장 완료');
+      Modal.close();
+      await this._select(this._custId);
+      this._tab = 'org';
+      this._renderTab();
+    } catch (_) {
+      /* Toast */
+    }
   },
 
   // ── 편집 모달 ─────────────────────────────────────────────

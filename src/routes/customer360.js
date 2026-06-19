@@ -329,6 +329,18 @@ router.get('/:id', validateId, async (req, res) => {
     const openQ = lifecycle.quality.filter(q => q.status !== 'resolved').length;
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
 
+    // ── 조직: 사업장 + 담당자 ──
+    const [orgSites, orgContacts] = await Promise.all([
+      pool
+        .query('SELECT * FROM customer_sites WHERE customer_id=? ORDER BY id', [id])
+        .then(r => r[0]),
+      pool
+        .query('SELECT * FROM customer_contacts WHERE customer_id=? ORDER BY is_primary DESC, id', [
+          id,
+        ])
+        .then(r => r[0]),
+    ]);
+
     res.json({
       success: true,
       data: {
@@ -375,6 +387,7 @@ router.get('/:id', validateId, async (req, res) => {
         pipeline,
         timeline,
         lifecycle,
+        organization: { sites: orgSites, contacts: orgContacts },
         brief: brief
           ? {
               headline: brief.headline || '',
@@ -789,6 +802,41 @@ router.post('/:id/forecast/versions', requireLevel(1), validateId, async (req, r
   }
 });
 
+// 생산예측(productionForecasts) → demand_forecasts.production_capacity 동기화
+//   소재명(material_name == production_forecasts.product_name) 1:1 매칭, 월별 CAPA 반영.
+router.post('/:id/forecast/sync-capa', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    const [mats] = await pool.query(
+      `SELECT id, material_name, demand_unit FROM customer_materials WHERE customer_id=?`,
+      [customerId]
+    );
+    const matByName = new Map(mats.map(m => [m.material_name, m]));
+    const [pfs] = await pool.query(
+      `SELECT product_name, period, forecast_qty, unit FROM production_forecasts
+         WHERE customer_id=? AND status<>'취소' AND period IN (?)`,
+      [customerId, FORECAST_MONTHS]
+    );
+    let updated = 0;
+    for (const pf of pfs) {
+      const mat = matByName.get(pf.product_name);
+      if (!mat) continue;
+      await pool.query(
+        `INSERT INTO demand_forecasts
+           (customer_material_id, customer_id, month, customer_forecast, internal_forecast,
+            production_capacity, unit)
+         VALUES (?,?,?,0,0,?,?)
+         ON DUPLICATE KEY UPDATE production_capacity=VALUES(production_capacity)`,
+        [mat.id, customerId, pf.period, pf.forecast_qty, pf.unit || mat.demand_unit || 'kg']
+      );
+      updated += 1;
+    }
+    res.json({ success: true, data: { updated, source: 'production_forecasts' } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // 특정 버전의 월별 합계 (비교용)
 router.get('/forecast/versions/:vid', async (req, res) => {
   try {
@@ -824,6 +872,282 @@ router.get('/forecast/versions/:vid', async (req, res) => {
         totals,
       },
     });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── Phase 3: 샘플/평가 ───────────────────────────────────────
+const SAMPLE_STATUS = ['requested', 'sent', 'evaluating', 'passed', 'conditional', 'failed'];
+
+router.get('/:id/samples', validateId, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT s.*, m.material_name FROM sample_requests s
+         LEFT JOIN customer_materials m ON m.id = s.customer_material_id
+        WHERE s.customer_id=? ORDER BY s.requested_at DESC, s.id DESC`,
+      [req.params.id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/:id/samples', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.purpose && !b.customer_material_id)
+      return res.status(400).json({ success: false, error: 'purpose 또는 소재 필수' });
+    const sampleNo = b.sample_no || `SMP-${Date.now().toString().slice(-9)}`;
+    const status = SAMPLE_STATUS.includes(b.status) ? b.status : 'requested';
+    const [r] = await pool.query(
+      `INSERT INTO sample_requests
+         (sample_no, customer_id, customer_material_id, requested_at, purpose, lot_no,
+          sent_at, qty, unit, status, result, owner_id, note)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        sampleNo,
+        req.params.id,
+        b.customer_material_id || null,
+        b.requested_at || null,
+        b.purpose || null,
+        b.lot_no || null,
+        b.sent_at || null,
+        b.qty ?? null,
+        b.unit || 'kg',
+        status,
+        b.result || null,
+        getUserId(req),
+        b.note || null,
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId, sample_no: sampleNo } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/samples/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const allow = [
+      'customer_material_id',
+      'requested_at',
+      'purpose',
+      'lot_no',
+      'sent_at',
+      'qty',
+      'unit',
+      'status',
+      'result',
+      'note',
+    ];
+    const fields = [];
+    const vals = [];
+    for (const k of allow) {
+      if (b[k] === undefined) continue;
+      if (k === 'status' && !SAMPLE_STATUS.includes(b[k])) continue;
+      fields.push(`${k}=?`);
+      vals.push(b[k] === '' ? null : b[k]);
+    }
+    if (!fields.length) return res.status(400).json({ success: false, error: '수정할 필드 없음' });
+    vals.push(req.params.id);
+    const [r] = await pool.query(
+      `UPDATE sample_requests SET ${fields.join(', ')} WHERE id=?`,
+      vals
+    );
+    if (!r.affectedRows) return res.status(404).json({ success: false, error: '샘플 없음' });
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── Phase 3: 품질 케이스 관리 ────────────────────────────────
+const QUALITY_TYPES = ['VOC', 'NCR', 'Audit', 'PCN', 'CoA'];
+const QUALITY_STATUS = ['open', 'in_progress', 'resolved'];
+
+router.get('/:id/quality', validateId, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT q.*, m.material_name FROM quality_cases q
+         LEFT JOIN customer_materials m ON m.id = q.customer_material_id
+        WHERE q.customer_id=? ORDER BY FIELD(q.status,'open','in_progress','resolved'), q.opened_at DESC, q.id DESC`,
+      [req.params.id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/:id/quality', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.title) return res.status(400).json({ success: false, error: 'title 필수' });
+    const caseNo = b.case_no || `Q-${Date.now().toString().slice(-9)}`;
+    const type = QUALITY_TYPES.includes(b.type) ? b.type : 'VOC';
+    const status = QUALITY_STATUS.includes(b.status) ? b.status : 'open';
+    const [r] = await pool.query(
+      `INSERT INTO quality_cases
+         (case_no, customer_id, customer_material_id, type, severity, status, title, opened_at, owner_id, notes)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [
+        caseNo,
+        req.params.id,
+        b.customer_material_id || null,
+        type,
+        b.severity || 'medium',
+        status,
+        b.title,
+        b.opened_at || null,
+        getUserId(req),
+        b.notes || null,
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId, case_no: caseNo } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/quality/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const allow = [
+      'customer_material_id',
+      'type',
+      'severity',
+      'status',
+      'title',
+      'opened_at',
+      'resolved_at',
+      'notes',
+    ];
+    const fields = [];
+    const vals = [];
+    for (const k of allow) {
+      if (b[k] === undefined) continue;
+      if (k === 'type' && !QUALITY_TYPES.includes(b[k])) continue;
+      if (k === 'status' && !QUALITY_STATUS.includes(b[k])) continue;
+      fields.push(`${k}=?`);
+      vals.push(b[k] === '' ? null : b[k]);
+    }
+    if (!fields.length) return res.status(400).json({ success: false, error: '수정할 필드 없음' });
+    vals.push(req.params.id);
+    const [r] = await pool.query(`UPDATE quality_cases SET ${fields.join(', ')} WHERE id=?`, vals);
+    if (!r.affectedRows) return res.status(404).json({ success: false, error: '품질 케이스 없음' });
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── Phase 3: 사업장 / 담당자 CRUD ────────────────────────────
+router.post('/:id/sites', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.site_name) return res.status(400).json({ success: false, error: 'site_name 필수' });
+    const [r] = await pool.query(
+      `INSERT INTO customer_sites (customer_id, site_name, line, process, region, note) VALUES (?,?,?,?,?,?)`,
+      [
+        req.params.id,
+        b.site_name,
+        b.line || null,
+        b.process || null,
+        b.region || null,
+        b.note || null,
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/sites/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const allow = ['site_name', 'line', 'process', 'region', 'note'];
+    const fields = [];
+    const vals = [];
+    for (const k of allow) {
+      if (b[k] === undefined) continue;
+      fields.push(`${k}=?`);
+      vals.push(b[k] === '' ? null : b[k]);
+    }
+    if (!fields.length) return res.status(400).json({ success: false, error: '수정할 필드 없음' });
+    vals.push(req.params.id);
+    const [r] = await pool.query(`UPDATE customer_sites SET ${fields.join(', ')} WHERE id=?`, vals);
+    if (!r.affectedRows) return res.status(404).json({ success: false, error: '사업장 없음' });
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.delete('/sites/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM customer_sites WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/:id/contacts', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.name) return res.status(400).json({ success: false, error: 'name 필수' });
+    const [r] = await pool.query(
+      `INSERT INTO customer_contacts (customer_id, name, role, dept, email, phone, is_primary, note)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        req.params.id,
+        b.name,
+        b.role || 'etc',
+        b.dept || null,
+        b.email || null,
+        b.phone || null,
+        b.is_primary ? 1 : 0,
+        b.note || null,
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/contacts/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const allow = ['name', 'role', 'dept', 'email', 'phone', 'is_primary', 'note'];
+    const fields = [];
+    const vals = [];
+    for (const k of allow) {
+      if (b[k] === undefined) continue;
+      fields.push(`${k}=?`);
+      vals.push(k === 'is_primary' ? (b[k] ? 1 : 0) : b[k] === '' ? null : b[k]);
+    }
+    if (!fields.length) return res.status(400).json({ success: false, error: '수정할 필드 없음' });
+    vals.push(req.params.id);
+    const [r] = await pool.query(
+      `UPDATE customer_contacts SET ${fields.join(', ')} WHERE id=?`,
+      vals
+    );
+    if (!r.affectedRows) return res.status(404).json({ success: false, error: '담당자 없음' });
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.delete('/contacts/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM customer_contacts WHERE id=?', [req.params.id]);
+    res.json({ success: true });
   } catch (err) {
     handleError(res, err);
   }

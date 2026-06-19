@@ -171,11 +171,98 @@ async function maybeQuality(conn, lead, matId, idx) {
       counts.versions += 1;
     }
 
+    // ── Phase 3: 사업장/담당자/샘플 (멱등) ──
+    counts.sites = 0;
+    counts.contacts = 0;
+    counts.samples = 0;
+    const CONTACT_ROLES = [
+      { role: '구매', dept: '구매팀', primary: 1 },
+      { role: '기술', dept: '공정기술팀', primary: 0 },
+      { role: '품질', dept: '품질보증팀', primary: 0 },
+    ];
+    for (const { customer_id } of custWithMat) {
+      const [[cinfo]] = await conn.query('SELECT name, region FROM customers WHERE id=?', [customer_id]);
+      if (!cinfo) continue;
+      const [[sc]] = await conn.query('SELECT COUNT(*) AS n FROM customer_sites WHERE customer_id=?', [customer_id]);
+      if (sc.n === 0) {
+        const site = cinfo.region === '해외' ? 'Main Fab' : '평택 사업장';
+        await conn.query(
+          `INSERT INTO customer_sites (customer_id, site_name, line, process, region) VALUES (?,?,?,?,?)`,
+          [customer_id, site, 'Line-1', '식각/증착', cinfo.region || null]
+        );
+        counts.sites += 1;
+      }
+      const [[cc]] = await conn.query('SELECT COUNT(*) AS n FROM customer_contacts WHERE customer_id=?', [customer_id]);
+      if (cc.n === 0) {
+        for (const r of CONTACT_ROLES) {
+          await conn.query(
+            `INSERT INTO customer_contacts (customer_id, name, role, dept, is_primary) VALUES (?,?,?,?,?)`,
+            [customer_id, `${cinfo.name} ${r.role}담당`, r.role, r.dept, r.primary]
+          );
+          counts.contacts += 1;
+        }
+      }
+    }
+    // 샘플: 샘플/평가/Spec-in 단계 소재
+    const [evalMats] = await conn.query(
+      `SELECT id, customer_id, material_name, lifecycle_stage, demand_unit
+         FROM customer_materials WHERE lifecycle_stage IN ('sample','evaluation','specin')`
+    );
+    const SMP_STATUS = { sample: 'sent', evaluation: 'evaluating', specin: 'passed' };
+    for (const m of evalMats) {
+      const sampleNo = `SMP-M${m.id}`;
+      const [[ex]] = await conn.query('SELECT COUNT(*) AS n FROM sample_requests WHERE sample_no=?', [sampleNo]);
+      if (ex.n > 0) continue;
+      await conn.query(
+        `INSERT INTO sample_requests
+           (sample_no, customer_id, customer_material_id, requested_at, purpose, lot_no,
+            sent_at, qty, unit, status, result)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          sampleNo, m.customer_id, m.id, '2026-05-20', `${m.material_name.split(' · ')[0]} 고객 평가용`,
+          `L2026${String(m.id).padStart(4, '0')}`, '2026-05-25', 5, m.demand_unit || 'kg',
+          SMP_STATUS[m.lifecycle_stage] || 'requested',
+          m.lifecycle_stage === 'specin' ? 'Spec-in 승인' : m.lifecycle_stage === 'evaluation' ? '평가 진행중' : '발송 완료',
+        ]
+      );
+      counts.samples += 1;
+    }
+
+    // ── 2번 연계용: 생산예측(production_forecasts) 데모 (소재명 1:1, 멱등) ──
+    counts.prodForecasts = 0;
+    const [allMats] = await conn.query(
+      `SELECT m.id, m.customer_id, c.name AS customer_name, m.material_name, m.business_type,
+              m.monthly_demand, m.demand_unit
+         FROM customer_materials m JOIN customers c ON c.id = m.customer_id
+        WHERE m.status<>'closed'`
+    );
+    for (const m of allMats) {
+      for (let i = 0; i < MONTHS.length; i++) {
+        const period = MONTHS[i];
+        const [[ex]] = await conn.query(
+          `SELECT COUNT(*) AS n FROM production_forecasts WHERE customer_id=? AND product_name=? AND period=?`,
+          [m.customer_id, m.material_name, period]
+        );
+        if (ex.n > 0) continue;
+        // 생산계획 수량(실제 생산 가능량 관점): 수요 대비 약간 변동
+        const qty = Math.round((Number(m.monthly_demand) || 1000) * (1 + i * 0.08));
+        await conn.query(
+          `INSERT INTO production_forecasts
+             (customer_id, customer_name, product_name, business_type, period, forecast_qty, unit, status)
+           VALUES (?,?,?,?,?,?,?, '예측')`,
+          [m.customer_id, m.customer_name, m.material_name, m.business_type, period, qty, m.demand_unit || 'kg']
+        );
+        counts.prodForecasts += 1;
+      }
+    }
+
     console.log('\n✅ 시드 완료(멱등):');
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
     console.log(`  · 품질이슈(quality_cases): ${counts.quality}`);
     console.log(`  · 기준 포캐스트 버전: ${counts.versions} 신규`);
+    console.log(`  · 사업장: ${counts.sites} · 담당자: ${counts.contacts} · 샘플: ${counts.samples} 신규`);
+    console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');
     console.log(`  · 현재 총 소재: ${m.n}`);
   } catch (e) {

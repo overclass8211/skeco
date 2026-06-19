@@ -37,6 +37,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (custId) {
+    await pool.query('DELETE FROM customer_sites WHERE customer_id=?', [custId]);
+    await pool.query('DELETE FROM customer_contacts WHERE customer_id=?', [custId]);
+    await pool.query('DELETE FROM sample_requests WHERE customer_id=?', [custId]);
+    await pool.query('DELETE FROM quality_cases WHERE customer_id=?', [custId]);
     const [vs] = await pool.query('SELECT id FROM forecast_versions WHERE customer_id=?', [custId]);
     for (const v of vs) await pool.query('DELETE FROM forecast_version_items WHERE version_id=?', [v.id]);
     await pool.query('DELETE FROM forecast_versions WHERE customer_id=?', [custId]);
@@ -177,5 +181,68 @@ describe('Customer360 (MVP) API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.version.label).toBe('__C360_VER__');
     expect(res.body.data.totals['2026-07'].customer).toBe(100);
+  });
+
+  // ── Phase 3: 조직 / 샘플 / 품질 ──
+  it('사업장 CRUD + /:id organization 반영', async () => {
+    const cr = await api().post(`/api/customer360/${custId}/sites`).set('X-User-Id', '1').send({ site_name: '__SITE__', line: 'P3', process: '식각' });
+    expect(cr.status).toBe(200);
+    const sid = cr.body.data.id;
+    const det = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    expect(det.body.data.organization.sites.some(s => s.id === sid)).toBe(true);
+    const up = await api().put(`/api/customer360/sites/${sid}`).set('X-User-Id', '1').send({ line: 'P4' });
+    expect(up.status).toBe(200);
+    const del = await api().delete(`/api/customer360/sites/${sid}`).set('X-User-Id', '1');
+    expect(del.status).toBe(200);
+  });
+
+  it('담당자 생성 + organization 반영', async () => {
+    const cr = await api().post(`/api/customer360/${custId}/contacts`).set('X-User-Id', '1').send({ name: '__CONTACT__', role: '구매', is_primary: 1 });
+    expect(cr.status).toBe(200);
+    const det = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    const c = det.body.data.organization.contacts.find(x => x.id === cr.body.data.id);
+    expect(c).toBeTruthy();
+    expect(c.is_primary).toBe(1);
+    await pool.query('DELETE FROM customer_contacts WHERE id=?', [cr.body.data.id]);
+  });
+
+  it('샘플 생성/수정 + GET /:id/samples', async () => {
+    const cr = await api().post(`/api/customer360/${custId}/samples`).set('X-User-Id', '1').send({ customer_material_id: matId, purpose: '평가용', status: 'sent' });
+    expect(cr.status).toBe(200);
+    const list = await api().get(`/api/customer360/${custId}/samples`).set('X-User-Id', '1');
+    expect(list.body.data.some(s => s.id === cr.body.data.id)).toBe(true);
+    const up = await api().put(`/api/customer360/samples/${cr.body.data.id}`).set('X-User-Id', '1').send({ status: 'passed', result: 'Spec-in' });
+    expect(up.status).toBe(200);
+    const [[row]] = await pool.query('SELECT status FROM sample_requests WHERE id=?', [cr.body.data.id]);
+    expect(row.status).toBe('passed');
+    await pool.query('DELETE FROM sample_requests WHERE id=?', [cr.body.data.id]);
+  });
+
+  it('POST /:id/forecast/sync-capa — 생산예측 → CAPA 반영', async () => {
+    // 소재명과 동일 product_name 의 생산예측 1건 (forecast_qty 333)
+    const [pf] = await pool.query(
+      `INSERT INTO production_forecasts (customer_id, customer_name, product_name, business_type, period, forecast_qty, unit, status)
+       VALUES (?, '__C360MVP_T__', '__C360_MAT__', '식각가스', '2026-07', 333, 'kg', '예측')`,
+      [custId]
+    );
+    const res = await api().post(`/api/customer360/${custId}/forecast/sync-capa`).set('X-User-Id', '1').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.data.updated).toBeGreaterThanOrEqual(1);
+    const [[row]] = await pool.query(
+      'SELECT production_capacity FROM demand_forecasts WHERE customer_material_id=? AND month=?',
+      [matId, '2026-07']
+    );
+    expect(Number(row.production_capacity)).toBe(333);
+    await pool.query('DELETE FROM production_forecasts WHERE id=?', [pf.insertId]);
+  });
+
+  it('품질 케이스 생성 + GET /:id/quality + 필수값', async () => {
+    const bad = await api().post(`/api/customer360/${custId}/quality`).set('X-User-Id', '1').send({ type: 'VOC' });
+    expect(bad.status).toBe(400);
+    const cr = await api().post(`/api/customer360/${custId}/quality`).set('X-User-Id', '1').send({ title: '__QCASE__', type: 'NCR', severity: 'high' });
+    expect(cr.status).toBe(200);
+    const list = await api().get(`/api/customer360/${custId}/quality`).set('X-User-Id', '1');
+    expect(list.body.data.some(q => q.id === cr.body.data.id)).toBe(true);
+    await pool.query('DELETE FROM quality_cases WHERE id=?', [cr.body.data.id]);
   });
 });
