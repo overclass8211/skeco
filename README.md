@@ -3,7 +3,7 @@
 > **SK에코플랜트 머티리얼즈** 영업 조직을 위한 통합 CRM + AI 어시스턴트 풀스택 웹 애플리케이션
 > Node.js + Express + MariaDB + Vanilla JS SPA + PWA
 >
-> 본 프로젝트는 **OCI CRM 소스를 포크**하여 SK에코플랜트 머티리얼즈 고객사에 맞게
+> 본 프로젝트는SK에코플랜트 머티리얼즈 고객사에 맞게
 > 커스터마이징한 별도 인스턴스입니다. (1차 목표: 데모/PoC)
 > 커스터마이징 방향·진행 현황은 **[📗 docs/SK_CUSTOMIZATION_GUIDE.md](./docs/SK_CUSTOMIZATION_GUIDE.md)** 참고.
 
