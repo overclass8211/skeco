@@ -61,26 +61,26 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('고객사 모달 — 360뷰 탭에 통합 집계 + 타임라인 표시', async ({ page }) => {
+test('고객사 분할 상세 — 360뷰 서브탭에 통합 집계 + 타임라인 표시', async ({ page }) => {
   await page.goto('/#customers');
   await page.waitForSelector('#cust-search', { timeout: 15000 });
 
-  // 목록 로드(mock) 완료 대기 후 모달 직접 오픈 (행 클릭보다 안정적)
+  // 목록 로드(mock) 완료 대기 후 분할 상세 직접 오픈 (행 클릭보다 안정적)
   await page.waitForFunction(
     () => typeof CustomersPage !== 'undefined' && CustomersPage.data && CustomersPage.data.length > 0,
     { timeout: 10000 }
   );
-  await page.evaluate(id => CustomersPage.showCustomerModal(id), CID);
+  await page.evaluate(id => CustomersPage.showCustomerDetail(id), CID);
 
-  // 360뷰 탭 버튼 표시 확인 → JS 클릭으로 전환 (다른 로더 토스트 간섭 회피)
-  const tab = page.locator('.cust-mtab[data-mtab="view360"]');
+  // 관련 딜 > 360뷰 서브탭 클릭 (분할 상세 우측 패널)
+  const tab = page.locator('.cust-subtab[data-sub="view360"]');
   await expect(tab).toBeVisible({ timeout: 5000 });
   await page.evaluate(() =>
-    document.querySelector('.cust-mtab[data-mtab="view360"]').click()
+    document.querySelector('.cust-subtab[data-sub="view360"]').click()
   );
 
   // 360뷰 콘텐츠 — KPI 요약 + 파이프라인 + 타임라인
-  const wrap = page.locator('#cm-tab-view360');
+  const wrap = page.locator('#c360-customer');
   await expect(wrap).toContainText('진행 딜', { timeout: 5000 });
   await expect(wrap).toContainText('영업 파이프라인 분포');
   await expect(wrap).toContainText('최근 통합 타임라인');
