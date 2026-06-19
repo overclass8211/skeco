@@ -1022,7 +1022,7 @@ const CustomersPage = {
             <div class="form-row">
               <label class="form-label">주소</label>
               <div style="display:flex;gap:6px">
-                <input class="form-input" name="address" id="cm-addr-input" value="${esc(cust.address || '')}" style="flex:1" placeholder="주소 검색 버튼을 눌러 검색하세요">
+                <input class="form-input" name="address" id="cm-addr-input" value="${esc(cust.address || '')}" readonly style="flex:1;cursor:pointer;background:var(--surface)" placeholder="클릭하면 주소 검색이 열립니다" title="클릭하여 주소 검색">
                 <button type="button" class="btn btn-ghost btn-sm" id="cm-addr-search" style="white-space:nowrap">주소 검색</button>
               </div>
             </div>
@@ -1155,6 +1155,8 @@ const CustomersPage = {
 
     // ── 주소 검색 + 지도 + Gmail + 기능플래그(서브탭 숨김) ──
     document.getElementById('cm-addr-search').addEventListener('click', () => this._openPostcodeSearch());
+    // 주소 입력란 클릭 시 주소검색 자동 활성화 (readonly → 클릭=검색)
+    document.getElementById('cm-addr-input')?.addEventListener('click', () => this._openPostcodeSearch());
     this._initKakaoMap(cust.address);
     this._loadGmailForCustomer(id);
     if (typeof Features !== 'undefined' && Features.apply) Features.apply();

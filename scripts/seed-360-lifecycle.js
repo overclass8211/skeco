@@ -346,6 +346,38 @@ async function maybeQuality(conn, lead, matId, idx) {
       }
     }
 
+    // ── 고객사 국내 임의 주소 채우기 (주소 없는 회사만, 동일사명 동일 주소) ──
+    counts.address = 0;
+    const ADDR_POOL = [
+      '경기 평택시 진위면 갈곶리 678',
+      '경기 화성시 반월동 산 16',
+      '경기 용인시 기흥구 농서로 1',
+      '경기 이천시 부발읍 경충대로 2091',
+      '충북 청주시 흥덕구 옥산면 과학산업3로 92',
+      '충남 천안시 서북구 성환읍 연암율금로 21',
+      '경기 파주시 월롱면 엘지로 245',
+      '경북 구미시 1공단로 197',
+      '경기 성남시 분당구 판교로 256번길 25',
+      '서울 강남구 테헤란로 521',
+      '경기 안성시 원곡면 섬바위길 84',
+      '대전 유성구 가정로 218',
+    ];
+    const [addrCos] = await conn.query(
+      `SELECT name FROM customers GROUP BY name
+        HAVING SUM(CASE WHEN address IS NULL OR address='' THEN 1 ELSE 0 END) > 0
+        ORDER BY MIN(id)`
+    );
+    let ai = 0;
+    for (const co of addrCos) {
+      const addr = ADDR_POOL[ai % ADDR_POOL.length];
+      const [r] = await conn.query(
+        `UPDATE customers SET address=? WHERE name=? AND (address IS NULL OR address='')`,
+        [addr, co.name]
+      );
+      counts.address += r.affectedRows;
+      ai += 1;
+    }
+
     console.log('\n✅ 시드 완료(멱등):');
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
@@ -356,6 +388,7 @@ async function maybeQuality(conn, lead, matId, idx) {
     console.log(`  · 수금 스케줄(payment_schedules): ${counts.payments} 신규`);
     console.log(`  · 품질 문서(quality_documents): ${counts.docs} 신규`);
     console.log(`  · 소속 고객(동일사명 담당자): ${counts.members} 신규`);
+    console.log(`  · 국내 주소 채움: ${counts.address} 행`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');
     console.log(`  · 현재 총 소재: ${m.n}`);
   } catch (e) {
