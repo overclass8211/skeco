@@ -1436,12 +1436,12 @@ const CustomersPage = {
         return;
       }
       const stageMap = {
-        lead: '리드',
-        review: '검토',
-        proposal: '제안',
-        bidding: '입찰',
-        negotiation: '협상',
-        won: '수주',
+        lead: '발굴',
+        review: '샘플 평가',
+        proposal: 'Spec-in',
+        bidding: '가격 협의',
+        negotiation: '공급계약',
+        won: '양산/수주',
         lost: '실주',
         dropped: '드롭',
       };

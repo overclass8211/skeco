@@ -102,12 +102,12 @@ const Fmt = {
 // 초기값(fallback) — 서버 부팅 직후 fetch 실패 또는 응답 전 화면용
 // 실제 정의는 GET /api/pipeline/stages 에서 동적으로 갱신됨
 const STAGES = {
-  lead: { label: '리드 발굴', color: '#93B4F9', role: 'active', sort_order: 10 },
-  review: { label: '검토/미팅', color: '#5585F5', role: 'active', sort_order: 20 },
-  proposal: { label: '제안/견적', color: '#2357E8', role: 'active', sort_order: 30 },
-  bidding: { label: '입찰', color: '#F59C00', role: 'active', sort_order: 40 },
-  negotiation: { label: '협상/계약', color: '#17A85A', role: 'active', sort_order: 50 },
-  won: { label: '수주 완료', color: '#0F7A3F', role: 'won', sort_order: 90 },
+  lead: { label: '발굴/니즈파악', color: '#93B4F9', role: 'active', sort_order: 10 },
+  review: { label: '샘플 평가', color: '#5585F5', role: 'active', sort_order: 20 },
+  proposal: { label: 'Spec-in/승인', color: '#2357E8', role: 'active', sort_order: 30 },
+  bidding: { label: '가격 협의', color: '#F59C00', role: 'active', sort_order: 40 },
+  negotiation: { label: '공급계약', color: '#17A85A', role: 'active', sort_order: 50 },
+  won: { label: '양산/정기수주', color: '#0F7A3F', role: 'won', sort_order: 90 },
   lost: { label: '실주', color: '#6B7280', role: 'lost', sort_order: 95 },
   dropped: { label: '드롭', color: '#E63329', role: 'dropped', sort_order: 99 },
 };

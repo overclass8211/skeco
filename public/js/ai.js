@@ -641,12 +641,12 @@ const Notifications = {
 
           // 단계변경: "프로젝트명 → 변경된단계" 형태로 표시
           const STAGE_LABELS = {
-            lead: '리드발굴',
-            review: '검토',
-            proposal: '제안',
-            bidding: '입찰',
-            negotiation: '협상',
-            won: '수주',
+            lead: '발굴',
+            review: '샘플 평가',
+            proposal: 'Spec-in',
+            bidding: '가격 협의',
+            negotiation: '공급계약',
+            won: '양산/수주',
             dropped: '드롭',
           };
           let descHtml;

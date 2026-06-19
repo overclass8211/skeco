@@ -489,28 +489,35 @@ async function initTables() {
       INDEX idx_sort (sort_order, is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    // 기본 시드 (idempotent — stage_key UNIQUE)
+    // 기본 시드 (idempotent — stage_key UNIQUE) · 반도체 소재 영업 단계 라벨
     const defaultStages = [
-      { key: 'lead', label: '리드 발굴', role: 'active', order: 10, color: '#93B4F9', prob: 10 },
-      { key: 'review', label: '검토/미팅', role: 'active', order: 20, color: '#5585F5', prob: 25 },
+      {
+        key: 'lead',
+        label: '발굴/니즈파악',
+        role: 'active',
+        order: 10,
+        color: '#93B4F9',
+        prob: 10,
+      },
+      { key: 'review', label: '샘플 평가', role: 'active', order: 20, color: '#5585F5', prob: 25 },
       {
         key: 'proposal',
-        label: '제안/견적',
+        label: 'Spec-in/승인',
         role: 'active',
         order: 30,
         color: '#2357E8',
         prob: 50,
       },
-      { key: 'bidding', label: '입찰', role: 'active', order: 40, color: '#F59C00', prob: 65 },
+      { key: 'bidding', label: '가격 협의', role: 'active', order: 40, color: '#F59C00', prob: 65 },
       {
         key: 'negotiation',
-        label: '협상/계약',
+        label: '공급계약',
         role: 'active',
         order: 50,
         color: '#17A85A',
         prob: 80,
       },
-      { key: 'won', label: '수주 완료', role: 'won', order: 90, color: '#0F7A3F', prob: 100 },
+      { key: 'won', label: '양산/정기수주', role: 'won', order: 90, color: '#0F7A3F', prob: 100 },
       { key: 'lost', label: '실주', role: 'lost', order: 95, color: '#6B7280', prob: 0 },
       { key: 'dropped', label: '드롭', role: 'dropped', order: 99, color: '#E63329', prob: 0 },
     ];
@@ -520,6 +527,22 @@ async function initTables() {
          VALUES (?,?,?,?,?,?)`,
         [s.key, s.label, s.role, s.order, s.color, s.prob]
       );
+    }
+    // 반도체 영업 단계 라벨 적용 (기존 DB) — 옛 기본 라벨일 때만 갱신(관리자 커스텀 보존)
+    const stageRelabel = [
+      ['lead', '발굴/니즈파악', '리드 발굴'],
+      ['review', '샘플 평가', '검토/미팅'],
+      ['proposal', 'Spec-in/승인', '제안/견적'],
+      ['bidding', '가격 협의', '입찰'],
+      ['negotiation', '공급계약', '협상/계약'],
+      ['won', '양산/정기수주', '수주 완료'],
+    ];
+    for (const [key, neu, old] of stageRelabel) {
+      await pool.query('UPDATE pipeline_stages SET label=? WHERE stage_key=? AND label=?', [
+        neu,
+        key,
+        old,
+      ]);
     }
 
     // ── 매출 포캐스트: 단계 확률 컬럼/시드 (idempotent) ──────────

@@ -28,12 +28,12 @@ const LeadsPage = {
 
         <select class="filter-select" id="leads-stage">
           <option value="" data-label="common.all">전체 단계</option>
-          <option value="lead" data-label="stages.lead">리드 발굴</option>
-          <option value="review" data-label="stages.review">검토/미팅</option>
-          <option value="proposal" data-label="stages.proposal">제안/견적</option>
-          <option value="bidding" data-label="stages.bidding">입찰</option>
-          <option value="negotiation" data-label="stages.negotiation">협상/계약</option>
-          <option value="won" data-label="stages.won">수주</option>
+          <option value="lead" data-label="stages.lead">발굴/니즈파악</option>
+          <option value="review" data-label="stages.review">샘플 평가</option>
+          <option value="proposal" data-label="stages.proposal">Spec-in/승인</option>
+          <option value="bidding" data-label="stages.bidding">가격 협의</option>
+          <option value="negotiation" data-label="stages.negotiation">공급계약</option>
+          <option value="won" data-label="stages.won">양산/정기수주</option>
           <option value="lost" data-label="stages.lost">실주</option>
           <option value="dropped" data-label="stages.dropped">드롭</option>
         </select>
@@ -385,12 +385,12 @@ const LeadsPage = {
     // 정상 흐름: lead → review → proposal → bidding → negotiation → won (6단계)
     // 종료: lost (실주), dropped (중단)
     const LEAD_STAGES = [
-      { key: 'lead', label: '리드 발굴', color: '#6b7280' },
-      { key: 'review', label: '검토/미팅', color: '#3b82f6' },
-      { key: 'proposal', label: '제안/견적', color: '#8b5cf6' },
-      { key: 'bidding', label: '입찰', color: '#0891b2' },
-      { key: 'negotiation', label: '협상', color: '#f59e0b' },
-      { key: 'won', label: '수주', color: '#16a34a' },
+      { key: 'lead', label: '발굴/니즈파악', color: '#6b7280' },
+      { key: 'review', label: '샘플 평가', color: '#3b82f6' },
+      { key: 'proposal', label: 'Spec-in/승인', color: '#8b5cf6' },
+      { key: 'bidding', label: '가격 협의', color: '#0891b2' },
+      { key: 'negotiation', label: '공급계약', color: '#f59e0b' },
+      { key: 'won', label: '양산/정기수주', color: '#16a34a' },
     ];
     const LEAD_TERMINAL_LOST = { key: 'lost', label: '실주', color: '#dc2626' };
     const LEAD_TERMINAL_DROPPED = { key: 'dropped', label: '중단', color: '#9ca3af' };
@@ -525,12 +525,12 @@ const LeadsPage = {
     const stageBadge = stage => {
       if (typeof StageProgress === 'undefined') return esc(STAGES[stage]?.label || stage);
       const STAGES_ARR = [
-        { key: 'lead', label: '리드 발굴', color: '#6b7280' },
-        { key: 'review', label: '검토/미팅', color: '#3b82f6' },
-        { key: 'proposal', label: '제안/견적', color: '#8b5cf6' },
-        { key: 'bidding', label: '입찰', color: '#0891b2' },
-        { key: 'negotiation', label: '협상', color: '#f59e0b' },
-        { key: 'won', label: '수주', color: '#16a34a' },
+        { key: 'lead', label: '발굴/니즈파악', color: '#6b7280' },
+        { key: 'review', label: '샘플 평가', color: '#3b82f6' },
+        { key: 'proposal', label: 'Spec-in/승인', color: '#8b5cf6' },
+        { key: 'bidding', label: '가격 협의', color: '#0891b2' },
+        { key: 'negotiation', label: '공급계약', color: '#f59e0b' },
+        { key: 'won', label: '양산/정기수주', color: '#16a34a' },
       ];
       let terminal = null;
       let cur = stage;
@@ -643,12 +643,12 @@ const LeadsPage = {
     }
 
     const STAGE_LABELS = {
-      lead: '리드발굴',
-      review: '검토/미팅',
-      proposal: '제안/견적',
-      bidding: '입찰',
-      negotiation: '협상/계약',
-      won: '수주완료',
+      lead: '발굴/니즈파악',
+      review: '샘플 평가',
+      proposal: 'Spec-in/승인',
+      bidding: '가격 협의',
+      negotiation: '공급계약',
+      won: '양산/정기수주',
       lost: '실주',
       dropped: '드롭',
     };
