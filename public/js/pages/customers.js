@@ -1476,7 +1476,7 @@ const CustomersPage = {
         <table class="data-table" style="font-size:12px">
           <thead><tr>
             <th>프로젝트</th><th>유형</th><th>단계</th>
-            <th class="text-right">예상 금액</th><th>최근 업데이트</th>
+            <th class="text-right">예상 매출</th><th>최근 업데이트</th>
           </tr></thead>
           <tbody>
             ${deals

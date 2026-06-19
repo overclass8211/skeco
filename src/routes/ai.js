@@ -152,7 +152,7 @@ router.get('/summary/:leadId', requireFeature('ai.lead_summary'), async (req, re
 고객사: ${lead.customer_name}
 사업유형: ${lead.business_type} / ${lead.region}
 현재 단계: ${stageMap[lead.stage] || lead.stage}
-예상 금액: ${lead.expected_amount}${lead.currency}
+예상 매출: ${lead.expected_amount}${lead.currency}
 예상 물량: ${lead.capacity_mw ? lead.capacity_mw : '미정'}
 담당자: ${lead.assigned_name || '미배정'}
 예상 마감: ${lead.expected_close_date || '미정'}

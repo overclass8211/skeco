@@ -42,7 +42,7 @@ const LEAD_COLS = [
   { key: 'capacity_mw', label: '예상 물량' },
   { key: 'stage_label', label: '단계' },
   { key: 'region', label: '구분' },
-  { key: 'expected_amount', label: '예상금액' },
+  { key: 'expected_amount', label: '예상 매출' },
   { key: 'currency', label: '통화' },
   { key: 'assigned_name', label: '담당자' },
   { key: 'expected_close_date', label: '완료예정일' },
@@ -290,7 +290,7 @@ router.post('/import', upload.memory.single('file'), async (req, res) => {
             String(row['사업유형'] || row['business_type'] || '식각가스').trim(),
             String(row['구분'] || row['region'] || '국내').trim(),
             parseFloat(row['예상 물량'] || row['규모(MW)'] || row['capacity_mw']) || null,
-            parseFloat(row['예상금액'] || row['expected_amount']) || null,
+            parseFloat(row['예상 매출'] || row['예상금액'] || row['expected_amount']) || null,
             String(row['통화'] || row['currency'] || 'KRW').trim(),
             stage,
             assignedId,
@@ -797,16 +797,34 @@ router.patch('/:id/stage', validateId, requireFields(['stage']), async (req, res
       fxUpdate = `, fx_lock_policy='live', fx_locked_at=NULL`;
     }
 
-    // stage_changed_at 함께 업데이트 (컬럼 없으면 ADD 후 재시도)
-    const baseSql = `UPDATE leads SET stage = ?, stage_changed_at = NOW()${fxUpdate} WHERE id = ?`;
+    // ── 단계 확률 대입: 새 단계의 기본 수주확률을 딜에 반영 ──
+    //   → 매출 포캐스트 Weighted(예상매출×확률) 가 단계 변경 즉시 동기화됨.
+    let probUpdate = '';
+    const probParams = [];
     try {
-      await pool.query(baseSql, [stage, ...fxParams, req.params.id]);
+      const [[ps]] = await pool.query(
+        'SELECT win_probability FROM pipeline_stages WHERE stage_key = ?',
+        [stage]
+      );
+      if (ps && ps.win_probability !== null && ps.win_probability !== undefined) {
+        probUpdate = ', win_probability = ?';
+        probParams.push(ps.win_probability);
+      }
+    } catch (_) {
+      /* win_probability 컬럼 미생성 시 무시 */
+    }
+
+    // stage_changed_at 함께 업데이트 (컬럼 없으면 ADD 후 재시도)
+    const baseSql = `UPDATE leads SET stage = ?, stage_changed_at = NOW()${fxUpdate}${probUpdate} WHERE id = ?`;
+    const baseParams = [stage, ...fxParams, ...probParams, req.params.id];
+    try {
+      await pool.query(baseSql, baseParams);
     } catch (e) {
       if (e.code === 'ER_BAD_FIELD_ERROR') {
         await pool.query(
           `ALTER TABLE leads ADD COLUMN IF NOT EXISTS stage_changed_at DATETIME NULL DEFAULT NULL`
         );
-        await pool.query(baseSql, [stage, ...fxParams, req.params.id]);
+        await pool.query(baseSql, baseParams);
       } else throw e;
     }
     const stageNameMap = {

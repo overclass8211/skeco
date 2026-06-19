@@ -70,12 +70,12 @@ const LeadsPage = {
           <button class="btn btn-ghost btn-sm" id="leads-date-clear" data-title-label="common.clear_date" title="날짜 초기화" style="display:none">✕</button>
         </div>
 
-        <button class="btn btn-primary" id="leads-open-form-btn" data-label="leads.new_button">+ 리드 등록</button>
+        <button class="btn btn-primary" id="leads-open-form-btn" data-label="leads.new_button">+ 영업딜 등록</button>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-title"><span data-label="leads.list_title">영업 리드 목록</span> <span class="text-muted fs-12" id="leads-count"></span></div>
+          <div class="card-title"><span data-label="leads.list_title">영업딜 목록</span> <span class="text-muted fs-12" id="leads-count"></span></div>
           <div style="display:flex;align-items:center;gap:8px">
             <div id="leads-active-filters" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center"></div>
             <!-- Copy & Paste 툴바 -->
@@ -370,7 +370,7 @@ const LeadsPage = {
       const html =
         typeof EmptyState !== 'undefined'
           ? EmptyState.preset(presetKey)
-          : '<div class="empty"><div class="empty-icon">📋</div>등록된 리드가 없습니다</div>';
+          : '<div class="empty"><div class="empty-icon">📋</div>등록된 영업딜이 없습니다</div>';
       document.getElementById('leads-table-wrap').innerHTML = html;
       // primary 버튼 클릭 핸들러 (preset='leads' 일 때만)
       if (!hasFilter) {
@@ -438,7 +438,7 @@ const LeadsPage = {
             <th data-label="leads.project_name">프로젝트명</th>
             <th data-label="leads.business_type">사업유형</th>
             <th class="text-right" data-label="leads.capacity_mw">예상 물량</th>
-            <th class="text-right" data-label="leads.expected_amount">예상금액</th>
+            <th class="text-right" data-label="leads.expected_amount">예상 매출</th>
             <th data-label="leads.stage">상태</th>
             <th>구분</th>
             <th data-label="leads.assigned_to">담당자</th>
@@ -657,7 +657,7 @@ const LeadsPage = {
       '프로젝트명',
       '사업유형',
       '예상 물량',
-      '예상금액',
+      '예상 매출',
       '통화',
       '단계',
       '구분',
@@ -746,7 +746,7 @@ const LeadsPage = {
 
     BulkPaste.open({
       entityType: 'lead',
-      title: '📥 영업리드 붙여넣기 등록',
+      title: '📥 영업딜 붙여넣기 등록',
       endpoint: '/leads/bulk',
       payloadKey: 'leads',
       columns: [
@@ -764,7 +764,7 @@ const LeadsPage = {
         },
         {
           key: 'expected_amount',
-          label: '예상금액',
+          label: '예상 매출',
           transform: v => {
             if (v === null || v === undefined || v === '') return null;
             const n = parseFloat(String(v).replace(/[,₩$¥]/g, ''));
@@ -809,6 +809,8 @@ const LeadsPage = {
         capacity: 'capacity_mw',
         용량: 'capacity_mw',
         capacity_mw: 'capacity_mw',
+        '예상 매출': 'expected_amount',
+        예상매출: 'expected_amount',
         예상금액: 'expected_amount',
         금액: 'expected_amount',
         amount: 'expected_amount',
@@ -861,7 +863,7 @@ const LeadsPage = {
   exportExcel() {
     // 레거시 호환 — 기본 xlsx
     const path = this._buildExportPath();
-    API.downloadExport(path, '영업리드_' + new Date().toISOString().slice(0, 10), 'xlsx');
+    API.downloadExport(path, '영업딜_' + new Date().toISOString().slice(0, 10), 'xlsx');
   },
 
   _buildExportPath() {
@@ -880,7 +882,7 @@ const LeadsPage = {
     ExportMenu.open(
       triggerEl,
       this._buildExportPath(),
-      '영업리드_' + new Date().toISOString().slice(0, 10)
+      '영업딜_' + new Date().toISOString().slice(0, 10)
     );
   },
 
