@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { api, pool } from './helpers.mjs';
 
-let custId, leadId;
+let custId, leadId, matId;
 
 beforeAll(async () => {
   const [c] = await pool.query(
@@ -21,9 +21,25 @@ beforeAll(async () => {
     [custId]
   );
   leadId = l.insertId;
+  // 라이프사이클 소재 + 월 Forecast (수요 100 > CAPA 80 → 갭 20)
+  const [m] = await pool.query(
+    `INSERT INTO customer_materials (customer_id, material_name, business_type, lifecycle_stage, monthly_demand, demand_unit, win_probability)
+     VALUES (?, '__C360_MAT__', '식각가스', 'specin', 100, 'kg', 80)`,
+    [custId]
+  );
+  matId = m.insertId;
+  await pool.query(
+    `INSERT INTO demand_forecasts (customer_material_id, customer_id, month, customer_forecast, production_capacity, win_probability, expected_revenue, unit)
+     VALUES (?, ?, '2026-07', 100, 80, 80, 200000000, 'kg')`,
+    [matId, custId]
+  );
 });
 
 afterAll(async () => {
+  if (matId) {
+    await pool.query('DELETE FROM demand_forecasts WHERE customer_material_id=?', [matId]);
+    await pool.query('DELETE FROM customer_materials WHERE id=?', [matId]);
+  }
   if (leadId) await pool.query('DELETE FROM leads WHERE id=?', [leadId]);
   if (custId) await pool.query('DELETE FROM customers WHERE id=?', [custId]);
 });
@@ -74,5 +90,55 @@ describe('Customer360 (MVP) API', () => {
   it('존재하지 않는 고객 → 404', async () => {
     const res = await api().get('/api/customer360/99999999').set('X-User-Id', '1');
     expect(res.status).toBe(404);
+  });
+
+  it('lifecycle — 소재 보드 + 수요/생산/수주 흐름 + CAPA 갭', async () => {
+    const res = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    const lc = res.body.data.lifecycle;
+    expect(lc).toBeTruthy();
+    const mat = lc.materials.find(m => m.material_name === '__C360_MAT__');
+    expect(mat).toBeTruthy();
+    expect(mat.lifecycle_stage).toBe('specin');
+    expect(mat.lifecycle_index).toBe(3); // discovery0 sample1 evaluation2 specin3
+    // 수요 100 > CAPA 80 → 갭 20
+    expect(lc.demand_flow.demand).toBe(100);
+    expect(lc.demand_flow.capacity).toBe(80);
+    expect(lc.demand_flow.gap).toBe(20);
+    // specin 소재 → 양산 승인 미팅 액션 존재
+    expect(lc.actions.some(a => /양산 승인/.test(a.text))).toBe(true);
+  });
+
+  it('PUT /materials/:id — 단계 수정', async () => {
+    const res = await api()
+      .put(`/api/customer360/materials/${matId}`)
+      .set('X-User-Id', '1')
+      .send({ lifecycle_stage: 'massprod' });
+    expect(res.status).toBe(200);
+    const [[row]] = await pool.query('SELECT lifecycle_stage FROM customer_materials WHERE id=?', [matId]);
+    expect(row.lifecycle_stage).toBe('massprod');
+  });
+
+  it('POST /forecasts — 월 upsert', async () => {
+    const res = await api()
+      .post('/api/customer360/forecasts')
+      .set('X-User-Id', '1')
+      .send({ customer_material_id: matId, customer_id: custId, month: '2026-08', customer_forecast: 120, production_capacity: 130, expected_revenue: 250000000, unit: 'kg' });
+    expect(res.status).toBe(200);
+    const [[row]] = await pool.query(
+      'SELECT customer_forecast FROM demand_forecasts WHERE customer_material_id=? AND month=?',
+      [matId, '2026-08']
+    );
+    expect(Number(row.customer_forecast)).toBe(120);
+  });
+
+  it('POST /materials — 생성 + 필수값 검증', async () => {
+    const bad = await api().post('/api/customer360/materials').set('X-User-Id', '1').send({ customer_id: custId });
+    expect(bad.status).toBe(400);
+    const ok = await api()
+      .post('/api/customer360/materials')
+      .set('X-User-Id', '1')
+      .send({ customer_id: custId, material_name: '__C360_MAT2__', lifecycle_stage: 'sample' });
+    expect(ok.status).toBe(200);
+    await pool.query('DELETE FROM customer_materials WHERE id=?', [ok.body.data.id]);
   });
 });

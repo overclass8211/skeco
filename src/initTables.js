@@ -775,6 +775,68 @@ async function initTables() {
       INDEX idx_cust_gen (customer_id, generated_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // ── 고객·제품 360뷰 (라이프사이클) 테이블 3종 ──────────────
+    // 척추: 고객사 × 소재 × Fab/라인 의 적용 라이프사이클 단계
+    //   lifecycle_stage: discovery/sample/evaluation/specin/massprod/delivery
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_materials (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id     INT          NOT NULL,
+      product_id      INT          DEFAULT NULL,
+      material_name   VARCHAR(200) NOT NULL,
+      business_type   VARCHAR(50)  DEFAULT NULL,
+      fab_line        VARCHAR(120) DEFAULT NULL,          -- 사업장/Fab/라인/공정
+      lifecycle_stage VARCHAR(20)  NOT NULL DEFAULT 'discovery',
+      expected_mp_date DATE        DEFAULT NULL,          -- 예상 양산(MP) 시점
+      monthly_demand  DECIMAL(15,2) DEFAULT NULL,         -- 월 수요(수량)
+      demand_unit     VARCHAR(10)  DEFAULT 'kg',
+      win_probability TINYINT UNSIGNED DEFAULT NULL,
+      status          VARCHAR(20)  DEFAULT 'active',       -- active/onhold/closed
+      notes           VARCHAR(500) DEFAULT NULL,
+      created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_cm_customer (customer_id),
+      INDEX idx_cm_stage (lifecycle_stage)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    // 수요 → 생산가능 → 수주: 소재×월 Forecast (고객/내부 분리)
+    await pool.query(`CREATE TABLE IF NOT EXISTS demand_forecasts (
+      id                  INT AUTO_INCREMENT PRIMARY KEY,
+      customer_material_id INT         NOT NULL,
+      customer_id         INT          DEFAULT NULL,
+      month               VARCHAR(7)   NOT NULL,           -- YYYY-MM
+      customer_forecast   DECIMAL(15,2) DEFAULT 0,         -- 고객 제공 수요
+      internal_forecast   DECIMAL(15,2) DEFAULT 0,         -- 영업/마케팅 보정
+      production_capacity DECIMAL(15,2) DEFAULT NULL,      -- 생산 가능량(CAPA)
+      win_probability     TINYINT UNSIGNED DEFAULT NULL,
+      expected_revenue    DECIMAL(20,2) DEFAULT 0,         -- 예상 매출(원)
+      unit                VARCHAR(10)  DEFAULT 'kg',
+      created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_cm_month (customer_material_id, month),
+      INDEX idx_df_customer (customer_id),
+      INDEX idx_df_month (month)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    // 품질/VOC/NCR/Audit/PCN 이슈
+    await pool.query(`CREATE TABLE IF NOT EXISTS quality_cases (
+      id                  INT AUTO_INCREMENT PRIMARY KEY,
+      case_no             VARCHAR(30)  NOT NULL UNIQUE,
+      customer_id         INT          NOT NULL,
+      customer_material_id INT         DEFAULT NULL,
+      type                VARCHAR(20)  NOT NULL DEFAULT 'VOC',   -- VOC/NCR/Audit/PCN/CoA
+      severity            VARCHAR(10)  DEFAULT 'medium',          -- high/medium/low
+      status              VARCHAR(20)  DEFAULT 'open',            -- open/in_progress/resolved
+      title               VARCHAR(255) NOT NULL,
+      opened_at           DATE         DEFAULT NULL,
+      resolved_at         DATE         DEFAULT NULL,
+      owner_id            INT          DEFAULT NULL,
+      notes               VARCHAR(500) DEFAULT NULL,
+      created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_qc_customer (customer_id),
+      INDEX idx_qc_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 사용자 인증 테이블 ──────────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS users (
       id               INT AUTO_INCREMENT PRIMARY KEY,

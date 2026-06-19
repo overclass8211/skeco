@@ -17,6 +17,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:cleanup-dummy": "node scripts/cleanup-dummy-customers.js",
     "db:seed-360": "node scripts/seed-360-demo.js",
+    "db:seed-360-lc": "node scripts/seed-360-lifecycle.js",
     "scaffold:page": "node scripts/scaffold-page.js",
     "cap:sync": "npx cap sync",
     "cap:sync:android": "npx cap sync android",

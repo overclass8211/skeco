@@ -16,6 +16,7 @@ const router = require('express').Router();
 const pool = require('../db');
 const { handleError } = require('../middleware/errorHandler');
 const { validateId } = require('../middleware/validate');
+const { requireLevel } = require('../middleware/rbac');
 
 // JSON 안전 파싱
 function safeJson(s, fallback) {
@@ -318,6 +319,15 @@ router.get('/:id', validateId, async (req, res) => {
     const stalledLeads = leadRows.filter(l => l.stage === 'lead' || l.stage === 'review').length;
     if (stalledLeads >= 2) risks.push({ level: 'low', label: `초기단계 정체 ${stalledLeads}건` });
 
+    // ── 라이프사이클(소재) + 수요·생산·수주 흐름 + 품질 ──
+    const lifecycle = await buildLifecycle(id);
+    // 라이프사이클 리스크를 헤더 리스크에 병합
+    if (lifecycle.demand_flow.gap > 0) {
+      risks.unshift({ level: 'high', label: `CAPA 부족 ${lifecycle.demand_flow.gap_label}` });
+    }
+    const openQ = lifecycle.quality.filter(q => q.status !== 'resolved').length;
+    if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
+
     res.json({
       success: true,
       data: {
@@ -363,6 +373,7 @@ router.get('/:id', validateId, async (req, res) => {
         deals,
         pipeline,
         timeline,
+        lifecycle,
         brief: brief
           ? {
               headline: brief.headline || '',
@@ -375,6 +386,255 @@ router.get('/:id', validateId, async (req, res) => {
           : null,
       },
     });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 라이프사이클 단계 메타 ───────────────────────────────────
+const STAGE_LABELS = {
+  discovery: '발굴',
+  sample: '샘플',
+  evaluation: '평가',
+  specin: 'Spec-in',
+  massprod: '양산',
+  delivery: '납품',
+};
+const STAGE_ORDER = ['discovery', 'sample', 'evaluation', 'specin', 'massprod', 'delivery'];
+const FLOW_MONTHS = ['2026-07', '2026-08', '2026-09'];
+
+function fmtQty(n, unit) {
+  const v = Math.round(Number(n) || 0);
+  return `${v.toLocaleString('ko-KR')}${unit || ''}`;
+}
+
+// 고객의 소재 라이프사이클 + 분기 수요/생산/수주 흐름 + 품질 + AI 액션
+async function buildLifecycle(customerId) {
+  const [mats] = await pool.query(
+    `SELECT * FROM customer_materials WHERE customer_id=? AND status<>'closed'
+       ORDER BY FIELD(lifecycle_stage,'massprod','specin','evaluation','sample','discovery','delivery'), id`,
+    [customerId]
+  );
+  const matIds = mats.map(m => m.id);
+  let fcs = [];
+  if (matIds.length) {
+    [fcs] = await pool.query(
+      `SELECT * FROM demand_forecasts WHERE customer_material_id IN (?) AND month IN (?)`,
+      [matIds, FLOW_MONTHS]
+    );
+  }
+  const [qcs] = await pool.query(
+    `SELECT id, case_no, customer_material_id, type, severity, status, title, opened_at
+       FROM quality_cases WHERE customer_id=? ORDER BY FIELD(status,'open','in_progress','resolved'), opened_at DESC`,
+    [customerId]
+  );
+
+  const fcByMat = new Map();
+  for (const f of fcs) {
+    if (!fcByMat.has(f.customer_material_id)) fcByMat.set(f.customer_material_id, []);
+    fcByMat.get(f.customer_material_id).push(f);
+  }
+  const openQByMat = new Map();
+  for (const q of qcs) {
+    if (q.status === 'resolved') continue;
+    openQByMat.set(q.customer_material_id, (openQByMat.get(q.customer_material_id) || 0) + 1);
+  }
+
+  let totalDemand = 0;
+  let totalCapa = 0;
+  let totalExpectedOrder = 0;
+  const unitSet = new Set();
+
+  const materials = mats.map(m => {
+    const list = fcByMat.get(m.id) || [];
+    const demand = list.reduce((s, f) => s + (Number(f.customer_forecast) || 0), 0);
+    const capa = list.reduce((s, f) => s + (Number(f.production_capacity) || 0), 0);
+    const expRev = list.reduce(
+      (s, f) => s + ((Number(f.expected_revenue) || 0) * (Number(f.win_probability) || 0)) / 100,
+      0
+    );
+    totalDemand += demand;
+    totalCapa += capa;
+    totalExpectedOrder += expRev;
+    if (m.demand_unit) unitSet.add(m.demand_unit);
+    const capaShort = capa > 0 && capa < demand;
+    return {
+      id: m.id,
+      material_name: m.material_name,
+      business_type: m.business_type,
+      fab_line: m.fab_line,
+      lifecycle_stage: m.lifecycle_stage,
+      lifecycle_label: STAGE_LABELS[m.lifecycle_stage] || m.lifecycle_stage,
+      lifecycle_index: Math.max(0, STAGE_ORDER.indexOf(m.lifecycle_stage)),
+      expected_mp_date: m.expected_mp_date,
+      monthly_demand: Number(m.monthly_demand) || 0,
+      demand_unit: m.demand_unit,
+      win_probability: m.win_probability,
+      quarter_demand: Math.round(demand),
+      quarter_capacity: Math.round(capa),
+      quarter_expected_order: Math.round(expRev),
+      capa_short: capaShort,
+      open_quality: openQByMat.get(m.id) || 0,
+    };
+  });
+
+  const unit = unitSet.size === 1 ? [...unitSet][0] : '';
+  const gap = Math.max(0, Math.round(totalDemand - totalCapa));
+  const demand_flow = {
+    demand: Math.round(totalDemand),
+    capacity: Math.round(totalCapa),
+    gap,
+    expected_order: Math.round(totalExpectedOrder),
+    unit,
+    demand_label: fmtQty(totalDemand, unit),
+    capacity_label: fmtQty(totalCapa, unit),
+    gap_label: fmtQty(gap, unit),
+  };
+
+  const quality = qcs.map(q => ({
+    id: q.id,
+    case_no: q.case_no,
+    material_id: q.customer_material_id,
+    type: q.type,
+    severity: q.severity,
+    status: q.status,
+    title: q.title,
+    opened_at: q.opened_at,
+  }));
+
+  // 규칙 기반 AI 추천 액션 (상위 4건)
+  const actions = [];
+  const shortMat = materials.find(m => m.capa_short);
+  if (shortMat) {
+    actions.push({
+      icon: 'factory',
+      text: `생산팀에 CAPA 재검토 요청 — ${shortMat.material_name} 분기 수요 ${fmtQty(shortMat.quarter_demand, shortMat.demand_unit)} 대비 부족`,
+    });
+  }
+  const specinMat = materials.find(m => m.lifecycle_stage === 'specin');
+  if (specinMat) {
+    actions.push({
+      icon: 'file-check',
+      text: `${specinMat.material_name} 양산 승인 미팅 제안 — 공정기술팀 평가 결과 확인`,
+    });
+  }
+  const openQuality = quality.find(q => q.status !== 'resolved');
+  if (openQuality) {
+    actions.push({
+      icon: 'shield-check',
+      text: `${openQuality.title} 재발방지 보고서 고객 공유 — 평가/거래 재개 유도`,
+    });
+  }
+  const evalMat = materials.find(m => m.lifecycle_stage === 'evaluation');
+  if (evalMat && actions.length < 4) {
+    actions.push({
+      icon: 'flask',
+      text: `${evalMat.material_name} 고객 평가 진행 점검 — 재샘플/스펙 협의 필요 여부 확인`,
+    });
+  }
+
+  return { materials, demand_flow, quality, actions };
+}
+
+// ── 편집 CRUD (manager+ · requireLevel 1) ────────────────────
+// 소재 생성
+router.post('/materials', requireLevel(1), async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.customer_id || !b.material_name)
+      return res.status(400).json({ success: false, error: 'customer_id, material_name 필수' });
+    const stage = STAGE_ORDER.includes(b.lifecycle_stage) ? b.lifecycle_stage : 'discovery';
+    const [r] = await pool.query(
+      `INSERT INTO customer_materials
+         (customer_id, product_id, material_name, business_type, fab_line, lifecycle_stage,
+          expected_mp_date, monthly_demand, demand_unit, win_probability, notes)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        b.customer_id,
+        b.product_id || null,
+        b.material_name,
+        b.business_type || null,
+        b.fab_line || null,
+        stage,
+        b.expected_mp_date || null,
+        b.monthly_demand ?? null,
+        b.demand_unit || 'kg',
+        b.win_probability ?? null,
+        b.notes || null,
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 소재 수정 (단계/수요/양산일/확률 등)
+router.put('/materials/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const fields = [];
+    const vals = [];
+    const allow = {
+      material_name: 'material_name',
+      business_type: 'business_type',
+      fab_line: 'fab_line',
+      lifecycle_stage: 'lifecycle_stage',
+      expected_mp_date: 'expected_mp_date',
+      monthly_demand: 'monthly_demand',
+      demand_unit: 'demand_unit',
+      win_probability: 'win_probability',
+      status: 'status',
+      notes: 'notes',
+    };
+    for (const [k, col] of Object.entries(allow)) {
+      if (b[k] !== undefined) {
+        if (k === 'lifecycle_stage' && !STAGE_ORDER.includes(b[k])) continue;
+        fields.push(`${col}=?`);
+        vals.push(b[k] === '' ? null : b[k]);
+      }
+    }
+    if (!fields.length) return res.status(400).json({ success: false, error: '수정할 필드 없음' });
+    vals.push(req.params.id);
+    const [r] = await pool.query(
+      `UPDATE customer_materials SET ${fields.join(', ')} WHERE id=?`,
+      vals
+    );
+    if (!r.affectedRows) return res.status(404).json({ success: false, error: '소재 없음' });
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 월별 Forecast upsert
+router.post('/forecasts', requireLevel(1), async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.customer_material_id || !b.month)
+      return res.status(400).json({ success: false, error: 'customer_material_id, month 필수' });
+    await pool.query(
+      `INSERT INTO demand_forecasts
+         (customer_material_id, customer_id, month, customer_forecast, internal_forecast,
+          production_capacity, win_probability, expected_revenue, unit)
+       VALUES (?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE customer_forecast=VALUES(customer_forecast),
+         internal_forecast=VALUES(internal_forecast), production_capacity=VALUES(production_capacity),
+         win_probability=VALUES(win_probability), expected_revenue=VALUES(expected_revenue),
+         unit=VALUES(unit)`,
+      [
+        b.customer_material_id,
+        b.customer_id || null,
+        b.month,
+        b.customer_forecast || 0,
+        b.internal_forecast || 0,
+        b.production_capacity ?? null,
+        b.win_probability ?? null,
+        b.expected_revenue || 0,
+        b.unit || 'kg',
+      ]
+    );
+    res.json({ success: true });
   } catch (err) {
     handleError(res, err);
   }
