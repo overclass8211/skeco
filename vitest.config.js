@@ -15,7 +15,11 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 15000,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    // singleFork: 단일 프로세스 직렬 (DB 충돌 방지). 워커 힙 상향(OOM 크래시 방지).
+    poolOptions: { forks: { singleFork: true, execArgv: ['--max-old-space-size=2048'] } },
+    // 단일 fork 내에서 파일 간 모듈을 공유 (mysql2 풀 1개 공유 → 파일별 풀 난립으로
+    // 인한 잔여 커넥션 에러 / 워커 크래시 방지 + 속도↑). teardown 의 "공유 풀" 전제와 일치.
+    isolate: false,
     environment: 'node',
     reporters: ['default'],
     globals: false,

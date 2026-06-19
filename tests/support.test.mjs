@@ -257,9 +257,9 @@ describe('Support — 티켓 CRUD + 상태전환 + 댓글/첨부/이력 (P1-B)',
     // 미래 시작일 → 결과 제외
     const future = await A().get('/api/support?from=2099-01-01&q=__TEST__');
     expect(future.body.data.some(t => t.id === tid)).toBe(false);
-    // 과거~오늘 범위 → 포함
-    const today = new Date().toISOString().slice(0, 10);
-    const range = await A().get(`/api/support?from=2020-01-01&to=${today}&q=__TEST__`);
+    // 과거~내일 범위 → 포함 (to 경계는 내일로 — 서버 TZ 와 UTC 날짜 차이로 인한 경계 누락 방지)
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const range = await A().get(`/api/support?from=2020-01-01&to=${tomorrow}&q=__TEST__`);
     expect(range.body.data.some(t => t.id === tid)).toBe(true);
   });
 
