@@ -43,17 +43,17 @@ const CustomersPage = {
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
           <button class="btn btn-ghost btn-sm" id="cp-paste-btn-cust"
                   data-feature="data.bulk_paste"
-                  title="Ctrl+V" data-label="common.paste_register">
-            📥 붙여넣기 등록
+                  title="Excel·Word에서 복사한 표를 붙여넣기로 일괄 등록 (Ctrl+V)" data-label="common.paste_register">
+            붙여넣기 등록
           </button>
           <button class="btn btn-ghost btn-sm" id="cust-excel-export-btn"
             data-feature="data.excel_exp"
             title="현재 목록을 엑셀 파일로 다운로드" data-label="common.excel_export">
-            📤 엑셀 다운로드
+            엑셀 다운로드
           </button>
           <label class="btn btn-ghost btn-sm" data-feature="data.excel_imp"
             title="엑셀 파일로 일괄 등록" style="cursor:pointer;margin:0">
-            <span data-label="common.excel_import">📂 엑셀 가져오기</span>
+            <span data-label="common.excel_import">엑셀 가져오기</span>
             <input type="file" id="cust-excel-import-input" accept=".xlsx,.xls" style="display:none">
           </label>
           ${ViewToggle.render({ currentView: this._view })}
@@ -72,10 +72,10 @@ const CustomersPage = {
         <div class="card">
           <div class="card-header">
             <div class="card-title">
-              🎯 <span id="intel-company-name"></span> — AI 고객사 인텔리전스
+              <span id="intel-company-name"></span> — AI 고객사 인텔리전스
             </div>
             <div style="display:flex;gap:6px">
-              <button class="ai-gen-btn" id="intel-refresh-btn">🔄 재생성</button>
+              <button class="ai-gen-btn" id="intel-refresh-btn">재생성</button>
               <button class="btn btn-ghost btn-sm" id="intel-close-btn">✕</button>
             </div>
           </div>
@@ -221,8 +221,8 @@ const CustomersPage = {
         <div class="card-header" style="min-height:42px">
           <div id="cp-toolbar-cust" style="display:none" class="cp-toolbar">
             <span class="cp-sel-count" id="cp-sel-count-cust">0개 선택</span>
-            <button class="btn btn-sm" data-action="copy-selected">📋 복사</button>
-            <button class="btn btn-sm" data-action="clear-selection">✕ 해제</button>
+            <button class="btn btn-sm" data-action="copy-selected">복사</button>
+            <button class="btn btn-sm" data-action="clear-selection">선택 해제</button>
           </div>
           <div id="cp-toolbar-cust-empty" style="font-size:13px;color:var(--text-2)">
             고객사 목록
@@ -256,7 +256,7 @@ const CustomersPage = {
                     ${
                       c._groupCount > 1
                         ? `<span class="badge badge-purple" style="font-size:10px;margin-left:6px"
-                           title="동일 회사명 ${c._groupCount}명 등록">👥 ${c._groupCount}</span>`
+                           title="동일 회사명 ${c._groupCount}명 등록">${c._groupCount}명</span>`
                         : ''
                     }
                   </td>
@@ -292,7 +292,7 @@ const CustomersPage = {
                       <button class="ai-gen-btn"
                         data-action="ai-brief" data-feature="ai.intelligence"
                         data-id="${c.id}" data-name="${esc(c.name).replace(/"/g, '&quot;')}">
-                        🤖 AI 브리핑
+                        AI 브리핑
                       </button>
                       ${this._briefBadgeHtml(c.id)}
                     </div>
@@ -332,7 +332,7 @@ const CustomersPage = {
           const id = parseInt(actionBtn.dataset.id);
           this.showCustomerDetail(id);
           setTimeout(() => {
-            const briefTab = document.querySelector('.cust-mtab[data-mtab="brief"]');
+            const briefTab = document.querySelector('.cust-rtab[data-rtab="brief"]');
             if (briefTab) briefTab.click();
             const genBtn = document.getElementById('cm-brief-gen');
             if (genBtn) genBtn.click();
@@ -423,19 +423,19 @@ const CustomersPage = {
             </div>
             <div class="cust-card-body">
               <div class="cust-card-row">
-                <span class="cust-card-icon">🌐</span>
+                <span class="cust-card-icon"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.5 8a5.5 5.5 0 0111 0 .5.5 0 01-.5.5H5a.5.5 0 01-.5-.5zM10 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" clip-rule="evenodd"/></svg></span>
                 <span>${esc(c.country || '-')}</span>
               </div>
               <div class="cust-card-row">
-                <span class="cust-card-icon">👤</span>
+                <span class="cust-card-icon"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/></svg></span>
                 <span>${esc(c.contact_person || '담당자 미등록')}</span>
               </div>
               <div class="cust-card-row">
-                <span class="cust-card-icon">📞</span>
+                <span class="cust-card-icon"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg></span>
                 <span class="mono">${esc(c.phone || '-')}</span>
               </div>
               <div class="cust-card-row">
-                <span class="cust-card-icon">✉️</span>
+                <span class="cust-card-icon"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg></span>
                 <span class="mono" style="font-size:11px">${esc(c.email || '-')}</span>
               </div>
             </div>
@@ -443,20 +443,20 @@ const CustomersPage = {
               ${(() => {
                 const info = this._getBriefedInfo(c.id);
                 return info
-                  ? `<div class="brief-done-chip" data-brief-card-id="${c.id}">✅ ${info.label}</div>`
+                  ? `<div class="brief-done-chip" data-brief-card-id="${c.id}">${info.label}</div>`
                   : `<div data-brief-card-id="${c.id}" style="display:none"></div>`;
               })()}
               <!-- v6.0.0: 모듈별 카운트 통계 바 (옵션 C) — 클릭 시 모달 해당 탭 -->
               <!-- "관련딜"은 모달 [🤝 관련 딜] 탭과 동일한 customer_name 매칭 기준 -->
               <div class="cust-card-stats" data-stop-propagation="1">
-                ${this._renderStatChip(c.id, 'deals',     '🤝', '관련딜', c.related_deals_cnt)}
-                ${this._renderStatChip(c.id, 'quotes',    '💰', '견적',   c.quotes_cnt)}
-                ${this._renderStatChip(c.id, 'proposals', '📄', '제안',   c.proposals_cnt)}
-                ${this._renderStatChip(c.id, 'contracts', '📜', '계약',   c.contracts_cnt)}
+                ${this._renderStatChip(c.id, 'deals',     '관련딜', c.related_deals_cnt)}
+                ${this._renderStatChip(c.id, 'quotes',    '견적',   c.quotes_cnt)}
+                ${this._renderStatChip(c.id, 'proposals', '제안',   c.proposals_cnt)}
+                ${this._renderStatChip(c.id, 'contracts', '계약',   c.contracts_cnt)}
               </div>
               <button class="ai-gen-btn" style="width:100%;justify-content:center"
                 data-action="ai-brief" data-id="${c.id}" data-name="${esc(c.name).replace(/"/g, '&quot;')}">
-                🤖 AI 브리핑 생성
+                AI 브리핑 생성
               </button>
             </div>
           </div>
@@ -478,7 +478,7 @@ const CustomersPage = {
           const id = parseInt(actionBtn.dataset.id);
           this.showCustomerDetail(id);
           setTimeout(() => {
-            const briefTab = document.querySelector('.cust-mtab[data-mtab="brief"]');
+            const briefTab = document.querySelector('.cust-rtab[data-rtab="brief"]');
             if (briefTab) briefTab.click();
             const genBtn = document.getElementById('cm-brief-gen');
             if (genBtn) genBtn.click();
@@ -491,8 +491,10 @@ const CustomersPage = {
           const mtab = actionBtn.dataset.mtab;
           this.showCustomerDetail(id);
           setTimeout(() => {
-            const tab = document.querySelector(`.cust-mtab[data-mtab="${mtab}"]`);
-            if (tab) tab.click();
+            // 분할뷰: 관련 딜 메인탭 → 해당 서브탭 활성
+            document.querySelector('.cust-rtab[data-rtab="deals"]')?.click();
+            const sub = mtab === 'deals' ? 'dealslist' : mtab;
+            document.querySelector(`.cust-subtab[data-sub="${sub}"]`)?.click();
           }, 80);
           return;
         }
@@ -530,14 +532,13 @@ const CustomersPage = {
   // ── v6.0.0: 카드 푸터 통계 칩 (옵션 C) ───────────────────
   // 4개 모듈(딜/견적/제안/계약) 카운트를 한 줄에 표시 + 클릭 시 모달 해당 탭
   // 0건은 회색, N건은 컬러로 강조
-  _renderStatChip(custId, mtab, icon, label, count) {
+  _renderStatChip(custId, mtab, label, count) {
     const n = Number(count) || 0;
     const display = n > 99 ? '99+' : String(n);
     const cls = n > 0 ? 'cust-stat-chip active' : 'cust-stat-chip zero';
     return `<button type="button" class="${cls}"
               data-action="open-tab" data-id="${custId}" data-mtab="${mtab}"
               title="${esc(label)} ${n}건 — 클릭하면 ${esc(label)} 탭으로 이동">
-      <span class="stat-icon">${icon}</span>
       <span class="stat-label">${esc(label)}</span>
       <span class="stat-count">${display}</span>
     </button>`;
@@ -1070,379 +1071,6 @@ const CustomersPage = {
       LinkedSupport.render('#ls-customer', 'customer', id).then(r => setCnt('cm-support-cnt', r?.count)).catch(() => setCnt('cm-support-cnt', 0));
     if (typeof LinkedPayments !== 'undefined')
       LinkedPayments.render('#lpay-customer', 'customer', id).then(r => setCnt('cm-payments-cnt', r?.count)).catch(() => setCnt('cm-payments-cnt', 0));
-  },
-
-  showCustomerModal(id) {
-    const cust = this._allData.find(c => c.id === id) || this.data.find(c => c.id === id);
-    if (!cust) {
-      Toast.error('고객 정보를 찾을 수 없습니다');
-      return;
-    }
-
-    Modal.open({
-      title: `🏢 ${cust.name}`,
-      width: 1080,
-      body: `
-        <div class="cust-modal-tabs" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:-8px -8px 16px">
-          <button class="cust-mtab active" data-mtab="info"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid var(--oci-red);margin-bottom:-2px;color:var(--oci-red)">
-            📋 정보·수정
-          </button>
-          <button class="cust-mtab" data-mtab="view360"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            🎯 360뷰 <span id="cm-view360-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <button class="cust-mtab" data-mtab="deals"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            🤝 관련 딜 <span id="cm-deals-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <button class="cust-mtab" data-mtab="brief"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            ✨ 핵심 브리핑
-          </button>
-          <button class="cust-mtab" data-mtab="group"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            👥 소속 고객 <span id="cm-group-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <!-- v6.0.0: 견적 탭 (LinkedQuotes) — crm.quotes off 시 자동 숨김 -->
-          <button class="cust-mtab" data-mtab="quotes" data-feature="crm.quotes"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            💰 견적 <span id="cm-quotes-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <!-- v6.0.0: 제안 탭 (LinkedProposals) — crm.proposals off 시 자동 숨김 -->
-          <button class="cust-mtab" data-mtab="proposals" data-feature="crm.proposals"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            📄 제안 <span id="cm-proposals-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <!-- v6.0.0 Phase B: 계약 탭 (LinkedContracts 컴포넌트 활용) — crm.contracts off 시 자동 숨김 -->
-          <button class="cust-mtab" data-mtab="contracts" data-feature="crm.contracts"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            📜 계약 <span id="cm-contracts-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <!-- v6.0.0: 고객지원 탭 (placeholder) — crm.support off 시 자동 숨김 -->
-          <button class="cust-mtab" data-mtab="support" data-feature="crm.support"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            🎫 고객지원 <span id="cm-support-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-          <!-- 수금 탭 (LinkedPayments) — crm.payments off 시 자동 숨김 -->
-          <button class="cust-mtab" data-mtab="payments" data-feature="crm.payments"
-            style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;
-                   border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">
-            💳 수금 <span id="cm-payments-cnt" class="badge badge-blue" style="font-size:10px">…</span>
-          </button>
-        </div>
-
-        <!-- ⚠️ 탭 전환 시 모달 크기 변동 방지: 고정 높이 + 내부 스크롤 -->
-        <div id="cm-tab-wrap" style="min-height:720px;max-height:720px;overflow-y:auto;padding-right:4px">
-
-        <!-- 360뷰 탭 — 모든 접점 통합 (Customer360View 주입점) -->
-        <div id="cm-tab-view360" style="display:none">
-          <div id="c360-customer"><div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px">⏳ 360뷰 집계 중...</div></div>
-        </div>
-
-        <!-- 정보·수정 탭 -->
-        <div id="cm-tab-info">
-          <form id="cm-edit-form" class="form-grid">
-            <div class="form-row-2">
-              <div class="form-row">
-                <label class="form-label">고객사명 <span style="color:var(--oci-red)">*</span></label>
-                <input class="form-input" name="name" id="cm-name-input"
-                       required value="${esc(cust.name || '')}">
-              </div>
-              <div class="form-row">
-                <label class="form-label" title="고객사명이 바뀌어도 동일 식별자로 인식됩니다">
-                  사업자등록번호
-                </label>
-                <input class="form-input" name="business_no" id="cm-brn-input"
-                       value="${esc(cust.business_no || '')}"
-                       placeholder="000-00-00000" maxlength="13"
-                       autocomplete="off">
-                <div id="cm-brn-hint" style="font-size:11px;color:var(--text-3);margin-top:4px;min-height:14px"></div>
-              </div>
-            </div>
-            <div class="form-row-2">
-              <div class="form-row">
-                <label class="form-label">산업군</label>
-                <input class="form-input" name="industry" value="${esc(cust.industry || '')}">
-              </div>
-              <div class="form-row"></div>
-            </div>
-            <div class="form-row-3">
-              <div class="form-row">
-                <label class="form-label">지역</label>
-                <select class="form-input" name="region">
-                  <option value="국내" ${cust.region === '국내' ? 'selected' : ''}>국내</option>
-                  <option value="해외" ${cust.region === '해외' ? 'selected' : ''}>해외</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label class="form-label">국가</label>
-                <input class="form-input" name="country" value="${esc(cust.country || '')}">
-              </div>
-              <div class="form-row">
-                <label class="form-label">담당자</label>
-                <input class="form-input" name="contact_person" value="${esc(cust.contact_person || '')}">
-              </div>
-            </div>
-            <div class="form-row-2">
-              <div class="form-row">
-                <label class="form-label">연락처</label>
-                <input class="form-input" name="phone" value="${esc(cust.phone || '')}">
-              </div>
-              <div class="form-row">
-                <label class="form-label">이메일</label>
-                <input class="form-input" name="email" type="email" value="${esc(cust.email || '')}">
-              </div>
-            </div>
-            <div class="form-row">
-              <label class="form-label">주소</label>
-              <div style="display:flex;gap:6px">
-                <input class="form-input" name="address" id="cm-addr-input"
-                       value="${esc(cust.address || '')}" style="flex:1" placeholder="주소 검색 버튼을 눌러 검색하세요">
-                <button type="button" class="btn btn-ghost btn-sm" id="cm-addr-search"
-                        style="white-space:nowrap">🔍 주소 검색</button>
-              </div>
-            </div>
-            <div class="form-row">
-              <label class="form-label">위치 (카카오맵)</label>
-              <div id="cm-kakao-map"
-                   style="width:100%;height:280px;border:1px solid var(--border);border-radius:6px;
-                          background:var(--surface-2);display:flex;align-items:center;justify-content:center;
-                          color:var(--text-3);font-size:13px">
-                지도 로딩 중...
-              </div>
-            </div>
-          </form>
-
-          <!-- 📧 Gmail 대화 — lazy load -->
-          <div class="card" style="margin-top:16px;margin-bottom:0">
-            <div class="card-header">
-              <div class="card-title">📧 최근 Gmail 대화</div>
-              <button class="btn btn-ghost btn-sm" id="cust-gmail-refresh" title="새로고침" style="display:none">🔄</button>
-            </div>
-            <div class="card-body no-pad" id="cust-gmail-body">
-              <div class="loading" style="padding:14px;text-align:center;font-size:12px;color:var(--text-3)">Gmail 대화 로딩 중...</div>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button class="btn btn-ghost" id="cm-delete-btn" style="margin-right:auto;color:var(--oci-red)">🗑 삭제</button>
-            <button class="btn btn-ghost" id="cm-email-btn" title="이메일 보내기">✉️ 이메일</button>
-            <button class="btn btn-ghost" id="cm-cancel-btn">취소</button>
-            <button class="btn btn-primary" id="cm-save-btn">💾 저장</button>
-          </div>
-        </div>
-
-        <!-- 관련 딜 탭 -->
-        <div id="cm-tab-deals" style="display:none">
-          <div id="cm-deals-list"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        <!-- 핵심 브리핑 탭 -->
-        <div id="cm-tab-brief" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <div style="font-size:12px;color:var(--text-3)">AI가 영업 이력·활동을 분석해 핵심만 추출합니다 (약 5초)</div>
-            <button class="ai-gen-btn btn-sm" id="cm-brief-gen">🤖 브리핑 생성</button>
-          </div>
-          <div id="cm-brief-content" style="min-height:120px">
-            <div class="empty" style="padding:30px;text-align:center;color:var(--text-3);font-size:13px">
-              위 버튼을 눌러 핵심 브리핑을 생성하세요.
-            </div>
-          </div>
-        </div>
-
-        <!-- 소속 고객 탭 -->
-        <div id="cm-tab-group" style="display:none">
-          <div id="cm-group-list"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        <!-- v6.0.0: 견적 탭 (LinkedQuotes) -->
-        <div id="cm-tab-quotes" style="display:none">
-          <div id="lq-customer"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        <!-- v6.0.0: 제안 탭 (LinkedProposals) -->
-        <div id="cm-tab-proposals" style="display:none">
-          <div id="lp-customer"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        <!-- v6.0.0 Phase B: 계약 탭 -->
-        <div id="cm-tab-contracts" style="display:none">
-          <div id="lc-customer"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        <!-- P1-E: 고객지원 탭 (LinkedSupport) — crm.support off 시 자동 숨김 -->
-        <div id="cm-tab-support" style="display:none">
-          <div id="ls-customer"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        <!-- 수금 탭 (LinkedPayments) — crm.payments off 시 자동 숨김 -->
-        <div id="cm-tab-payments" style="display:none">
-          <div id="lpay-customer"><div class="loading" style="padding:30px;text-align:center">불러오는 중...</div></div>
-        </div>
-
-        </div><!-- /cm-tab-wrap : 고정 높이 wrapper 닫기 -->
-      `,
-    });
-
-    // 탭 전환
-    document.querySelectorAll('.cust-mtab').forEach(t => {
-      t.addEventListener('click', () => {
-        document.querySelectorAll('.cust-mtab').forEach(b => {
-          b.classList.remove('active');
-          b.style.color = 'var(--text-3)';
-          b.style.borderBottomColor = 'transparent';
-        });
-        t.classList.add('active');
-        t.style.color = 'var(--oci-red)';
-        t.style.borderBottomColor = 'var(--oci-red)';
-        ['info', 'view360', 'deals', 'brief', 'group', 'quotes', 'proposals', 'contracts', 'support', 'payments'].forEach(k => {
-          const el = document.getElementById('cm-tab-' + k);
-          if (el) el.style.display = k === t.dataset.mtab ? '' : 'none';
-        });
-      });
-    });
-
-    // 저장 / 취소 / 삭제
-    document.getElementById('cm-cancel-btn').addEventListener('click', () => Modal.close());
-    document
-      .getElementById('cm-save-btn')
-      .addEventListener('click', () => this._saveCustomerEdit(id));
-
-    // v6.0.0: 사업자등록번호 자동 포맷 + blur 시 매칭/검증
-    const brnInput = document.getElementById('cm-brn-input');
-    if (brnInput) {
-      // 입력 시 자동 포맷 (XXX-XX-XXXXX)
-      brnInput.addEventListener('input', () => {
-        const n = brnInput.value.replace(/[^0-9]/g, '').slice(0, 10);
-        let formatted = n;
-        if (n.length > 5) formatted = `${n.slice(0, 3)}-${n.slice(3, 5)}-${n.slice(5)}`;
-        else if (n.length > 3) formatted = `${n.slice(0, 3)}-${n.slice(3)}`;
-        brnInput.value = formatted;
-      });
-      // blur 시 매칭 호출 (자기 자신과 매칭 시는 skip)
-      brnInput.addEventListener('blur', () =>
-        this._matchBusinessNo(id, brnInput.value)
-      );
-    }
-    document
-      .getElementById('cm-delete-btn')
-      .addEventListener('click', () => this._deleteCustomer(id, cust.name));
-    document.getElementById('cm-email-btn')?.addEventListener('click', () => {
-      if (typeof Email !== 'undefined') {
-        Email.open({
-          customer: cust,
-          defaultCategory: 'customer',
-        });
-      }
-    });
-
-    // 브리핑 생성 버튼
-    document
-      .getElementById('cm-brief-gen')
-      .addEventListener('click', () => this._generateBrief(id));
-
-    // 카카오 주소 검색 + 지도
-    document
-      .getElementById('cm-addr-search')
-      .addEventListener('click', () => this._openPostcodeSearch());
-    this._initKakaoMap(cust.address);
-
-    // 📧 Gmail 대화 — lazy load
-    this._loadGmailForCustomer(id);
-
-    // 비동기로 딜/그룹/브리핑 캐시 로드
-    this._loadModalDeals(id);
-    this._loadModalGroup(id);
-    this._loadCachedBrief(id); // ← 저장된 최신 브리핑 자동 표시
-
-    // 360뷰 — 모든 접점 통합 집계 + 카운트 배지 (#cm-view360-cnt)
-    if (typeof Customer360View !== 'undefined') {
-      Customer360View.render('#c360-customer', 'customer', id)
-        .then(result => {
-          const badge = document.getElementById('cm-view360-cnt');
-          if (badge) badge.textContent = String(result?.count || 0);
-        })
-        .catch(() => {
-          const badge = document.getElementById('cm-view360-cnt');
-          if (badge) badge.textContent = '0';
-        });
-    }
-
-    // v6.0.0 Step 2 + Phase B: 연결된 계약 목록 (best-effort)
-    // Phase B: 탭 카운트 배지 갱신 (#cm-contracts-cnt)
-    if (typeof LinkedContracts !== 'undefined') {
-      LinkedContracts.render('#lc-customer', 'customer', id)
-        .then(result => {
-          const badge = document.getElementById('cm-contracts-cnt');
-          if (badge) badge.textContent = String(result?.count || 0);
-        })
-        .catch(() => {
-          const badge = document.getElementById('cm-contracts-cnt');
-          if (badge) badge.textContent = '0';
-        });
-    }
-
-    // v6.0.0: 연결된 견적 목록 + 카운트 배지 (#cm-quotes-cnt)
-    if (typeof LinkedQuotes !== 'undefined') {
-      LinkedQuotes.render('#lq-customer', 'customer', id)
-        .then(result => {
-          const badge = document.getElementById('cm-quotes-cnt');
-          if (badge) badge.textContent = String(result?.count || 0);
-        })
-        .catch(() => {
-          const badge = document.getElementById('cm-quotes-cnt');
-          if (badge) badge.textContent = '0';
-        });
-    }
-
-    // v6.0.0: 연결된 제안 목록 + 카운트 배지 (#cm-proposals-cnt)
-    if (typeof LinkedProposals !== 'undefined') {
-      LinkedProposals.render('#lp-customer', 'customer', id)
-        .then(result => {
-          const badge = document.getElementById('cm-proposals-cnt');
-          if (badge) badge.textContent = String(result?.count || 0);
-        })
-        .catch(() => {
-          const badge = document.getElementById('cm-proposals-cnt');
-          if (badge) badge.textContent = '0';
-        });
-    }
-
-    // P1-E: 연결된 고객지원(A/S) 티켓 + 카운트 배지 (#cm-support-cnt)
-    if (typeof LinkedSupport !== 'undefined') {
-      LinkedSupport.render('#ls-customer', 'customer', id)
-        .then(result => {
-          const badge = document.getElementById('cm-support-cnt');
-          if (badge) badge.textContent = String(result?.count || 0);
-        })
-        .catch(() => {
-          const badge = document.getElementById('cm-support-cnt');
-          if (badge) badge.textContent = '0';
-        });
-    }
-
-    // 연결된 수금일정 + 카운트 배지 (#cm-payments-cnt)
-    if (typeof LinkedPayments !== 'undefined') {
-      LinkedPayments.render('#lpay-customer', 'customer', id)
-        .then(result => {
-          const badge = document.getElementById('cm-payments-cnt');
-          if (badge) badge.textContent = String(result?.count || 0);
-        })
-        .catch(() => {
-          const badge = document.getElementById('cm-payments-cnt');
-          if (badge) badge.textContent = '0';
-        });
-    }
   },
 
   // ── 카카오 우편번호 SDK 동적 로드 ─────────────────────────
