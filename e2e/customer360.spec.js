@@ -86,6 +86,23 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/api/customer360/${CID}/forecast`, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FORECAST) })
   );
+  await page.route(`**/api/customer360/${CID}/revenue`, route =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          funnel: [
+            { key: 'forecast', label: 'Forecast (가중 예상매출)', amount: 6160000000 },
+            { key: 'order', label: '수주 (유효 계약)', amount: 8800000000, count: 1 },
+            { key: 'sales', label: '매출 인식', amount: 5600000000 },
+            { key: 'collection', label: '수금', amount: 2640000000 },
+          ],
+          ar: 3520000000, overdue: { count: 0, amount: 0 }, gap: -2640000000, conversion: 143,
+        },
+      }),
+    })
+  );
   await page.route(`**/api/customer360/${CID}`, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DETAIL) })
   );
@@ -132,4 +149,10 @@ test('고객·제품 360뷰 — 라이프사이클 보드 + 수요·생산·수�
   await expect(page.locator('#c360-tab-body')).toContainText('평택');
   await expect(page.locator('#c360-tab-body')).toContainText('김구매');
   await expect(page.locator('#site-add')).toBeVisible();
+
+  // 계약/매출/수금 탭 — Forecast→수주→매출→수금 funnel
+  await page.locator('.c360-tab[data-tab="revenue"]').click();
+  await expect(page.locator('#c360-rev')).toContainText('Forecast → 수주', { timeout: 5000 });
+  await expect(page.locator('#c360-rev')).toContainText('매출 인식');
+  await expect(page.locator('#c360-rev')).toContainText('수금');
 });

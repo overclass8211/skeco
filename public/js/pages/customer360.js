@@ -36,6 +36,9 @@ const Customer360Page = {
     activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     bulb: '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
+    sample: '<path d="M9 3h6M10 3v6.5L5.2 18a2 2 0 0 0 1.7 3h10.2a2 2 0 0 0 1.7-3L14 9.5V3"/>',
+    quality: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+    money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
   },
   _svg(name, size = 16) {
     return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${this._ic[name] || this._ic.activity}</svg>`;
@@ -178,6 +181,7 @@ const Customer360Page = {
     this._cmpVer = null;
     this._samples = null;
     this._quality = null;
+    this._revenue = null;
     localStorage.setItem('c360_last', String(id));
     const body = document.getElementById('c360-body');
     if (body) body.innerHTML = `<div class="c360-empty">불러오는 중…</div>`;
@@ -247,6 +251,7 @@ const Customer360Page = {
         ${[
           ['lifecycle', '라이프사이클'],
           ['forecast', '포캐스트'],
+          ['revenue', '계약/매출/수금'],
           ['samples', '샘플/평가'],
           ['quality', '품질'],
           ['org', '조직'],
@@ -275,6 +280,7 @@ const Customer360Page = {
     const m = {
       lifecycle: () => this._tabLifecycle(),
       forecast: () => this._tabForecast(),
+      revenue: () => this._tabRevenue(),
       samples: () => this._tabSamples(),
       quality: () => this._tabQuality(),
       org: () => this._tabOrg(),
@@ -299,6 +305,7 @@ const Customer360Page = {
       if (!this._fcData) this._loadForecast();
       else this._bindForecast(el);
     }
+    if (this._tab === 'revenue' && !this._revenue) this._loadRevenue();
     if (this._tab === 'samples') {
       if (!this._samples) this._loadSamples();
       else this._bindSamples(el);
@@ -461,7 +468,7 @@ const Customer360Page = {
   _tabTimeline() {
     const tl = this._data.timeline;
     if (!tl.length) return '<div class="c360-empty">최근 활동 기록이 없습니다.</div>';
-    const iconByType = { activity: 'activity', quote: 'quote', proposal: 'proposal', contract: 'contract' };
+    const iconByType = { activity: 'activity', quote: 'quote', proposal: 'proposal', contract: 'contract', sample: 'sample', quality: 'quality' };
     return `<div class="c360-tl">
       ${tl
         .map(
@@ -688,6 +695,49 @@ const Customer360Page = {
     });
   },
 
+  // ── 계약/매출/수금 탭 (Forecast → 수주 → 매출 → 수금 → Gap) ──
+  _tabRevenue() {
+    if (!this._revenue) return '<div id="c360-rev"><div class="c360-empty">불러오는 중…</div></div>';
+    return `<div id="c360-rev">${this._renderRevenue()}</div>`;
+  },
+  async _loadRevenue() {
+    try {
+      const res = await API.get(`/customer360/${this._custId}/revenue`);
+      this._revenue = res.data;
+    } catch (_) {
+      this._revenue = { funnel: [], ar: 0, overdue: { count: 0, amount: 0 }, gap: 0, conversion: null };
+    }
+    const host = document.getElementById('c360-rev');
+    if (host) host.innerHTML = this._renderRevenue();
+  },
+  _renderRevenue() {
+    const d = this._revenue;
+    const f = d.funnel || [];
+    const max = Math.max(1, ...f.map(x => x.amount));
+    const colors = ['#2357E8', '#7c4dff', '#17A85A', '#0F7A3F'];
+    const funnel = f.length
+      ? f
+          .map(
+            (x, i) => `<div class="c360-pipe-row">
+              <span class="nm" style="width:150px">${esc(x.label)}</span>
+              <span class="c360-pipe-bar"><div style="width:${Math.round((x.amount / max) * 100)}%;background:${colors[i] || '#2357E8'}"></div></span>
+              <span class="amt">${this._won(x.amount)}${x.count !== null && x.count !== undefined ? ` · ${x.count}건` : ''}</span>
+            </div>`
+          )
+          .join('')
+      : '<div class="c360-empty">데이터가 없습니다.</div>';
+    return `
+      <div class="c360-kpis">
+        ${this._kpi('money', 'Forecast→수주 전환율', d.conversion === null ? '-' : d.conversion + '%', 'Gap ' + this._won(d.gap))}
+        ${this._kpi('contract', '매출채권(미수)', this._won(d.ar), '인식−수금')}
+        ${this._kpi('quality', '연체 수금', `${d.overdue.count}건`, this._won(d.overdue.amount))}
+      </div>
+      <div class="c360-sec" style="margin-top:0">Forecast → 수주 → 매출인식 → 수금</div>
+      <div class="c360-pipe">${funnel}</div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:10px">Forecast(가중 예상매출)가 실제 수주·매출·수금으로 얼마나 전환됐는지 추적합니다.</div>
+    `;
+  },
+
   // ── 샘플/평가 탭 ─────────────────────────────────────────
   _SMP_STATUS: {
     requested: '요청', sent: '발송', evaluating: '평가중', passed: '승인', conditional: '조건부', failed: '불합격',
@@ -734,8 +784,8 @@ const Customer360Page = {
             <td>${esc(s.purpose || '-')}</td>
             <td class="mono">${esc(s.lot_no || '-')}</td>
             <td>${s.sent_at ? String(s.sent_at).slice(0, 10) : '-'}</td>
-            <td><span class="pill ${cls}">${esc(st)}</span></td>
-            <td>${esc(s.result || '-')}</td>
+            <td><span class="pill ${cls}">${esc(st)}</span>${s.resample ? '<span class="pill pill-warn">재샘플</span>' : ''}</td>
+            <td>${esc(s.fail_reason || s.result || '-')}</td>
             <td style="text-align:right"><button class="lc-mini" data-smp-edit="${s.id}">수정</button></td>
           </tr>`;
           })
@@ -771,7 +821,13 @@ const Customer360Page = {
             <div class="form-row"><label class="form-label">발송일</label><input class="form-input" id="s-sent" type="date" value="${s && s.sent_at ? String(s.sent_at).slice(0, 10) : ''}"></div>
             <div class="form-row"><label class="form-label">상태</label><select class="form-input" id="s-status">${stOpts}</select></div>
           </div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">평가 기준</label><input class="form-input" id="s-criteria" value="${s ? esc(s.eval_criteria || '') : ''}" placeholder="순도 99.999% 이상"></div>
+            <div class="form-row"><label class="form-label">평가 장비/공정</label><input class="form-input" id="s-equip" value="${s ? esc(s.eval_equipment || '') : ''}" placeholder="식각 설비 A"></div>
+          </div>
           <div class="form-row"><label class="form-label">결과/비고</label><input class="form-input" id="s-result" value="${s ? esc(s.result || '') : ''}"></div>
+          <div class="form-row"><label class="form-label">불합격 사유</label><input class="form-input" id="s-fail" value="${s ? esc(s.fail_reason || '') : ''}" placeholder="불합격 시 사유"></div>
+          <label class="form-label" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="s-resample" ${s && s.resample ? 'checked' : ''}> 재샘플 필요</label>
         </div>`,
       footer: `<button class="btn btn-ghost" id="s-cancel">취소</button><button class="btn btn-primary" id="s-save">저장</button>`,
       bind: { '#s-cancel': () => Modal.close(), '#s-save': () => this._saveSample(s) },
@@ -786,6 +842,10 @@ const Customer360Page = {
       sent_at: v('s-sent') || null,
       status: v('s-status'),
       result: v('s-result') || null,
+      eval_criteria: v('s-criteria') || null,
+      eval_equipment: v('s-equip') || null,
+      fail_reason: v('s-fail') || null,
+      resample: document.getElementById('s-resample')?.checked ? 1 : 0,
     };
     if (!payload.purpose && !payload.customer_material_id) {
       Toast.error('목적 또는 소재를 입력하세요');
@@ -828,7 +888,7 @@ const Customer360Page = {
     const list = this._quality;
     const table = list.length
       ? `<table class="data-table" style="font-size:12px"><thead><tr>
-          <th>케이스</th><th>소재</th><th>유형</th><th>심각도</th><th>상태</th><th>제목</th><th>발생일</th><th></th>
+          <th>케이스</th><th>소재</th><th>유형</th><th>심각도</th><th>상태</th><th>제목</th><th>담당</th><th>발생일</th><th></th>
         </tr></thead><tbody>
         ${list
           .map(q => {
@@ -841,6 +901,7 @@ const Customer360Page = {
             <td><span class="pill ${sevCls}">${esc(q.severity)}</span></td>
             <td><span class="pill ${stCls}">${esc(this._Q_STATUS[q.status] || q.status)}</span></td>
             <td>${esc(q.title)}</td>
+            <td>${esc(q.owner_name || '-')}</td>
             <td>${q.opened_at ? String(q.opened_at).slice(0, 10) : '-'}</td>
             <td style="text-align:right"><button class="lc-mini" data-q-edit="${q.id}">수정</button></td>
           </tr>`;

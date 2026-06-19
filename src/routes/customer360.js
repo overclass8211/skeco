@@ -258,9 +258,37 @@ router.get('/:id', validateId, async (req, res) => {
     }
     const pipeline = [...pipeMap.values()];
 
-    // ── 통합 타임라인 (type 만 부여, 아이콘은 프론트 SVG) ──
+    // ── 통합 타임라인 (type 만 부여, 아이콘은 프론트 SVG) — 샘플/품질 접점 포함 ──
+    const [recentSamples, recentQuality] = await Promise.all([
+      pool
+        .query(
+          `SELECT sample_no, status, COALESCE(sent_at, requested_at, created_at) AS dt
+             FROM sample_requests WHERE customer_id=? ORDER BY dt DESC LIMIT 5`,
+          [id]
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT case_no, title, type, status, COALESCE(opened_at, created_at) AS dt
+             FROM quality_cases WHERE customer_id=? ORDER BY dt DESC LIMIT 5`,
+          [id]
+        )
+        .then(r => r[0]),
+    ]);
     const timeline = [
       ...recentActs.map(r => ({ type: 'activity', title: r.title || r.activity_type, date: r.dt })),
+      ...recentSamples.map(r => ({
+        type: 'sample',
+        title: `샘플 ${r.sample_no || ''}`.trim(),
+        date: r.dt,
+        status: r.status,
+      })),
+      ...recentQuality.map(r => ({
+        type: 'quality',
+        title: `품질 ${r.case_no || ''} ${r.title || ''}`.trim(),
+        date: r.dt,
+        status: r.status,
+      })),
       ...recentQuotes.map(r => ({
         type: 'quote',
         title: `견적 ${r.quote_no || ''} ${r.name || ''}`.trim(),
@@ -1111,8 +1139,8 @@ router.post('/:id/samples', requireLevel(1), validateId, async (req, res) => {
     const [r] = await pool.query(
       `INSERT INTO sample_requests
          (sample_no, customer_id, customer_material_id, requested_at, purpose, lot_no,
-          sent_at, qty, unit, status, result, owner_id, note)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          sent_at, qty, unit, status, result, eval_criteria, eval_equipment, fail_reason, resample, owner_id, note)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         sampleNo,
         req.params.id,
@@ -1125,6 +1153,10 @@ router.post('/:id/samples', requireLevel(1), validateId, async (req, res) => {
         b.unit || 'kg',
         status,
         b.result || null,
+        b.eval_criteria || null,
+        b.eval_equipment || null,
+        b.fail_reason || null,
+        b.resample ? 1 : 0,
         getUserId(req),
         b.note || null,
       ]
@@ -1148,6 +1180,10 @@ router.put('/samples/:id', requireLevel(1), validateId, async (req, res) => {
       'unit',
       'status',
       'result',
+      'eval_criteria',
+      'eval_equipment',
+      'fail_reason',
+      'resample',
       'note',
     ];
     const fields = [];
@@ -1178,8 +1214,9 @@ const QUALITY_STATUS = ['open', 'in_progress', 'resolved'];
 router.get('/:id/quality', validateId, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT q.*, m.material_name FROM quality_cases q
+      `SELECT q.*, m.material_name, t.name AS owner_name FROM quality_cases q
          LEFT JOIN customer_materials m ON m.id = q.customer_material_id
+         LEFT JOIN team_members t ON t.id = q.owner_id
         WHERE q.customer_id=? ORDER BY FIELD(q.status,'open','in_progress','resolved'), q.opened_at DESC, q.id DESC`,
       [req.params.id]
     );
@@ -1355,6 +1392,95 @@ router.delete('/contacts/:id', requireLevel(1), validateId, async (req, res) => 
   try {
     await pool.query('DELETE FROM customer_contacts WHERE id=?', [req.params.id]);
     res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 계약/매출/수금 (Forecast → 수주 → 매출인식 → 수금 → Gap) ──
+router.get('/:id/revenue', validateId, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const [[c]] = await pool.query('SELECT id, name FROM customers WHERE id=?', [id]);
+    if (!c) return res.status(404).json({ success: false, error: '고객사 없음' });
+    const name = c.name;
+    const byCust = '(customer_id = ? OR (customer_id IS NULL AND customer_name = ?))';
+    const p = [id, name];
+
+    const [[fc], [ord], [sal], [col], [ovd], [arSched]] = await Promise.all([
+      // Forecast: 진행 딜 가중 예상매출
+      pool
+        .query(
+          `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100),0) AS amt
+             FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
+            WHERE l.customer_name=? AND l.stage NOT IN ('won','lost','dropped')`,
+          [name]
+        )
+        .then(r => r[0]),
+      // 수주(Order): 유효 계약
+      pool
+        .query(
+          `SELECT COALESCE(SUM(contract_amount),0) AS amt, COUNT(*) AS cnt
+             FROM contracts WHERE ${byCust} AND status IN ('active','signed','approved','completed')`,
+          p
+        )
+        .then(r => r[0]),
+      // 매출 인식(Sales): 수금 스케줄 중 인식 완료분 공급가
+      pool
+        .query(
+          `SELECT COALESCE(SUM(CASE WHEN recognized_at IS NOT NULL THEN supply_amount ELSE 0 END),0) AS amt
+             FROM payment_schedules WHERE ${byCust}`,
+          p
+        )
+        .then(r => r[0]),
+      // 수금(Collection): 실제 입금
+      pool
+        .query(
+          `SELECT COALESCE(SUM(paid_amount),0) AS amt FROM payment_records WHERE customer_id=?`,
+          [id]
+        )
+        .then(r => r[0]),
+      // 연체
+      pool
+        .query(
+          `SELECT COUNT(*) AS cnt, COALESCE(SUM(scheduled_amount),0) AS amt
+             FROM payment_schedules WHERE ${byCust} AND status='overdue'`,
+          p
+        )
+        .then(r => r[0]),
+      // 미수(청구·예정 합계 - 수금)
+      pool
+        .query(
+          `SELECT COALESCE(SUM(scheduled_amount),0) AS amt
+             FROM payment_schedules WHERE ${byCust} AND status IN ('invoiced','partial','overdue','scheduled')`,
+          p
+        )
+        .then(r => r[0]),
+    ]);
+
+    const forecast = Math.round(Number(fc.amt) || 0);
+    const order = Math.round(Number(ord.amt) || 0);
+    const sales = Math.round(Number(sal.amt) || 0);
+    const collected = Math.round(Number(col.amt) || 0);
+    const ar = Math.max(0, Math.round((Number(arSched.amt) || 0) - collected));
+    const gap = forecast - order;
+    const conversion = forecast > 0 ? Math.round((order / forecast) * 100) : null;
+
+    res.json({
+      success: true,
+      data: {
+        funnel: [
+          { key: 'forecast', label: 'Forecast (가중 예상매출)', amount: forecast },
+          { key: 'order', label: '수주 (유효 계약)', amount: order, count: Number(ord.cnt) || 0 },
+          { key: 'sales', label: '매출 인식', amount: sales },
+          { key: 'collection', label: '수금', amount: collected },
+        ],
+        ar,
+        overdue: { count: Number(ovd.cnt) || 0, amount: Math.round(Number(ovd.amt) || 0) },
+        gap,
+        conversion,
+      },
+    });
   } catch (err) {
     handleError(res, err);
   }

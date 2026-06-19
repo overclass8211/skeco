@@ -256,6 +256,46 @@ async function maybeQuality(conn, lead, matId, idx) {
       }
     }
 
+    // ── A탭 데모: 계약 기준 수금 스케줄/입금 (멱등) ──
+    counts.payments = 0;
+    const [contracts] = await conn.query(
+      `SELECT id, customer_id, customer_name, contract_amount FROM contracts
+        WHERE status IN ('active','signed','approved','completed')`
+    );
+    const PAY_STAGES = [
+      ['착수금', 0.3, 'collected', '2026-07-15'],
+      ['중도금', 0.4, 'invoiced', '2026-08-15'],
+      ['잔금', 0.3, 'scheduled', '2026-09-15'],
+    ];
+    for (const ct of contracts) {
+      const [[ex]] = await conn.query('SELECT COUNT(*) AS n FROM payment_schedules WHERE contract_id=?', [ct.id]);
+      if (ex.n > 0) continue;
+      const amt = Number(ct.contract_amount) || 0;
+      let i = 0;
+      for (const [nm, ratio, st, due] of PAY_STAGES) {
+        const sched = Math.round(amt * ratio);
+        const supply = Math.round(sched / 1.1);
+        const recognized = st === 'scheduled' ? null : '2026-06-01';
+        const [r] = await conn.query(
+          `INSERT INTO payment_schedules
+             (contract_id, customer_id, customer_name, contract_name, stage_name, stage_order, ratio,
+              scheduled_amount, supply_amount, tax_amount, due_date, status, recognized_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [ct.id, ct.customer_id, ct.customer_name, '공급계약', nm, i + 1, ratio * 100,
+           sched, supply, sched - supply, due, st, recognized]
+        );
+        if (st === 'collected') {
+          await conn.query(
+            `INSERT INTO payment_records (schedule_id, contract_id, customer_id, paid_amount, paid_date)
+             VALUES (?,?,?,?,?)`,
+            [r.insertId, ct.id, ct.customer_id, sched, '2026-06-05']
+          );
+        }
+        i += 1;
+        counts.payments += 1;
+      }
+    }
+
     console.log('\n✅ 시드 완료(멱등):');
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
@@ -263,6 +303,7 @@ async function maybeQuality(conn, lead, matId, idx) {
     console.log(`  · 기준 포캐스트 버전: ${counts.versions} 신규`);
     console.log(`  · 사업장: ${counts.sites} · 담당자: ${counts.contacts} · 샘플: ${counts.samples} 신규`);
     console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
+    console.log(`  · 수금 스케줄(payment_schedules): ${counts.payments} 신규`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');
     console.log(`  · 현재 총 소재: ${m.n}`);
   } catch (e) {

@@ -253,13 +253,45 @@ describe('Customer360 (MVP) API', () => {
     await pool.query('DELETE FROM production_forecasts WHERE id=?', [pf.insertId]);
   });
 
-  it('품질 케이스 생성 + GET /:id/quality + 필수값', async () => {
+  it('품질 케이스 생성 + GET /:id/quality + 필수값 + owner_name', async () => {
     const bad = await api().post(`/api/customer360/${custId}/quality`).set('X-User-Id', '1').send({ type: 'VOC' });
     expect(bad.status).toBe(400);
     const cr = await api().post(`/api/customer360/${custId}/quality`).set('X-User-Id', '1').send({ title: '__QCASE__', type: 'NCR', severity: 'high' });
     expect(cr.status).toBe(200);
     const list = await api().get(`/api/customer360/${custId}/quality`).set('X-User-Id', '1');
-    expect(list.body.data.some(q => q.id === cr.body.data.id)).toBe(true);
+    const row = list.body.data.find(q => q.id === cr.body.data.id);
+    expect(row).toBeTruthy();
+    expect(row).toHaveProperty('owner_name'); // B: 담당 join
     await pool.query('DELETE FROM quality_cases WHERE id=?', [cr.body.data.id]);
+  });
+
+  it('D: 샘플 상세필드(평가기준/불합격/재샘플) 저장·반영', async () => {
+    const cr = await api()
+      .post(`/api/customer360/${custId}/samples`)
+      .set('X-User-Id', '1')
+      .send({ customer_material_id: matId, purpose: '평가', eval_criteria: '순도 99.999%', eval_equipment: '식각설비A', resample: 1 });
+    expect(cr.status).toBe(200);
+    const up = await api()
+      .put(`/api/customer360/samples/${cr.body.data.id}`)
+      .set('X-User-Id', '1')
+      .send({ status: 'failed', fail_reason: '순도 미달' });
+    expect(up.status).toBe(200);
+    const list = await api().get(`/api/customer360/${custId}/samples`).set('X-User-Id', '1');
+    const row = list.body.data.find(s => s.id === cr.body.data.id);
+    expect(row.eval_criteria).toBe('순도 99.999%');
+    expect(row.fail_reason).toBe('순도 미달');
+    expect(Number(row.resample)).toBe(1);
+    await pool.query('DELETE FROM sample_requests WHERE id=?', [cr.body.data.id]);
+  });
+
+  it('A: GET /:id/revenue — Forecast→수주→매출→수금 funnel', async () => {
+    const res = await api().get(`/api/customer360/${custId}/revenue`).set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    expect(Array.isArray(d.funnel)).toBe(true);
+    expect(d.funnel.map(f => f.key)).toEqual(['forecast', 'order', 'sales', 'collection']);
+    expect(d).toHaveProperty('ar');
+    expect(d).toHaveProperty('overdue');
+    expect(d).toHaveProperty('gap');
   });
 });

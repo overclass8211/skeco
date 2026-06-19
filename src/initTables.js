@@ -907,6 +907,10 @@ async function initTables() {
       unit                VARCHAR(10)  DEFAULT 'kg',
       status              VARCHAR(20)  DEFAULT 'requested',  -- requested/sent/evaluating/passed/conditional/failed
       result              VARCHAR(500) DEFAULT NULL,
+      eval_criteria       VARCHAR(500) DEFAULT NULL,         -- 평가 기준
+      eval_equipment      VARCHAR(200) DEFAULT NULL,         -- 평가 장비/공정
+      fail_reason         VARCHAR(500) DEFAULT NULL,         -- 불합격 사유
+      resample            TINYINT(1)   DEFAULT 0,            -- 재샘플 여부
       owner_id            INT          DEFAULT NULL,
       note                VARCHAR(500) DEFAULT NULL,
       created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
@@ -914,6 +918,20 @@ async function initTables() {
       INDEX idx_sr_customer (customer_id),
       INDEX idx_sr_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    // 기존 sample_requests 에 상세 컬럼 보강 (idempotent — 이미 있으면 무시)
+    for (const col of [
+      'ADD COLUMN eval_criteria VARCHAR(500) DEFAULT NULL',
+      'ADD COLUMN eval_equipment VARCHAR(200) DEFAULT NULL',
+      'ADD COLUMN fail_reason VARCHAR(500) DEFAULT NULL',
+      'ADD COLUMN resample TINYINT(1) DEFAULT 0',
+    ]) {
+      try {
+        await pool.query(`ALTER TABLE sample_requests ${col}`);
+      } catch (e) {
+        if (!String(e.message).includes('Duplicate'))
+          console.warn('⚠ sample_requests 컬럼:', e.message);
+      }
+    }
 
     // ── 사용자 인증 테이블 ──────────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS users (
