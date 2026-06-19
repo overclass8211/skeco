@@ -46,6 +46,7 @@ const App = {
       crumb: '알림 / 전체 목록',
     },
     dev: { obj: () => DevPage, title: '개발자 옵션', crumb: '시스템 / 개발자 옵션' },
+    // @scaffold:pages — 신규 페이지 라우팅 자동 삽입 지점 (scaffold-page.js)
   },
 
   async init() {
@@ -588,6 +589,7 @@ const App = {
       meeting: 'ai.meeting',
       'meeting-list': 'ai.meeting',
       dev: 'dev.options',
+      // @scaffold:featureMap — 신규 페이지 기능플래그 자동 삽입 지점 (scaffold-page.js)
     };
     const featKey = featureMap[pageId];
     if (featKey && typeof Features !== 'undefined' && !Features.isEnabled(featKey)) {

@@ -43,6 +43,7 @@ const DEFAULT_ITEMS = [
   { menu_key: 'admin', section_key: 'system', display_order: 1, is_system: 1 },
   { menu_key: 'settings', section_key: 'system', display_order: 2, is_system: 1 },
   { menu_key: 'dev', section_key: 'system', display_order: 3, is_system: 1 },
+  // @scaffold:menu-items — 신규 페이지 메뉴 시드 자동 삽입 지점 (scaffold-page.js)
 ];
 
 module.exports = { DEFAULT_SECTIONS, DEFAULT_ITEMS };
