@@ -48,8 +48,8 @@ describe('Production Forecasts API', () => {
 
     const [[lead]] = await pool.query('SELECT stage, expected_amount FROM leads WHERE id=?', [convertedLeadId]);
     expect(lead.stage).toBe('won');
-    // 1200 × 1,250,000 = 1.5e9 원 = 15억
-    expect(Number(lead.expected_amount)).toBeCloseTo(15, 1);
+    // 1200 × 1,250,000 = 1,500,000,000 원 (expected_amount 는 원 풀값)
+    expect(Number(lead.expected_amount)).toBe(1200 * 1250000);
 
     const [[pf]] = await pool.query('SELECT status, converted_lead_id FROM production_forecasts WHERE id=?', [id]);
     expect(pf.status).toBe('수주전환');

@@ -50,7 +50,7 @@ test('생산예측 탭 — 목록 렌더 + 수주 전환 호출', async ({ page 
   const tbl = page.locator('#prod-table');
   await expect(tbl).toContainText('삼성전자', { timeout: 5000 });
   await expect(tbl).toContainText('식각가스 C4F6');
-  await expect(tbl).toContainText('₩1,875,000,000');
+  await expect(tbl).toContainText('₩18.8억'); // Fmt.amount(1,875,000,000) = ₩18.8억
 
   // 수주 전환 — confirm 다이얼로그 자동 수락 + convert API 호출 확인
   page.on('dialog', d => d.accept());

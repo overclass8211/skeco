@@ -148,8 +148,8 @@ router.post('/:id/convert', async (req, res) => {
       await conn.rollback();
       return res.status(409).json({ success: false, error: '이미 수주 전환됨' });
     }
-    // 원 → 억 (leads.expected_amount 단위)
-    const amountEok = Math.round(((Number(pf.expected_revenue) || 0) / 1e8) * 100) / 100;
+    // leads.expected_amount 는 원(₩) 풀값 — 생산예측 예상매출(원)을 그대로 사용
+    const amountWon = Math.round(Number(pf.expected_revenue) || 0);
     const closeDate = `${pf.period}-01`;
     const [lr] = await conn.query(
       `INSERT INTO leads
@@ -163,7 +163,7 @@ router.post('/:id/convert', async (req, res) => {
         pf.business_type || null,
         '국내',
         0,
-        amountEok,
+        amountWon,
         'KRW',
         'won',
         pf.assigned_to || null,
@@ -176,7 +176,7 @@ router.post('/:id/convert', async (req, res) => {
       [lr.insertId, pf.id]
     );
     await conn.commit();
-    res.json({ success: true, data: { lead_id: lr.insertId, expected_amount: amountEok } });
+    res.json({ success: true, data: { lead_id: lr.insertId, expected_amount: amountWon } });
   } catch (err) {
     await conn.rollback();
     handleError(res, err);

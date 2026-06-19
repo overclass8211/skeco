@@ -62,7 +62,7 @@ CREATE TABLE leads (
   business_type ENUM('식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스') DEFAULT '식각가스',
   region ENUM('국내', '해외') DEFAULT '국내',
   capacity_mw DECIMAL(10,2) COMMENT '용량 (MW)',
-  expected_amount DECIMAL(15,2) COMMENT '예상 금액 (억원)',
+  expected_amount DECIMAL(18,2) COMMENT '예상 매출 (원/₩ 풀값)',
   currency VARCHAR(10) DEFAULT 'KRW',
   stage ENUM('lead','review','proposal','bidding','negotiation','won','lost','dropped') DEFAULT 'lead',
   win_probability TINYINT UNSIGNED NULL COMMENT '딜별 수주확률 override(%) — NULL이면 단계 기본값',
@@ -495,21 +495,22 @@ INSERT INTO cost_history (product_id, price, recorded_at) VALUES
 (4, 3780.00, '2026-05-25'), (4, 3820.00, '2026-06-05'), (4, 3850.00, '2026-06-08');
 
 -- 영업 리드 (파이프라인 단계별) — capacity_mw 미사용(소재사업) → 0
+-- expected_amount 단위: 원(₩) 풀값 (예: 120억 = 120*100000000)
 INSERT INTO leads (customer_id, customer_name, project_name, business_type, region, capacity_mw, expected_amount, currency, stage, assigned_to, expected_close_date, bidding_deadline, notes) VALUES
-(1, '삼성전자', '평택 P4 식각가스 C4F6 연간공급', '식각가스', '국내', 0, 120.00, 'KRW', 'bidding', 1, '2026-07-15', '2026-07-10', '연간 단가계약 입찰 진행'),
-(2, 'SK하이닉스', 'M16 프리커서 Hf 전구체 공급', '프리커서', '국내', 0, 95.00, 'KRW', 'proposal', 2, '2026-08-20', NULL, 'DRAM 미세공정용 제안서 제출'),
-(3, '삼성디스플레이', 'A6 OLED 블루도판트 공급', '디스플레이소재', '국내', 0, 60.00, 'KRW', 'proposal', 3, '2026-08-30', NULL, '고효율 발광소재 평가 통과'),
-(4, 'LG디스플레이', '파주 HTL/ETL 소재 평가', '디스플레이소재', '국내', 0, 28.00, 'KRW', 'review', 3, '2026-10-30', NULL, '패널 신뢰성 평가 진행중'),
-(1, '삼성전자', '화성 ArF PR 국산화 PoC', '포토소재', '국내', 0, 45.00, 'KRW', 'lead', 4, '2026-11-01', NULL, '국산화 초기 검토'),
-(2, 'SK하이닉스', '청주 Wet Chemical 고선택비 인산', 'Wet Chemical', '국내', 0, 38.00, 'KRW', 'negotiation', 7, '2026-07-20', NULL, '단가 협상 진행중'),
-(7, 'Micron', 'Hiroshima 식각가스 CH3F 공급', '식각가스', '해외', 0, 70.00, 'KRW', 'proposal', 6, '2026-09-30', NULL, '약 $5.2M 규모 견적 진행'),
-(8, 'BOE', 'B12 OLED 소재 패키지', '디스플레이소재', '해외', 0, 42.00, 'KRW', 'lead', 6, '2026-12-01', NULL, '중국 패널사 초기 컨택'),
-(5, 'DB하이텍', '부천 식각가스 통합공급(BSGS)', '통합서비스', '국내', 0, 52.00, 'KRW', 'negotiation', 5, '2026-07-25', NULL, 'Gas+물류 통합 패키지'),
-(10, 'Kioxia', 'Yokkaichi 프리커서 Zr 공급', '프리커서', '해외', 0, 40.00, 'KRW', 'proposal', 6, '2026-09-10', NULL, '3D NAND 적층공정 대응'),
-(11, 'Intel', 'Arizona SOC 하드마스크 공급', '포토소재', '해외', 0, 80.00, 'KRW', 'review', 1, '2026-10-15', NULL, 'EUV 공정 평가 협의'),
-(NULL, '삼성전자 평택 P5', 'BSGS 통합서비스 + Gas 패키지', '통합서비스', '국내', 0, 180.00, 'KRW', 'bidding', 5, '2026-07-18', '2026-07-12', '대형 통합공급 입찰'),
-(NULL, '삼성디스플레이 A5', 'OLED 블루도판트 초도물량', '디스플레이소재', '국내', 0, 24.00, 'KRW', 'won', 3, '2026-05-30', NULL, '초도물량 수주 완료'),
-(NULL, '중국 신규 패널사', 'T9 식각가스 (보류)', '식각가스', '해외', 0, 30.00, 'KRW', 'dropped', 6, '2026-05-20', NULL, '수출규제 검토로 보류');
+(1, '삼성전자', '평택 P4 식각가스 C4F6 연간공급', '식각가스', '국내', 0, 120*100000000, 'KRW', 'bidding', 1, '2026-07-15', '2026-07-10', '연간 단가계약 입찰 진행'),
+(2, 'SK하이닉스', 'M16 프리커서 Hf 전구체 공급', '프리커서', '국내', 0, 95*100000000, 'KRW', 'proposal', 2, '2026-08-20', NULL, 'DRAM 미세공정용 제안서 제출'),
+(3, '삼성디스플레이', 'A6 OLED 블루도판트 공급', '디스플레이소재', '국내', 0, 60*100000000, 'KRW', 'proposal', 3, '2026-08-30', NULL, '고효율 발광소재 평가 통과'),
+(4, 'LG디스플레이', '파주 HTL/ETL 소재 평가', '디스플레이소재', '국내', 0, 28*100000000, 'KRW', 'review', 3, '2026-10-30', NULL, '패널 신뢰성 평가 진행중'),
+(1, '삼성전자', '화성 ArF PR 국산화 PoC', '포토소재', '국내', 0, 45*100000000, 'KRW', 'lead', 4, '2026-11-01', NULL, '국산화 초기 검토'),
+(2, 'SK하이닉스', '청주 Wet Chemical 고선택비 인산', 'Wet Chemical', '국내', 0, 38*100000000, 'KRW', 'negotiation', 7, '2026-07-20', NULL, '단가 협상 진행중'),
+(7, 'Micron', 'Hiroshima 식각가스 CH3F 공급', '식각가스', '해외', 0, 70*100000000, 'KRW', 'proposal', 6, '2026-09-30', NULL, '약 $5.2M 규모 견적 진행'),
+(8, 'BOE', 'B12 OLED 소재 패키지', '디스플레이소재', '해외', 0, 42*100000000, 'KRW', 'lead', 6, '2026-12-01', NULL, '중국 패널사 초기 컨택'),
+(5, 'DB하이텍', '부천 식각가스 통합공급(BSGS)', '통합서비스', '국내', 0, 52*100000000, 'KRW', 'negotiation', 5, '2026-07-25', NULL, 'Gas+물류 통합 패키지'),
+(10, 'Kioxia', 'Yokkaichi 프리커서 Zr 공급', '프리커서', '해외', 0, 40*100000000, 'KRW', 'proposal', 6, '2026-09-10', NULL, '3D NAND 적층공정 대응'),
+(11, 'Intel', 'Arizona SOC 하드마스크 공급', '포토소재', '해외', 0, 80*100000000, 'KRW', 'review', 1, '2026-10-15', NULL, 'EUV 공정 평가 협의'),
+(NULL, '삼성전자 평택 P5', 'BSGS 통합서비스 + Gas 패키지', '통합서비스', '국내', 0, 180*100000000, 'KRW', 'bidding', 5, '2026-07-18', '2026-07-12', '대형 통합공급 입찰'),
+(NULL, '삼성디스플레이 A5', 'OLED 블루도판트 초도물량', '디스플레이소재', '국내', 0, 24*100000000, 'KRW', 'won', 3, '2026-05-30', NULL, '초도물량 수주 완료'),
+(NULL, '중국 신규 패널사', 'T9 식각가스 (보류)', '식각가스', '해외', 0, 30*100000000, 'KRW', 'dropped', 6, '2026-05-20', NULL, '수출규제 검토로 보류');
 
 -- 프로젝트 (수주 완료 후) — 소재 양산공급
 INSERT INTO projects (name, customer_name, project_type, contract_amount, estimated_cost, margin_pct, status, due_date, assigned_to) VALUES

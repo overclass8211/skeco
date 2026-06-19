@@ -22,8 +22,10 @@ const ForecastPage = {
     if (s === null || s === undefined) return '';
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   },
-  _won(mil) {
-    return '₩' + (Math.round(Number(mil) || 0) * 1000000).toLocaleString('ko-KR');
+  // 원(₩) 풀값 → 딜 상세와 동일하게 Fmt.amount 로 표기 (예: ₩24.0억)
+  _won(won) {
+    if (typeof Fmt !== 'undefined' && Fmt.amount) return Fmt.amount(Number(won) || 0, 'KRW');
+    return '₩' + Math.round(Number(won) || 0).toLocaleString('ko-KR');
   },
   _mil(v) {
     return (Math.round(Number(v) || 0)).toLocaleString('ko-KR');
@@ -204,7 +206,7 @@ const ForecastPage = {
         <td style="color:var(--text-2)">${this._esc(r.business_type || '-')}</td>
         <td style="text-align:right">${(Number(r.forecast_qty) || 0).toLocaleString('ko-KR')} ${this._esc(r.unit || '')}</td>
         <td style="text-align:right;font-family:monospace">${(Number(r.unit_price) || 0).toLocaleString('ko-KR')}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:600">${this._won(Number(r.expected_revenue) / 1000000)}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:600">${this._won(Number(r.expected_revenue))}</td>
         <td>${statusBadge(r.status)}</td>
         <td style="text-align:right;white-space:nowrap">
           ${r.status === '수주전환'
@@ -378,10 +380,10 @@ const ForecastPage = {
   _renderKpis() {
     const s = this._data?.summary || {};
     const el = document.getElementById('fcst-kpis');
-    const tile = (label, val, sub, color) =>
+    const tile = (label, val, sub, color, unit = '백만') =>
       `<div style="flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
         <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">${label}</div>
-        <div style="font-size:20px;font-weight:800;color:${color || 'var(--text-1)'}">${this._mil(val)}<span style="font-size:11px;font-weight:600;color:var(--text-3)"> 백만</span></div>
+        <div style="font-size:20px;font-weight:800;color:${color || 'var(--text-1)'}">${this._mil(val)}<span style="font-size:11px;font-weight:600;color:var(--text-3)"> ${unit}</span></div>
         <div style="font-size:11px;color:var(--text-2);margin-top:3px;min-height:14px">${sub || ''}</div>
       </div>`;
     const yoy = s.yoy_pct === null || s.yoy_pct === undefined
@@ -391,7 +393,7 @@ const ForecastPage = {
       tile(`기준월 예상매출 (${this._data?.base_month || ''})`, s.base_expected, `Weighted ${this._mil(s.base_weighted)} 백만`, 'var(--oci-red)') +
       tile('연간 예상매출', s.year_expected, yoy) +
       tile('연간 Weighted FCST', s.year_weighted, `확정 ${this._mil(s.year_committed)} 백만`, '#F58220') +
-      tile('파이프라인 딜', s.deal_count, '진행+수주 건수', '#1664E5');
+      tile('파이프라인 딜', s.deal_count, '진행+수주 건수', '#1664E5', '건');
   },
 
   _renderChart() {

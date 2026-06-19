@@ -13,7 +13,7 @@ beforeAll(async () => {
   const [r] = await pool.query(
     `INSERT INTO leads (customer_name, project_name, business_type, region, stage,
                         expected_amount, currency, expected_close_date)
-     VALUES ('__FCST_T__','__FCST_PRJ__','식각가스','국내','proposal', 10.00, 'KRW', '2026-03-15')`
+     VALUES ('__FCST_T__','__FCST_PRJ__','식각가스','국내','proposal', 1000000000, 'KRW', '2026-03-15')`
   );
   leadId = r.insertId;
 });
@@ -35,13 +35,15 @@ describe('Forecast API', () => {
   it('proposal(50%) 딜이 예상완료월 버킷/Weighted 에 반영', async () => {
     const res = await api().get('/api/forecast?year=2026&base_month=2026-03').set('X-User-Id', '1');
     const mar = res.body.data.monthly.find(m => m.month === '2026-03');
-    // 10억 → 1000 백만, Weighted = 1000 × 50% = 500 (해당 딜 분)
+    // 10억(1,000,000,000원) → 월별 1000 백만, Weighted = 1000 × 50% = 500 백만
     expect(mar.expected).toBeGreaterThanOrEqual(1000);
     expect(mar.weighted).toBeGreaterThanOrEqual(500);
     const row = res.body.data.details.find(d => d.lead_id === leadId);
     expect(row).toBeTruthy();
     expect(row.probability).toBe(50);
-    expect(row.weighted).toBe(500);
+    // 상세 weighted 는 원(₩) 풀값: 1,000,000,000 × 50% = 500,000,000
+    expect(row.weighted).toBe(500000000);
+    expect(row.expected_amount).toBe(1000000000);
   });
 
   it('GET /api/forecast/probabilities — 단계 기본 확률', async () => {

@@ -22,9 +22,9 @@ const { requireLevel } = require('../middleware/rbac');
 const ACTIVE_ROLES = ['active'];
 const WON_ROLE = 'won';
 
-// 억 → 백만원
-function toMil(eokAmount) {
-  return Math.round((Number(eokAmount) || 0) * 100);
+// 원(₩) → 백만원 (차트/요약 단위)
+function toMil(wonAmount) {
+  return Math.round((Number(wonAmount) || 0) / 1e6);
 }
 
 // ── 조회 ──────────────────────────────────────────────────────
@@ -92,16 +92,18 @@ router.get('/', async (req, res) => {
       const isWon = r.stage_role === WON_ROLE;
       if (!isActive && !isWon) continue; // lost/dropped 제외
 
-      const amt = toMil(r.expected_amount);
-      const weighted = Math.round((amt * Number(r.prob)) / 100);
+      const amtWon = Number(r.expected_amount) || 0; // 원(₩) 풀값
+      const amtMil = toMil(amtWon); // 백만원 (차트/요약)
+      const weightedMil = Math.round((amtMil * Number(r.prob)) / 100);
+      const weightedWon = Math.round((amtWon * Number(r.prob)) / 100);
       const bucket = ym.startsWith(String(year)) ? cur[ym] : prev[ym];
       if (bucket) {
-        bucket.expected += amt;
-        bucket.weighted += weighted;
-        if (isWon) bucket.committed += amt;
+        bucket.expected += amtMil;
+        bucket.weighted += weightedMil;
+        if (isWon) bucket.committed += amtMil;
       }
 
-      // 상세는 당해년도 active+won 딜만
+      // 상세는 당해년도 active+won 딜만 — 금액은 원(₩) 풀값 (딜 상세와 동일 표기)
       if (ym.startsWith(String(year))) {
         details.push({
           lead_id: r.id,
@@ -111,9 +113,9 @@ router.get('/', async (req, res) => {
           region: r.region,
           assignee: r.assignee_name || '-',
           dept: r.dept || '-',
-          expected_amount: amt,
+          expected_amount: amtWon,
           probability: Number(r.prob),
-          weighted,
+          weighted: weightedWon,
           expected_close_month: ym,
           last_activity_at: r.updated_at,
           status: r.stage_label || r.stage,
@@ -224,13 +226,13 @@ router.post('/snapshot', requireLevel(2), async (req, res) => {
         GROUP BY ym, ps.role`,
       [year]
     );
-    // ym 별 합산 (원 단위 = 억 × 1e8)
+    // ym 별 합산 (expected_amount 는 이미 원 단위)
     const agg = {};
     for (const r of rows) {
       const a = (agg[r.ym] = agg[r.ym] || { e: 0, w: 0, c: 0 });
-      a.e += Number(r.eok) * 1e8;
-      a.w += Number(r.w_eok) * 1e8;
-      a.c += Number(r.c_eok) * 1e8;
+      a.e += Number(r.eok);
+      a.w += Number(r.w_eok);
+      a.c += Number(r.c_eok);
     }
     let n = 0;
     for (const [ym, a] of Object.entries(agg)) {
