@@ -41,6 +41,7 @@ afterAll(async () => {
     await pool.query('DELETE FROM customer_contacts WHERE customer_id=?', [custId]);
     await pool.query('DELETE FROM sample_requests WHERE customer_id=?', [custId]);
     await pool.query('DELETE FROM quality_cases WHERE customer_id=?', [custId]);
+    await pool.query('DELETE FROM quality_documents WHERE customer_id=?', [custId]);
     const [vs] = await pool.query('SELECT id FROM forecast_versions WHERE customer_id=?', [custId]);
     for (const v of vs) await pool.query('DELETE FROM forecast_version_items WHERE version_id=?', [v.id]);
     await pool.query('DELETE FROM forecast_versions WHERE customer_id=?', [custId]);
@@ -293,5 +294,34 @@ describe('Customer360 (MVP) API', () => {
     expect(d).toHaveProperty('ar');
     expect(d).toHaveProperty('overdue');
     expect(d).toHaveProperty('gap');
+  });
+
+  it('후속1: header.revenue_breakdown 월/분기/연', async () => {
+    const res = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    const rb = res.body.data.header.revenue_breakdown;
+    expect(rb).toBeTruthy();
+    expect(rb).toHaveProperty('month');
+    expect(rb).toHaveProperty('quarter');
+    expect(rb).toHaveProperty('annual');
+  });
+
+  it('후속2: 품질 문서(CoA/MSDS) CRUD', async () => {
+    const cr = await api()
+      .post(`/api/customer360/${custId}/documents`)
+      .set('X-User-Id', '1')
+      .send({ doc_type: 'CoA', doc_no: '__COA__', customer_material_id: matId, issued_at: '2026-06-01' });
+    expect(cr.status).toBe(200);
+    const list = await api().get(`/api/customer360/${custId}/documents`).set('X-User-Id', '1');
+    expect(list.body.data.some(d => d.id === cr.body.data.id)).toBe(true);
+    const up = await api().put(`/api/customer360/documents/${cr.body.data.id}`).set('X-User-Id', '1').send({ doc_type: 'MSDS' });
+    expect(up.status).toBe(200);
+    const del = await api().delete(`/api/customer360/documents/${cr.body.data.id}`).set('X-User-Id', '1');
+    expect(del.status).toBe(200);
+  });
+
+  it('후속3: 품질 응답에 detail_restricted 플래그', async () => {
+    const res = await api().get(`/api/customer360/${custId}/quality`).set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('detail_restricted');
   });
 });

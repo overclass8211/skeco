@@ -956,6 +956,24 @@ async function initTables() {
       }
     }
 
+    // 품질 문서이력 (CoA/MSDS/CoC 발행·제공 이력)
+    await pool.query(`CREATE TABLE IF NOT EXISTS quality_documents (
+      id                  INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id         INT          NOT NULL,
+      customer_material_id INT         DEFAULT NULL,
+      doc_type            VARCHAR(20)  NOT NULL DEFAULT 'CoA',   -- CoA/MSDS/CoC/기타
+      doc_no              VARCHAR(60)  DEFAULT NULL,
+      issued_at           DATE         DEFAULT NULL,             -- 발행/제공일
+      valid_until         DATE         DEFAULT NULL,             -- 유효기한
+      file_url            VARCHAR(500) DEFAULT NULL,
+      note                VARCHAR(500) DEFAULT NULL,
+      created_by          INT          DEFAULT NULL,
+      created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_qd_customer (customer_id),
+      INDEX idx_qd_type (doc_type)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 사용자 인증 테이블 ──────────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS users (
       id               INT AUTO_INCREMENT PRIMARY KEY,

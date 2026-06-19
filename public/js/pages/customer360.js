@@ -181,6 +181,8 @@ const Customer360Page = {
     this._cmpVer = null;
     this._samples = null;
     this._quality = null;
+    this._qualityDocs = null;
+    this._qualityRestricted = false;
     this._revenue = null;
     localStorage.setItem('c360_last', String(id));
     const body = document.getElementById('c360-body');
@@ -357,11 +359,17 @@ const Customer360Page = {
     const s = this._data.summary;
     const lc = this._data.lifecycle;
     const f = lc.demand_flow;
+    const rb = this._data.header.revenue_breakdown || { month: 0, quarter: 0, annual: 0 };
     const kpis = `<div class="c360-kpis">
       ${this._kpi('deal', '진행 딜', `${s.deals.count}건`, this._won(s.deals.total_expected))}
       ${this._kpi('quote', '견적', `${s.quotes.count}건`, this._won(s.quotes.total_amount))}
       ${this._kpi('proposal', '제안', `${s.proposals.count}건`, this._won(s.proposals.total_expected))}
       ${this._kpi('contract', '계약', `${s.contracts.count}건`, this._won(s.contracts.total_amount))}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <div class="flow-box"><div class="l">예상매출 · 월</div><div class="v">${this._won(rb.month)}</div></div>
+      <div class="flow-box"><div class="l">분기</div><div class="v">${this._won(rb.quarter)}</div></div>
+      <div class="flow-box"><div class="l">연간</div><div class="v">${this._won(rb.annual)}</div></div>
     </div>`;
 
     const board = lc.materials.length
@@ -868,15 +876,21 @@ const Customer360Page = {
   // ── 품질 탭 ───────────────────────────────────────────────
   _Q_STATUS: { open: '미해결', in_progress: '처리중', resolved: '완료' },
   _tabQuality() {
-    if (!this._quality) return '<div id="c360-q"><div class="c360-empty">불러오는 중…</div></div>';
+    if (this._quality === null) return '<div id="c360-q"><div class="c360-empty">불러오는 중…</div></div>';
     return `<div id="c360-q">${this._renderQuality()}</div>`;
   },
   async _loadQuality() {
     try {
-      const res = await API.get(`/customer360/${this._custId}/quality`);
-      this._quality = res.data || [];
+      const [qres, dres] = await Promise.all([
+        API.get(`/customer360/${this._custId}/quality`),
+        API.get(`/customer360/${this._custId}/documents`),
+      ]);
+      this._quality = qres.data || [];
+      this._qualityRestricted = !!qres.detail_restricted;
+      this._qualityDocs = dres.data || [];
     } catch (_) {
-      this._quality = [];
+      this._quality = this._quality || [];
+      this._qualityDocs = this._qualityDocs || [];
     }
     const host = document.getElementById('c360-q');
     if (host) {
@@ -909,9 +923,36 @@ const Customer360Page = {
           .join('')}
         </tbody></table>`
       : '<div class="c360-empty">등록된 품질 케이스가 없습니다.</div>';
+    const restrictNote = this._qualityRestricted
+      ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">상세 원인·분석 자료(비고)는 팀장 이상 권한에서 열람됩니다.</div>'
+      : '';
+    // 문서이력 (CoA/MSDS/CoC)
+    const docs = this._qualityDocs || [];
+    const docTable = docs.length
+      ? `<table class="data-table" style="font-size:12px"><thead><tr>
+          <th>유형</th><th>문서번호</th><th>소재</th><th>발행일</th><th>유효기한</th><th></th>
+        </tr></thead><tbody>
+        ${docs
+          .map(d => {
+            const expired = d.valid_until && String(d.valid_until).slice(0, 10) < new Date().toISOString().slice(0, 10);
+            return `<tr>
+            <td><span class="pill pill-info">${esc(d.doc_type)}</span></td>
+            <td class="mono">${esc(d.doc_no || '-')}</td>
+            <td>${esc(d.material_name ? d.material_name.split(' · ')[0] : '-')}</td>
+            <td>${d.issued_at ? String(d.issued_at).slice(0, 10) : '-'}</td>
+            <td style="${expired ? 'color:var(--oci-red)' : ''}">${d.valid_until ? String(d.valid_until).slice(0, 10) : '-'}${expired ? ' (만료)' : ''}</td>
+            <td style="text-align:right"><button class="lc-mini" data-doc-edit="${d.id}">수정</button><button class="lc-mini" data-doc-del="${d.id}" style="color:var(--oci-red)">삭제</button></td>
+          </tr>`;
+          })
+          .join('')}
+        </tbody></table>`
+      : '<div class="c360-empty" style="padding:24px">등록된 문서가 없습니다.</div>';
     return `<div class="c360-sec" style="margin-top:0">품질 케이스 (VOC/NCR/Audit)
         <button class="btn btn-primary btn-sm btn-add" id="q-add">+ 케이스 등록</button>
-      </div>${table}`;
+      </div>${restrictNote}${table}
+      <div class="c360-sec">품질 문서 (CoA/MSDS/CoC)
+        <button class="btn btn-primary btn-sm btn-add" id="doc-add">+ 문서 등록</button>
+      </div>${docTable}`;
   },
   _bindQuality(scope) {
     const root = scope || document;
@@ -919,6 +960,71 @@ const Customer360Page = {
     root.querySelectorAll('[data-q-edit]').forEach(b =>
       b.addEventListener('click', () => this._openQualityModal(this._quality.find(q => q.id === Number(b.dataset.qEdit))))
     );
+    root.querySelector('#doc-add')?.addEventListener('click', () => this._openDocModal(null));
+    root.querySelectorAll('[data-doc-edit]').forEach(b =>
+      b.addEventListener('click', () => this._openDocModal((this._qualityDocs || []).find(d => d.id === Number(b.dataset.docEdit))))
+    );
+    root.querySelectorAll('[data-doc-del]').forEach(b =>
+      b.addEventListener('click', () => this._deleteDoc(Number(b.dataset.docDel)))
+    );
+  },
+  _openDocModal(d) {
+    const types = ['CoA', 'MSDS', 'CoC', '기타'];
+    const tOpts = types.map(t => `<option value="${t}" ${d && d.doc_type === t ? 'selected' : ''}>${t}</option>`).join('');
+    Modal.open({
+      title: d ? '품질 문서 수정' : '품질 문서 등록',
+      width: 500,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">유형</label><select class="form-input" id="d-type">${tOpts}</select></div>
+            <div class="form-row"><label class="form-label">문서번호</label><input class="form-input" id="d-no" value="${d ? esc(d.doc_no || '') : ''}" placeholder="CoA-2026-001"></div>
+          </div>
+          <div class="form-row"><label class="form-label">소재</label><select class="form-input" id="d-mat">${this._matOptions(d ? d.customer_material_id : null)}</select></div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">발행/제공일</label><input class="form-input" id="d-issued" type="date" value="${d && d.issued_at ? String(d.issued_at).slice(0, 10) : ''}"></div>
+            <div class="form-row"><label class="form-label">유효기한</label><input class="form-input" id="d-valid" type="date" value="${d && d.valid_until ? String(d.valid_until).slice(0, 10) : ''}"></div>
+          </div>
+          <div class="form-row"><label class="form-label">파일 링크</label><input class="form-input" id="d-url" value="${d ? esc(d.file_url || '') : ''}" placeholder="https://..."></div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="d-cancel">취소</button><button class="btn btn-primary" id="d-save">저장</button>`,
+      bind: { '#d-cancel': () => Modal.close(), '#d-save': () => this._saveDoc(d) },
+    });
+  },
+  async _saveDoc(d) {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const payload = {
+      doc_type: v('d-type'),
+      doc_no: v('d-no') || null,
+      customer_material_id: v('d-mat') || null,
+      issued_at: v('d-issued') || null,
+      valid_until: v('d-valid') || null,
+      file_url: v('d-url') || null,
+    };
+    try {
+      if (d) await API.put(`/customer360/documents/${d.id}`, payload);
+      else await API.post(`/customer360/${this._custId}/documents`, payload);
+      Toast.success('문서 저장 완료');
+      Modal.close();
+      this._qualityDocs = null;
+      this._quality = null;
+      this._tab = 'quality';
+      await this._loadQuality();
+    } catch (_) {
+      /* Toast */
+    }
+  },
+  async _deleteDoc(id) {
+    if (!confirm('문서를 삭제하시겠습니까?')) return;
+    try {
+      await API.del(`/customer360/documents/${id}`);
+      Toast.success('삭제 완료');
+      this._qualityDocs = null;
+      this._quality = null;
+      await this._loadQuality();
+    } catch (_) {
+      /* Toast */
+    }
   },
   _openQualityModal(q) {
     const sel = (cur, arr) => arr.map(o => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`).join('');

@@ -296,6 +296,25 @@ async function maybeQuality(conn, lead, matId, idx) {
       }
     }
 
+    // ── 품질 문서(CoA) 데모: 양산/Spec-in 소재 (멱등) ──
+    counts.docs = 0;
+    const [docMats] = await conn.query(
+      `SELECT id, customer_id, material_name FROM customer_materials
+        WHERE lifecycle_stage IN ('massprod','specin') AND status<>'closed'`
+    );
+    for (const m of docMats) {
+      const docNo = `CoA-M${m.id}`;
+      const [[ex]] = await conn.query('SELECT COUNT(*) AS n FROM quality_documents WHERE doc_no=?', [docNo]);
+      if (ex.n > 0) continue;
+      await conn.query(
+        `INSERT INTO quality_documents
+           (customer_id, customer_material_id, doc_type, doc_no, issued_at, valid_until, note)
+         VALUES (?,?, 'CoA', ?, '2026-06-01', '2027-06-01', ?)`,
+        [m.customer_id, m.id, docNo, `${m.material_name.split(' · ')[0]} 성적서`]
+      );
+      counts.docs += 1;
+    }
+
     console.log('\n✅ 시드 완료(멱등):');
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
@@ -304,6 +323,7 @@ async function maybeQuality(conn, lead, matId, idx) {
     console.log(`  · 사업장: ${counts.sites} · 담당자: ${counts.contacts} · 샘플: ${counts.samples} 신규`);
     console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
     console.log(`  · 수금 스케줄(payment_schedules): ${counts.payments} 신규`);
+    console.log(`  · 품질 문서(quality_documents): ${counts.docs} 신규`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');
     console.log(`  · 현재 총 소재: ${m.n}`);
   } catch (e) {

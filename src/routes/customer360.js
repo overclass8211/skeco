@@ -18,6 +18,17 @@ const { handleError } = require('../middleware/errorHandler');
 const { validateId } = require('../middleware/validate');
 const { requireLevel } = require('../middleware/rbac');
 const { getUserId } = require('../middleware/auth');
+const { getRoleInfo } = require('../services/authService');
+
+// 요청자 권한 레벨 (테스트/비인증 컨텍스트는 풀접근으로 간주)
+function userLevel(req) {
+  if (!req.user) return 99;
+  try {
+    return getRoleInfo(req.user.role).level || 0;
+  } catch (_) {
+    return 0;
+  }
+}
 
 // JSON 안전 파싱
 function safeJson(s, fallback) {
@@ -360,6 +371,21 @@ router.get('/:id', validateId, async (req, res) => {
     const openQ = lifecycle.quality.filter(q => q.status !== 'resolved').length;
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
 
+    // ── 예상매출 월/분기/연 분해 (demand_forecasts 기준) ──
+    const [brkRows] = await pool.query(
+      `SELECT df.month AS m, COALESCE(SUM(df.expected_revenue),0) AS rev
+         FROM demand_forecasts df
+         JOIN customer_materials cm ON cm.id = df.customer_material_id
+        WHERE cm.customer_id = ? GROUP BY df.month ORDER BY df.month`,
+      [id]
+    );
+    const sortedRev = brkRows.map(r => ({ m: r.m, rev: Number(r.rev) || 0 }));
+    const revenueBreakdown = {
+      month: sortedRev.length ? sortedRev[0].rev : 0,
+      quarter: sortedRev.slice(0, 3).reduce((s, r) => s + r.rev, 0),
+      annual: sortedRev.reduce((s, r) => s + r.rev, 0),
+    };
+
     // ── 조직: 사업장 + 담당자 ──
     const [orgSites, orgContacts] = await Promise.all([
       pool
@@ -393,6 +419,7 @@ router.get('/:id', validateId, async (req, res) => {
           won_count: wonCount,
           active_count: activeCount,
           contract_amount: contractAmt,
+          revenue_breakdown: revenueBreakdown,
           risks,
         },
         summary: {
@@ -1220,7 +1247,10 @@ router.get('/:id/quality', validateId, async (req, res) => {
         WHERE q.customer_id=? ORDER BY FIELD(q.status,'open','in_progress','resolved'), q.opened_at DESC, q.id DESC`,
       [req.params.id]
     );
-    res.json({ success: true, data: rows });
+    // 권한별 상세 제한: team_lead(2) 미만은 상세 원인/분석(notes) 마스킹
+    const restricted = userLevel(req) < 2;
+    const data = rows.map(r => (restricted ? { ...r, notes: null } : r));
+    res.json({ success: true, data, detail_restricted: restricted });
   } catch (err) {
     handleError(res, err);
   }
@@ -1391,6 +1421,91 @@ router.put('/contacts/:id', requireLevel(1), validateId, async (req, res) => {
 router.delete('/contacts/:id', requireLevel(1), validateId, async (req, res) => {
   try {
     await pool.query('DELETE FROM customer_contacts WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 품질 문서이력 (CoA/MSDS/CoC) ─────────────────────────────
+const DOC_TYPES = ['CoA', 'MSDS', 'CoC', '기타'];
+
+router.get('/:id/documents', validateId, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT d.*, m.material_name FROM quality_documents d
+         LEFT JOIN customer_materials m ON m.id = d.customer_material_id
+        WHERE d.customer_id=? ORDER BY d.issued_at DESC, d.id DESC`,
+      [req.params.id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/:id/documents', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const docType = DOC_TYPES.includes(b.doc_type) ? b.doc_type : 'CoA';
+    const [r] = await pool.query(
+      `INSERT INTO quality_documents
+         (customer_id, customer_material_id, doc_type, doc_no, issued_at, valid_until, file_url, note, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [
+        req.params.id,
+        b.customer_material_id || null,
+        docType,
+        b.doc_no || null,
+        b.issued_at || null,
+        b.valid_until || null,
+        b.file_url || null,
+        b.note || null,
+        getUserId(req),
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/documents/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const allow = [
+      'customer_material_id',
+      'doc_type',
+      'doc_no',
+      'issued_at',
+      'valid_until',
+      'file_url',
+      'note',
+    ];
+    const fields = [];
+    const vals = [];
+    for (const k of allow) {
+      if (b[k] === undefined) continue;
+      if (k === 'doc_type' && !DOC_TYPES.includes(b[k])) continue;
+      fields.push(`${k}=?`);
+      vals.push(b[k] === '' ? null : b[k]);
+    }
+    if (!fields.length) return res.status(400).json({ success: false, error: '수정할 필드 없음' });
+    vals.push(req.params.id);
+    const [r] = await pool.query(
+      `UPDATE quality_documents SET ${fields.join(', ')} WHERE id=?`,
+      vals
+    );
+    if (!r.affectedRows) return res.status(404).json({ success: false, error: '문서 없음' });
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.delete('/documents/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM quality_documents WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     handleError(res, err);

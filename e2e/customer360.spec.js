@@ -17,7 +17,7 @@ const DETAIL = {
   success: true,
   data: {
     customer: { id: CID, name: 'E2E360고객', industry: '반도체', region: '국내', country: '대한민국' },
-    header: { health_score: 72, health_grade: 'B+', weighted_expected: 5500000000, won_count: 1, active_count: 2, contract_amount: 8800000000, risks: [{ level: 'high', label: 'CAPA 부족 6,000kg' }, { level: 'medium', label: '품질 이슈 1건' }] },
+    header: { health_score: 72, health_grade: 'B+', weighted_expected: 5500000000, won_count: 1, active_count: 2, contract_amount: 8800000000, revenue_breakdown: { month: 400000000, quarter: 1200000000, annual: 2400000000 }, risks: [{ level: 'high', label: 'CAPA 부족 6,000kg' }, { level: 'medium', label: '품질 이슈 1건' }] },
     summary: {
       deals: { count: 3, total_expected: 20000000000 },
       quotes: { count: 2, total_amount: 17600000000 },
