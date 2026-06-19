@@ -31,6 +31,38 @@ const KpiBar = (() => {
       .replace(/"/g, '&quot;');
   }
 
+  // ── 라인 아이콘 레지스트리 ─────────────────────────────────
+  // KPI 카드 아이콘을 이모지 대신 통일된 stroke SVG 로 렌더.
+  // 호출부(각 페이지)는 기존 이모지 키를 그대로 넘기면 자동 치환된다.
+  // (등록되지 않은 값/raw SVG 는 그대로 렌더 — 하위 호환)
+  const _P = {
+    building: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/><path d="M2 22h20"/><path d="M10 6h4M10 10h4M10 14h4"/>',
+    check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>',
+    plus: '<circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>',
+    moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+    money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+    clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+    ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  };
+  // 이모지/별칭 → 아이콘 키 매핑
+  const _ICON_MAP = {
+    '🏢': 'building', '✅': 'check', '🆕': 'plus', '💤': 'moon',
+    '🎯': 'target', '🔥': 'clock', '🏆': 'trophy', '💰': 'money',
+    '✏️': 'edit', '📤': 'send', '📋': 'clipboard', '⛔': 'ban',
+  };
+  function _icon(raw) {
+    if (!raw) return '';
+    if (typeof raw === 'string' && raw.indexOf('<svg') === 0) return raw; // raw SVG 그대로
+    const key = _ICON_MAP[raw] || (_P[raw] ? raw : null);
+    if (!key) return esc(String(raw)); // 미등록 이모지/텍스트는 안전 출력
+    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${_P[key]}</svg>`;
+  }
+
   function _fmtValue(v) {
     const n = Number(v) || 0;
     // 1000+ 는 K, 1M+ 는 M (단순)
@@ -56,7 +88,7 @@ const KpiBar = (() => {
       <div class="kpi-card-accent" style="background:${color}"></div>
       <div class="kpi-card-body">
         <div class="kpi-card-header">
-          <span class="kpi-icon" aria-hidden="true">${card.icon || ''}</span>
+          <span class="kpi-icon" aria-hidden="true" style="color:${color}">${_icon(card.icon)}</span>
           <span class="kpi-label">${esc(card.label)}</span>
         </div>
         <div class="kpi-card-value" style="color:${color}">${esc(_fmtValue(card.value))}</div>

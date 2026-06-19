@@ -2820,6 +2820,11 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
 .kpi-icon {
   font-size: 14px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+.kpi-icon svg {
+  display: block;
 }
 .kpi-label {
   letter-spacing: -0.01em;
@@ -8611,6 +8616,70 @@ body,
 /* ─────────────────────────────────────────────────────────────
    ExportMenu — 통합 익스포트 드롭다운
    ───────────────────────────────────────────────────────────── */
+/* ── 고객사 툴바 팝오버 메뉴 (엑셀 / 표시 컬럼) ── */
+.cust-pop-menu {
+  position: fixed;
+  z-index: 9500;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+  padding: 6px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;
+}
+.cust-pop-menu.is-open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.cust-pop-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-1, #1f2937);
+  transition: background 80ms ease;
+}
+.cust-pop-item:hover {
+  background: var(--surface-2);
+}
+.cust-pop-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+.cust-pop-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3, #9ca3af);
+  padding: 4px 10px 6px;
+}
+.cust-pop-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-1, #1f2937);
+}
+.cust-pop-check:hover {
+  background: var(--surface-2);
+}
+.cust-pop-check input {
+  cursor: pointer;
+}
+
 .export-menu-pop {
   position: fixed;
   z-index: 9500;

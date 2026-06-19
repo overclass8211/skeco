@@ -46,16 +46,17 @@ const CustomersPage = {
                   title="Excel·Word에서 복사한 표를 붙여넣기로 일괄 등록 (Ctrl+V)" data-label="common.paste_register">
             붙여넣기 등록
           </button>
-          <button class="btn btn-ghost btn-sm" id="cust-excel-export-btn"
-            data-feature="data.excel_exp"
-            title="현재 목록을 엑셀 파일로 다운로드" data-label="common.excel_export">
-            엑셀 다운로드
+          <button class="btn btn-ghost btn-sm" id="cust-cols-btn" type="button"
+            title="표에 표시할 컬럼 선택">
+            표시 컬럼
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;vertical-align:-1px"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <label class="btn btn-ghost btn-sm" data-feature="data.excel_imp"
-            title="엑셀 파일로 일괄 등록" style="cursor:pointer;margin:0">
-            <span data-label="common.excel_import">엑셀 가져오기</span>
-            <input type="file" id="cust-excel-import-input" accept=".xlsx,.xls" style="display:none">
-          </label>
+          <button class="btn btn-ghost btn-sm" id="cust-excel-btn" type="button"
+            title="엑셀 다운로드 / 가져오기">
+            엑셀
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;vertical-align:-1px"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <input type="file" id="cust-excel-import-input" accept=".xlsx,.xls" style="display:none">
           ${ViewToggle.render({ currentView: this._view })}
           <button class="btn btn-primary" id="cust-register-btn" data-label="customers.new_button">
             + 고객사 등록
@@ -93,8 +94,11 @@ const CustomersPage = {
       .getElementById('cp-paste-btn-cust')
       ?.addEventListener('click', () => this.openPasteModal());
     document
-      .getElementById('cust-excel-export-btn')
-      ?.addEventListener('click', e => this._openExportMenu(e.currentTarget));
+      .getElementById('cust-excel-btn')
+      ?.addEventListener('click', e => this._openExcelMenu(e.currentTarget));
+    document
+      .getElementById('cust-cols-btn')
+      ?.addEventListener('click', e => this._openColumnsMenu(e.currentTarget));
     document
       .getElementById('cust-register-btn')
       ?.addEventListener('click', () => this.openRegisterModal('direct'));
@@ -235,8 +239,8 @@ const CustomersPage = {
                 <th class="cp-check-col">
                   <input type="checkbox" class="cp-checkbox" id="cp-check-all-cust">
                 </th>
-                <th data-label="customers.customer_name">고객사명</th><th data-label="customers.region">지역</th><th>국가</th><th data-label="customers.industry">산업</th>
-                <th data-label="customers.contact_person">담당자</th><th data-label="customers.contact_phone">연락처</th><th data-label="customers.contact_email">이메일</th><th data-label="common.actions">액션</th>
+                <th data-label="customers.customer_name">고객사명</th><th data-col="region" data-label="customers.region">지역</th><th data-col="country">국가</th><th data-col="industry" data-label="customers.industry">산업</th>
+                <th data-col="contact" data-label="customers.contact_person">담당자</th><th data-col="phone" data-label="customers.contact_phone">연락처</th><th data-col="email" data-label="customers.contact_email">이메일</th><th data-label="common.actions">액션</th>
               </tr>
             </thead>
             <tbody>
@@ -260,10 +264,10 @@ const CustomersPage = {
                         : ''
                     }
                   </td>
-                  <td><span class="badge ${c.region === '해외' ? 'badge-purple' : 'badge-blue'}">${esc(c.region)}</span></td>
-                  <td>${esc(c.country || '-')}</td>
-                  <td>${esc(c.industry || '-')}</td>
-                  <td>
+                  <td data-col="region"><span class="badge ${c.region === '해외' ? 'badge-purple' : 'badge-blue'}">${esc(c.region)}</span></td>
+                  <td data-col="country">${esc(c.country || '-')}</td>
+                  <td data-col="industry">${esc(c.industry || '-')}</td>
+                  <td data-col="contact">
                     ${
                       c._groupCount > 1
                         ? `
@@ -285,8 +289,8 @@ const CustomersPage = {
                         : esc(c.contact_person || '-')
                     }
                   </td>
-                  <td class="mono">${esc(c.phone || '-')}</td>
-                  <td class="mono" style="font-size:11px">${esc(c.email || '-')}</td>
+                  <td class="mono" data-col="phone">${esc(c.phone || '-')}</td>
+                  <td class="mono" data-col="email" style="font-size:11px">${esc(c.email || '-')}</td>
                   <td data-stop-propagation="1" style="white-space:nowrap">
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                       <button class="ai-gen-btn"
@@ -307,6 +311,7 @@ const CustomersPage = {
       </div>
     `;
     this._updateSelectionUI();
+    this._applyColVisibility();
 
     // event delegation for table
     container.addEventListener('click', e => {
@@ -572,7 +577,7 @@ const CustomersPage = {
   _briefBadgeHtml(id) {
     const info = this._getBriefedInfo(id);
     return info
-      ? `<span class="brief-done-badge ${info.cls}" data-brief-id="${id}">✅ ${info.label}</span>`
+      ? `<span class="brief-done-badge ${info.cls}" data-brief-id="${id}">${info.label}</span>`
       : `<span class="brief-done-badge" data-brief-id="${id}" style="display:none"></span>`;
   },
 
@@ -582,7 +587,7 @@ const CustomersPage = {
     document.querySelectorAll(`[data-brief-id="${id}"]`).forEach(el => {
       if (info) {
         el.className = `brief-done-badge ${info.cls}`;
-        el.textContent = `✅ ${info.label}`;
+        el.textContent = `${info.label}`;
         el.style.display = '';
       }
     });
@@ -590,7 +595,7 @@ const CustomersPage = {
     document.querySelectorAll(`[data-brief-card-id="${id}"]`).forEach(el => {
       if (info) {
         el.className = 'brief-done-chip';
-        el.textContent = `✅ ${info.label}`;
+        el.textContent = `${info.label}`;
         el.style.display = '';
       }
     });
@@ -716,7 +721,7 @@ const CustomersPage = {
     }
     BulkPaste.open({
       entityType: 'customer',
-      title: '📥 고객사 붙여넣기 등록',
+      title: '고객사 붙여넣기 등록',
       endpoint: '/customers/bulk',
       payloadKey: 'customers',
       columns: [
@@ -796,12 +801,114 @@ const CustomersPage = {
     return '/customers/export' + (qs.toString() ? '?' + qs.toString() : '');
   },
 
-  _openExportMenu(triggerEl) {
-    if (typeof ExportMenu === 'undefined') return this.exportExcel();
-    ExportMenu.open(
+  // ── 표시 컬럼 설정 ───────────────────────────────────────────
+  // 테이블 뷰 컬럼 토글. 고객사명/액션은 항상 표시(고정).
+  COLS: [
+    { key: 'region', label: '지역' },
+    { key: 'country', label: '국가' },
+    { key: 'industry', label: '산업' },
+    { key: 'contact', label: '담당자' },
+    { key: 'phone', label: '연락처' },
+    { key: 'email', label: '이메일' },
+  ],
+  _hiddenCols() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('cust_cols_hidden') || '[]'));
+    } catch (_) {
+      return new Set();
+    }
+  },
+  _applyColVisibility() {
+    const hidden = this._hiddenCols();
+    this.COLS.forEach(col => {
+      const show = !hidden.has(col.key);
+      document
+        .querySelectorAll(`#customers-view-container [data-col="${col.key}"]`)
+        .forEach(el => {
+          el.style.display = show ? '' : 'none';
+        });
+    });
+  },
+
+  // ── 공통 팝오버 메뉴 (엑셀/컬럼 공용) ─────────────────────────
+  _closePopMenu() {
+    document.querySelectorAll('.cust-pop-menu').forEach(el => el.remove());
+    if (this._popMenuOutside) {
+      document.removeEventListener('click', this._popMenuOutside, true);
+      this._popMenuOutside = null;
+    }
+  },
+  _openPopMenu(triggerEl, innerHtml, onItemClick) {
+    this._closePopMenu();
+    const menu = document.createElement('div');
+    menu.className = 'cust-pop-menu';
+    menu.innerHTML = innerHtml;
+    document.body.appendChild(menu);
+    const rect = triggerEl.getBoundingClientRect();
+    const w = menu.offsetWidth || 200;
+    let left = rect.right - w;
+    if (left < 12) left = 12;
+    menu.style.left = left + 'px';
+    menu.style.top = rect.bottom + 4 + 'px';
+    requestAnimationFrame(() => menu.classList.add('is-open'));
+    if (typeof onItemClick === 'function') {
+      menu.addEventListener('click', e => onItemClick(e, menu));
+    }
+    // 바깥 클릭 닫기 (트리거 클릭 버블 무시 위해 다음 tick 등록)
+    this._popMenuOutside = e => {
+      if (!menu.contains(e.target) && e.target !== triggerEl && !triggerEl.contains(e.target)) {
+        this._closePopMenu();
+      }
+    };
+    setTimeout(() => document.addEventListener('click', this._popMenuOutside, true), 0);
+    return menu;
+  },
+
+  _openExcelMenu(triggerEl) {
+    const path = this._buildExportPath();
+    const name = '고객사_' + new Date().toISOString().slice(0, 10);
+    this._openPopMenu(
       triggerEl,
-      this._buildExportPath(),
-      '고객사_' + new Date().toISOString().slice(0, 10)
+      `
+      <button class="cust-pop-item" data-act="xlsx" data-feature="data.excel_exp">엑셀 다운로드 (.xlsx)</button>
+      <button class="cust-pop-item" data-act="csv" data-feature="data.excel_exp">CSV 다운로드</button>
+      <div class="cust-pop-sep"></div>
+      <button class="cust-pop-item" data-act="import" data-feature="data.excel_imp">엑셀 가져오기…</button>
+    `,
+      e => {
+        const item = e.target.closest('.cust-pop-item');
+        if (!item) return;
+        const act = item.dataset.act;
+        this._closePopMenu();
+        if (act === 'xlsx') API.downloadExport(path, name, 'xlsx');
+        else if (act === 'csv') API.downloadExport(path, name, 'csv');
+        else if (act === 'import') document.getElementById('cust-excel-import-input')?.click();
+      }
+    );
+  },
+
+  _openColumnsMenu(triggerEl) {
+    const hidden = this._hiddenCols();
+    const rows = this.COLS.map(
+      c => `
+      <label class="cust-pop-check">
+        <input type="checkbox" data-col-key="${c.key}" ${hidden.has(c.key) ? '' : 'checked'}>
+        <span>${c.label}</span>
+      </label>`
+    ).join('');
+    this._openPopMenu(
+      triggerEl,
+      `<div class="cust-pop-title">표시할 컬럼</div>${rows}`,
+      e => {
+        const cb = e.target.closest('input[data-col-key]');
+        if (!cb) return;
+        const key = cb.getAttribute('data-col-key');
+        const h = this._hiddenCols();
+        if (cb.checked) h.delete(key);
+        else h.add(key);
+        localStorage.setItem('cust_cols_hidden', JSON.stringify([...h]));
+        this._applyColVisibility();
+      }
     );
   },
 
@@ -1105,7 +1212,7 @@ const CustomersPage = {
                     display:flex; flex-direction:column">
           <div style="display:flex; justify-content:space-between; align-items:center;
                       padding:10px 14px; border-bottom:1px solid var(--border); background:var(--surface-2)">
-            <div style="font-size:14px; font-weight:600">📮 주소 검색</div>
+            <div style="font-size:14px; font-weight:600">주소 검색</div>
             <button id="cm-postcode-close" style="border:none; background:none; cursor:pointer;
                     font-size:18px; color:var(--text-3)">×</button>
           </div>
@@ -1187,7 +1294,7 @@ const CustomersPage = {
       주소를 좌표로 변환하지 못했습니다.<br>
       <a href="https://map.kakao.com/link/search/${encodeURIComponent(address)}"
          target="_blank" rel="noopener" style="color:var(--oci-blue);text-decoration:underline;margin-top:8px;display:inline-block">
-        🗺 카카오맵에서 보기 →
+        카카오맵에서 보기 →
       </a>
     </div>`;
   },
@@ -1218,7 +1325,7 @@ const CustomersPage = {
     if (!wrap) return;
     if (!address) {
       wrap.innerHTML = `<div style="text-align:center;color:var(--text-4);font-size:13px">
-        주소가 등록되지 않았습니다.<br><span style="font-size:11px">위의 🔍 주소 검색 버튼으로 등록하세요.</span>
+        주소가 등록되지 않았습니다.<br><span style="font-size:11px">위의 주소 검색 버튼으로 등록하세요.</span>
       </div>`;
       return;
     }
@@ -1304,7 +1411,7 @@ const CustomersPage = {
       const fallback =
         e.message === 'NO_KEY'
           ? `<div style="text-align:center;font-size:13px;color:var(--text-3);padding:20px">
-            <div style="margin-bottom:8px">🗺 카카오맵 키가 설정되지 않았습니다</div>
+            <div style="margin-bottom:8px">카카오맵 키가 설정되지 않았습니다</div>
             <a href="https://map.kakao.com/link/search/${encodeURIComponent(address)}"
                target="_blank" rel="noopener" style="color:var(--oci-blue);text-decoration:underline">
               카카오맵에서 "${address.replace(/</g, '&lt;').slice(0, 40)}" 보기 →
@@ -1329,14 +1436,14 @@ const CustomersPage = {
         return;
       }
       const stageMap = {
-        lead: '🔍 리드',
-        review: '📋 검토',
-        proposal: '📝 제안',
-        bidding: '⚔️ 입찰',
-        negotiation: '🤝 협상',
-        won: '✅ 수주',
-        lost: '❌ 실주',
-        dropped: '⬇️ 드롭',
+        lead: '리드',
+        review: '검토',
+        proposal: '제안',
+        bidding: '입찰',
+        negotiation: '협상',
+        won: '수주',
+        lost: '실주',
+        dropped: '드롭',
       };
       wrap.innerHTML = `
         <table class="data-table" style="font-size:12px">
@@ -1451,11 +1558,11 @@ const CustomersPage = {
     const genBy = d.generated_by_name || '';
     wrap.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:11px;color:var(--text-3)">
-        <span>${d.cached ? '🗂 저장된 브리핑' : '✨ 신규 생성됨'}</span>
+        <span>${d.cached ? '저장된 브리핑' : '신규 생성됨'}</span>
         ${
           genAtFmt
             ? `<span title="${esc(new Date(d.generated_at).toLocaleString())}">
-          🕐 ${esc(genAtFmt)} ${genBy ? '· ' + esc(genBy) : ''}
+          ${esc(genAtFmt)} ${genBy ? '· ' + esc(genBy) : ''}
         </span>`
             : ''
         }
@@ -1470,20 +1577,20 @@ const CustomersPage = {
         <div class="stat-mini"><div style="color:var(--text-3)">수주</div><div style="font-size:18px;font-weight:700;color:#17A85A">${s.won || 0}</div></div>
         <div class="stat-mini"><div style="color:var(--text-3)">누적 금액</div><div style="font-size:14px;font-weight:700">${(s.total_amount || 0).toLocaleString()}</div></div>
       </div>
-      <div style="font-size:13px;font-weight:600;margin:8px 0">📍 핵심 포인트</div>
+      <div style="font-size:13px;font-weight:600;margin:8px 0">핵심 포인트</div>
       <ul style="margin:0 0 16px;padding-left:20px;line-height:1.8;font-size:13px">
         ${(d.key_points || []).map(k => `<li>${esc(k)}</li>`).join('')}
       </ul>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
         <div style="flex:1;min-width:200px;background:rgba(23,168,90,.08);border-left:3px solid #17A85A;padding:10px 12px;border-radius:6px">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">🎯 이번 주 즉시 실행</div>
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">이번 주 즉시 실행</div>
           <div style="font-size:13px;font-weight:600">${esc(d.next_action || '-')}</div>
         </div>
         ${
           d.risk
             ? `
         <div style="flex:1;min-width:200px;background:rgba(230,51,41,.08);border-left:3px solid var(--oci-red);padding:10px 12px;border-radius:6px">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">⚠️ 리스크</div>
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">리스크</div>
           <div style="font-size:13px;font-weight:600">${esc(d.risk)}</div>
         </div>`
             : ''
@@ -1493,7 +1600,7 @@ const CustomersPage = {
       <!-- 변경 이력 영역 -->
       <details id="cm-brief-history-wrap" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2)">
-          📚 변경 이력 보기
+          변경 이력 보기
         </summary>
         <div id="cm-brief-history-list" style="margin-top:10px;font-size:12px">
           <div class="loading" style="padding:10px;color:var(--text-3)">이력 불러오는 중...</div>
@@ -1515,7 +1622,7 @@ const CustomersPage = {
 
     // 버튼 라벨 갱신
     const btn = document.getElementById('cm-brief-gen');
-    if (btn) btn.innerHTML = '🔄 다시 생성';
+    if (btn) btn.innerHTML = '다시 생성';
   },
 
   async _loadBriefHistory(id) {
@@ -1548,7 +1655,7 @@ const CustomersPage = {
                   </span>
                 </div>
                 <div style="color:var(--text-3);font-size:11px">
-                  🎯 ${esc(h.next_action || '-')}${h.risk ? ' · ⚠️ ' + esc(h.risk) : ''}
+                  ${esc(h.next_action || '-')}${h.risk ? ' · 리스크: ' + esc(h.risk) : ''}
                 </div>
                 <div style="font-size:10px;color:var(--text-4);margin-top:2px">
                   딜 ${h.stats?.deals || 0} · 수주 ${h.stats?.won || 0} · 누적 ${(h.stats?.total_amount || 0).toLocaleString()}
@@ -1582,7 +1689,7 @@ const CustomersPage = {
     const wrap = document.getElementById('cm-brief-content');
     const btn = document.getElementById('cm-brief-gen');
     btn.disabled = true;
-    btn.innerHTML = '⏳ 생성 중...';
+    btn.innerHTML = '생성 중...';
     wrap.innerHTML = `<div class="loading" style="padding:30px;text-align:center">AI가 분석 중...</div>`;
     try {
       const r = await API.post(`/customers/${id}/brief`, {});
@@ -1591,7 +1698,7 @@ const CustomersPage = {
       wrap.innerHTML = `<div class="empty" style="color:var(--oci-red);padding:20px">생성 실패: ${esc(e.message)}</div>`;
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '🔄 다시 생성';
+      btn.innerHTML = '다시 생성';
     }
   },
 
@@ -1675,7 +1782,7 @@ const CustomersPage = {
   // BRN 동일 + 이름 다름 → 사용자 선택 모달
   _showBrnConflictModal(existingCustomer, newName) {
     Modal.open({
-      title: '⚠ 동일 사업자번호의 고객사 발견',
+      title: '동일 사업자번호의 고객사 발견',
       width: 540,
       body: `
         <div style="font-size:13px;color:var(--text-2);line-height:1.7;margin-bottom:14px">
@@ -1688,9 +1795,9 @@ const CustomersPage = {
           <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">기존 고객사</div>
           <div style="font-weight:600;font-size:15px;margin-bottom:6px">${esc(existingCustomer.name)}</div>
           <div style="font-size:12px;color:var(--text-2)">
-            📞 ${esc(existingCustomer.phone || '-')} ·
-            👤 ${esc(existingCustomer.contact_person || '-')} ·
-            🌐 ${esc(existingCustomer.region || '-')}
+            연락처 ${esc(existingCustomer.phone || '-')} ·
+            담당자 ${esc(existingCustomer.contact_person || '-')} ·
+            지역 ${esc(existingCustomer.region || '-')}
           </div>
         </div>
         <div style="background:#fef3c7;padding:14px;border-radius:6px;margin-bottom:10px">
@@ -1807,7 +1914,7 @@ const CustomersPage = {
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) {
-              contentEl.innerHTML = `<span style="color:var(--oci-red)">⚠️ ${esc(parsed.error)}</span>`;
+              contentEl.innerHTML = `<span style="color:var(--oci-red)">${esc(parsed.error)}</span>`;
               return;
             }
             if (parsed.text) {
@@ -1826,7 +1933,7 @@ const CustomersPage = {
         this._markBriefed(id); // ✅ 인라인 인텔리전스 완료 마킹
       }
     } catch (err) {
-      contentEl.innerHTML = `<span style="color:var(--oci-red)">⚠️ ${esc(err.message)}</span>`;
+      contentEl.innerHTML = `<span style="color:var(--oci-red)">${esc(err.message)}</span>`;
     }
   },
 
@@ -1864,7 +1971,7 @@ const CustomersPage = {
                    cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;
                    transition:all .15s;color:${defaultTab === 'ocr' ? 'var(--oci-red)' : 'var(--text-3)'};
                    border-bottom-color:${defaultTab === 'ocr' ? 'var(--oci-red)' : 'transparent'}">
-            📇 명함 업로드
+            명함 업로드
           </button>`
               : ''
           }
@@ -1937,7 +2044,7 @@ const CustomersPage = {
           </p>
 
           <div id="card-dropzone">
-            <div style="font-size:36px;margin-bottom:10px">📇</div>
+            <div style="margin-bottom:10px;color:var(--text-3)"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M14 10h4M14 14h4M5 16c.6-1.5 2-2 3-2s2.4.5 3 2"/></svg></div>
             <div style="font-size:14px;font-weight:600;color:var(--text-1)">명함 파일을 여기에 드롭하거나 클릭해서 선택</div>
             <div style="font-size:12px;color:var(--text-3);margin-top:6px">JPG, PNG 지원 · 최대 20장</div>
             <input type="file" id="card-file-input" accept="image/*" multiple style="display:none">
@@ -1954,10 +2061,10 @@ const CustomersPage = {
           등록
         </button>
         <button class="btn btn-primary" id="card-ocr-start-btn" style="display:none">
-          🔍 AI 인식 시작
+          AI 인식 시작
         </button>
         <button class="btn btn-primary" id="card-save-all-btn" style="display:none">
-          💾 전체 저장
+          전체 저장
         </button>
       `,
       bind: {
@@ -2101,7 +2208,7 @@ const CustomersPage = {
           padding:10px 14px;margin-bottom:14px;font-size:13px;color:#856404;
           display:flex;align-items:flex-start;gap:8px;line-height:1.5;
         `;
-        banner.innerHTML = `<span style="font-size:16px;flex-shrink:0">⚠️</span>
+        banner.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
           <div><strong>중복 고객사 감지</strong><br>${esc(msg)}</div>`;
         const form = document.getElementById('cust-form');
         if (form) form.prepend(banner);
@@ -2137,7 +2244,7 @@ const CustomersPage = {
             f => `
           <div style="display:flex;align-items:center;gap:4px;background:var(--surface-2);
                       border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px">
-            📄 ${esc(f.name)}
+            ${esc(f.name)}
             <span style="color:var(--text-3)">(${(f.size / 1024).toFixed(0)}KB)</span>
           </div>
         `
@@ -2161,7 +2268,7 @@ const CustomersPage = {
     const resultsEl = document.getElementById('card-ocr-results');
     if (startBtn) {
       startBtn.disabled = true;
-      startBtn.textContent = '🔍 인식 중...';
+      startBtn.textContent = '인식 중...';
     }
 
     const total = this._ocrFiles.length;
@@ -2175,7 +2282,7 @@ const CustomersPage = {
       resultsEl.innerHTML = `
         <div style="padding:20px;text-align:center">
           <div style="font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:10px">
-            🔍 AI 명함 인식 중...
+            AI 명함 인식 중...
           </div>
           <div style="font-size:13px;color:var(--text-2);margin-bottom:14px">
             배치 ${batchIdx} / ${batches.length} (${doneCount}/${total}장 완료)
@@ -2238,17 +2345,17 @@ const CustomersPage = {
           allResults.push({ filename: f.name || `(이미지)`, error: msg, parsed: {} });
         });
         doneCount += batch.length;
-        renderProgress(bi + 1, doneCount, `❌ 배치 ${bi + 1} 실패 — 다음 배치 계속...`);
+        renderProgress(bi + 1, doneCount, `배치 ${bi + 1} 실패 — 다음 배치 계속...`);
       }
     }
 
     // 모든 결과 합쳐서 표시
     this._ocrResults = allResults;
     if (!allResults.length) {
-      resultsEl.innerHTML = `<div style="color:var(--oci-red);padding:12px">⚠️ 인식 결과가 없습니다</div>`;
+      resultsEl.innerHTML = `<div style="color:var(--oci-red);padding:12px">인식 결과가 없습니다</div>`;
       if (startBtn) {
         startBtn.disabled = false;
-        startBtn.textContent = '🔍 AI 인식 시작';
+        startBtn.textContent = 'AI 인식 시작';
       }
       return;
     }
@@ -2260,7 +2367,7 @@ const CustomersPage = {
     // 부분 실패 알림
     const failedCount = allResults.filter(r => r.error).length;
     if (failedCount > 0 && failedCount < allResults.length) {
-      Toast.warn(`⚠️ ${failedCount}장 인식 실패 (나머지 ${allResults.length - failedCount}장 정상)`);
+      Toast.warn(`${failedCount}장 인식 실패 (나머지 ${allResults.length - failedCount}장 정상)`);
     }
   },
 
@@ -2281,7 +2388,7 @@ const CustomersPage = {
           <div style="background:var(--surface-2);padding:8px 12px;font-size:12px;font-weight:600;
                       color:var(--text-2);display:flex;justify-content:space-between;align-items:center;
                       border-bottom:1px solid var(--border)">
-            <span>📄 ${esc(r.filename)}</span>
+            <span>${esc(r.filename)}</span>
             ${
               r.error
                 ? `<span style="color:var(--oci-red)">인식 실패</span>`
@@ -2385,7 +2492,7 @@ const CustomersPage = {
     const msg = parts.join(' · ') || '등록된 항목 없음';
 
     if (saved) Toast.success(msg);
-    else if (duped) Toast.warn(`⚠️ 중복 방지: ${msg}`);
+    else if (duped) Toast.warn(`중복 방지: ${msg}`);
     else Toast.error(msg);
 
     await this.loadData();
@@ -2410,7 +2517,7 @@ const CustomersPage = {
     this._liveCam.busy = false;
 
     Modal.open({
-      title: '📷 명함 촬영',
+      title: '명함 촬영',
       width: 680,
       confirmOnClose: false, // 촬영 중 dirty 컨펌 불필요
       body: `
@@ -2442,7 +2549,7 @@ const CustomersPage = {
                          padding:18px;background:var(--oci-red);color:#fff;border:none;
                          border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;
                          transition:transform .08s,opacity .15s">
-            <span style="font-size:22px">📸</span>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
             <span>촬영하기</span>
           </button>
 
@@ -2454,11 +2561,11 @@ const CustomersPage = {
       `,
       footer: `
         <button class="btn btn-ghost" id="lc-fallback-btn" title="권한 거부 / 카메라 미지원 시">
-          📁 파일에서 선택
+          파일에서 선택
         </button>
         <button class="btn btn-ghost" id="lc-close-btn">취소</button>
         <button class="btn btn-primary" id="lc-done-btn" disabled>
-          ✓ 완료 (AI 인식)
+          완료 (AI 인식)
         </button>
       `,
       bind: {
@@ -2523,11 +2630,11 @@ const CustomersPage = {
     if (errEl) {
       errEl.style.display = 'flex';
       errEl.innerHTML = `
-        <div style="font-size:36px">📵</div>
+        <div style="color:rgba(255,255,255,0.7)"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/><path d="m2 2 20 20"/></svg></div>
         <div style="white-space:pre-line">${esc(msg)}</div>
         ${
           showFallbackCta
-            ? '<button class="btn btn-primary btn-sm" id="lc-fallback-inline">📁 파일에서 선택</button>'
+            ? '<button class="btn btn-primary btn-sm" id="lc-fallback-inline">파일에서 선택</button>'
             : ''
         }
       `;
@@ -2634,7 +2741,7 @@ const CustomersPage = {
     const done = document.getElementById('lc-done-btn');
     if (done) {
       done.disabled = n === 0;
-      done.textContent = n > 0 ? `✓ 완료 (${n}장 AI 인식)` : '✓ 완료 (AI 인식)';
+      done.textContent = n > 0 ? `완료 (${n}장 AI 인식)` : '완료 (AI 인식)';
     }
   },
 
@@ -2708,20 +2815,20 @@ const CustomersPage = {
   // 라이브 캡처 → OCR 실행 → 결과 편집 모달
   _openOcrResultsModal() {
     Modal.open({
-      title: '📇 명함 AI 인식 결과',
+      title: '명함 AI 인식 결과',
       width: 720,
       confirmOnClose: true,
       body: `
         <div id="card-ocr-results" style="min-height:140px">
           <div class="loading" style="padding:30px;text-align:center;color:var(--text-3)">
-            ⏳ ${this._ocrFiles.length}장의 명함을 AI 가 분석 중입니다...
+            ${this._ocrFiles.length}장의 명함을 AI 가 분석 중입니다...
           </div>
         </div>
       `,
       footer: `
         <button class="btn btn-ghost" id="lc-result-cancel">취소</button>
         <button class="btn btn-primary" id="card-save-all-btn" style="display:none">
-          💾 전체 저장
+          전체 저장
         </button>
       `,
       bind: {
