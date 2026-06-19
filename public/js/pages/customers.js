@@ -1289,9 +1289,14 @@ const CustomersPage = {
     }).open(map, marker);
   },
 
-  _renderMapFailFallback(wrap, address) {
+  _renderMapFailFallback(wrap, address, authIssue) {
+    // authIssue: 지오코더가 결과 없이 status=null/ERROR (도메인 미등록 등 인증 거부 시그니처)
+    const head = authIssue
+      ? `카카오 지도 도메인 인증이 필요합니다.<br>
+         <span style="font-size:11px">카카오 개발자 콘솔 → 내 앱 → 플랫폼 → Web 사이트 도메인에<br>현재 접속 도메인(<span class="mono">${esc(location.origin)}</span>)을 등록하세요.</span>`
+      : '주소를 좌표로 변환하지 못했습니다.';
     wrap.innerHTML = `<div style="text-align:center;color:var(--text-3);font-size:13px;padding:30px">
-      주소를 좌표로 변환하지 못했습니다.<br>
+      ${head}<br>
       <a href="https://map.kakao.com/link/search/${encodeURIComponent(address)}"
          target="_blank" rel="noopener" style="color:var(--oci-blue);text-decoration:underline;margin-top:8px;display:inline-block">
         카카오맵에서 보기 →
@@ -1366,6 +1371,14 @@ const CustomersPage = {
       const kakao = await this._loadKakaoMapSDK();
       const geocoder = new kakao.maps.services.Geocoder();
       const candidates = this._normalizeAddress(address);
+      const OK = kakao.maps.services.Status.OK;
+      // status 가 OK/ZERO_RESULT 가 아니면(=null/ERROR) 도메인 인증 거부로 간주
+      const ZERO = kakao.maps.services.Status.ZERO_RESULT;
+      let authIssue = false;
+      const noteAuth = status => {
+        if (status !== OK && status !== ZERO) authIssue = true;
+      };
+      const ok = (result, status) => status === OK && result && result.length && result[0].y;
 
       // 후보 주소들을 순차적으로 시도 (Geocoder가 첫 매칭 반환)
       const trySearch = idx => {
@@ -1374,32 +1387,22 @@ const CustomersPage = {
           if (kakao.maps.services.Places) {
             const places = new kakao.maps.services.Places();
             places.keywordSearch(candidates[0], (result, status) => {
-              if (status === kakao.maps.services.Status.OK && result.length) {
-                this._renderMapAt(
-                  wrap,
-                  kakao,
-                  parseFloat(result[0].y),
-                  parseFloat(result[0].x),
-                  address
-                );
+              noteAuth(status);
+              if (ok(result, status)) {
+                this._renderMapAt(wrap, kakao, parseFloat(result[0].y), parseFloat(result[0].x), address);
               } else {
-                this._renderMapFailFallback(wrap, address);
+                this._renderMapFailFallback(wrap, address, authIssue);
               }
             });
           } else {
-            this._renderMapFailFallback(wrap, address);
+            this._renderMapFailFallback(wrap, address, authIssue);
           }
           return;
         }
         geocoder.addressSearch(candidates[idx], (result, status) => {
-          if (status === kakao.maps.services.Status.OK && result.length) {
-            this._renderMapAt(
-              wrap,
-              kakao,
-              parseFloat(result[0].y),
-              parseFloat(result[0].x),
-              address
-            );
+          noteAuth(status);
+          if (ok(result, status)) {
+            this._renderMapAt(wrap, kakao, parseFloat(result[0].y), parseFloat(result[0].x), address);
           } else {
             trySearch(idx + 1);
           }
