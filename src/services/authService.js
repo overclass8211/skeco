@@ -62,6 +62,7 @@ const ROLE_PAGES = {
     'cost',
   ],
   executive: [
+    'exec360',
     'customer360',
     'dashboard',
     'pipeline',
@@ -87,6 +88,7 @@ const ROLE_PAGES = {
     'admin',
   ],
   admin: [
+    'exec360',
     'customer360',
     'dashboard',
     'pipeline',

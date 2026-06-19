@@ -57,6 +57,7 @@ const spaGlobals = {
   // pages/*.js (app.js 에서 참조)
   DashboardPage: 'readonly', PipelinePage: 'readonly', ForecastPage: 'readonly', LeadsPage: 'readonly',
   Customer360Page: 'readonly',
+  Exec360Page: 'readonly',
   /* @scaffold:page-globals — 신규 페이지 전역 자동 삽입 지점 (scaffold-page.js) */
   ProjectsPage: 'readonly', CustomersPage: 'readonly', CalendarPage: 'readonly',
   TeamPage: 'readonly', BoardPage: 'readonly', MeetingPage: 'readonly',

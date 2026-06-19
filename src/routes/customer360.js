@@ -68,6 +68,9 @@ router.get('/customers', async (req, res) => {
   }
 });
 
+// 임원 360 요약(전사) — /:id 보다 먼저 등록 (정적 경로 우선)
+router.get('/exec-summary', execSummary);
+
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
   try {
@@ -876,6 +879,210 @@ router.get('/forecast/versions/:vid', async (req, res) => {
     handleError(res, err);
   }
 });
+
+// ── 임원 360 요약 (전사 집계) ────────────────────────────────
+function healthGrade(score) {
+  return score >= 90
+    ? 'A+'
+    : score >= 80
+      ? 'A'
+      : score >= 70
+        ? 'B+'
+        : score >= 60
+          ? 'B'
+          : score >= 45
+            ? 'C'
+            : 'D';
+}
+async function execSummary(req, res) {
+  try {
+    const [[wAgg], [dealAgg], stageRows, [qAgg], capaRows, acctRows, qTop, evalRows] =
+      await Promise.all([
+        // 전사 가중 예상매출 (진행 딜)
+        pool
+          .query(
+            `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100),0) AS weighted
+             FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
+            WHERE l.stage NOT IN ('won','lost','dropped')`
+          )
+          .then(r => r[0]),
+        // 진행 딜 수 + 수주/실주 (수주율)
+        pool
+          .query(
+            `SELECT
+             SUM(CASE WHEN stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
+             SUM(CASE WHEN stage='won' THEN 1 ELSE 0 END) AS won,
+             SUM(CASE WHEN stage='lost' THEN 1 ELSE 0 END) AS lost
+             FROM leads`
+          )
+          .then(r => r[0]),
+        // 소재 라이프사이클 단계 분포
+        pool
+          .query(
+            `SELECT lifecycle_stage AS s, COUNT(*) AS n FROM customer_materials WHERE status<>'closed' GROUP BY lifecycle_stage`
+          )
+          .then(r => r[0]),
+        // 품질 오픈
+        pool
+          .query(`SELECT COUNT(*) AS n FROM quality_cases WHERE status<>'resolved'`)
+          .then(r => r[0]),
+        // 고객별 분기 수요 vs 생산가능 (CAPA 부족 판정)
+        pool
+          .query(
+            `SELECT customer_id,
+                  COALESCE(SUM(customer_forecast),0) AS demand,
+                  COALESCE(SUM(production_capacity),0) AS capacity
+             FROM demand_forecasts
+            WHERE month IN (?)
+            GROUP BY customer_id`,
+            [FORECAST_MONTHS]
+          )
+          .then(r => r[0]),
+        // Top 계정 (가중 예상매출) — 고객별
+        pool
+          .query(
+            `SELECT c.id, c.name,
+                  COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
+                       THEN l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100 ELSE 0 END),0) AS weighted,
+                  SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
+                  SUM(CASE WHEN l.stage='won' THEN 1 ELSE 0 END) AS won
+             FROM customers c
+             LEFT JOIN leads l ON l.customer_name = c.name
+             LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
+            GROUP BY c.id, c.name
+            HAVING weighted > 0 OR active > 0
+            ORDER BY weighted DESC
+            LIMIT 8`
+          )
+          .then(r => r[0]),
+        // 품질 오픈 Top
+        pool
+          .query(
+            `SELECT q.customer_id, c.name AS customer_name, q.title, q.severity, q.type
+             FROM quality_cases q JOIN customers c ON c.id=q.customer_id
+            WHERE q.status<>'resolved'
+            ORDER BY FIELD(q.severity,'high','medium','low'), q.opened_at DESC LIMIT 6`
+          )
+          .then(r => r[0]),
+        // 평가 지연(평가/샘플 단계 소재)
+        pool
+          .query(
+            `SELECT c.name AS customer_name, m.material_name
+             FROM customer_materials m JOIN customers c ON c.id=m.customer_id
+            WHERE m.lifecycle_stage IN ('evaluation','sample') AND m.status<>'closed'
+            ORDER BY m.updated_at ASC LIMIT 6`
+          )
+          .then(r => r[0]),
+      ]);
+
+    // 오픈 품질 보유 고객 set (Top 계정 리스크 표기용)
+    const qByCust = new Map();
+    for (const q of qTop) qByCust.set(q.customer_id, (qByCust.get(q.customer_id) || 0) + 1);
+
+    // CAPA 부족 고객 set
+    const capaShortIds = new Set();
+    const capaShortList = [];
+    for (const r of capaRows) {
+      const demand = Number(r.demand) || 0;
+      const capacity = Number(r.capacity) || 0;
+      if (capacity > 0 && capacity < demand) {
+        capaShortIds.add(r.customer_id);
+        capaShortList.push({ customer_id: r.customer_id, gap: Math.round(demand - capacity) });
+      }
+    }
+    // capaShort 고객명 매핑
+    const capIds = capaShortList.map(x => x.customer_id).filter(Boolean);
+    let capNames = [];
+    if (capIds.length) {
+      [capNames] = await pool.query('SELECT id, name FROM customers WHERE id IN (?)', [capIds]);
+    }
+    const nameById = new Map(capNames.map(c => [c.id, c.name]));
+
+    const won = Number(dealAgg.won) || 0;
+    const lost = Number(dealAgg.lost) || 0;
+    const winRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null;
+
+    const topAccounts = acctRows.map(a => {
+      const openQ = qByCust.get(a.id) || 0;
+      let score =
+        60 +
+        Math.min(20, (Number(a.won) || 0) * 7) +
+        Math.min(10, (Number(a.active) || 0) * 2) -
+        openQ * 5;
+      if (capaShortIds.has(a.id)) score -= 8;
+      score = Math.max(0, Math.min(100, score));
+      const risks = [];
+      if (capaShortIds.has(a.id)) risks.push({ level: 'medium', label: 'CAPA 부족' });
+      if (openQ > 0) risks.push({ level: 'high', label: `품질 ${openQ}` });
+      return {
+        id: a.id,
+        name: a.name,
+        weighted: Math.round(Number(a.weighted) || 0),
+        active: Number(a.active) || 0,
+        won: Number(a.won) || 0,
+        health_grade: healthGrade(score),
+        risks,
+      };
+    });
+    // 평균 Health (Top 계정 기준 근사)
+    const avgScore = topAccounts.length
+      ? Math.round(
+          topAccounts.reduce((s, a) => {
+            const g = a.health_grade;
+            return (
+              s +
+              (g === 'A+'
+                ? 95
+                : g === 'A'
+                  ? 85
+                  : g === 'B+'
+                    ? 75
+                    : g === 'B'
+                      ? 65
+                      : g === 'C'
+                        ? 50
+                        : 35)
+            );
+          }, 0) / topAccounts.length
+        )
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        kpis: {
+          weighted_expected: Math.round(Number(wAgg.weighted) || 0),
+          active_deals: Number(dealAgg.active) || 0,
+          win_rate: winRate,
+          avg_health: healthGrade(avgScore),
+          open_quality: Number(qAgg.n) || 0,
+          capa_short_accounts: capaShortIds.size,
+        },
+        stage_distribution: STAGE_ORDER.map(k => ({
+          stage: k,
+          label: STAGE_LABELS[k],
+          count: Number((stageRows.find(s => s.s === k) || {}).n) || 0,
+        })),
+        top_accounts: topAccounts,
+        risks: {
+          capa_short: capaShortList.map(x => ({
+            name: nameById.get(x.customer_id) || '-',
+            gap: x.gap,
+          })),
+          quality: qTop.map(q => ({
+            name: q.customer_name,
+            title: q.title,
+            severity: q.severity,
+            type: q.type,
+          })),
+          eval_delay: evalRows.map(e => ({ name: e.customer_name, material: e.material_name })),
+        },
+      },
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
 
 // ── Phase 3: 샘플/평가 ───────────────────────────────────────
 const SAMPLE_STATUS = ['requested', 'sent', 'evaluating', 'passed', 'conditional', 'failed'];

@@ -218,6 +218,23 @@ describe('Customer360 (MVP) API', () => {
     await pool.query('DELETE FROM sample_requests WHERE id=?', [cr.body.data.id]);
   });
 
+  it('GET /exec-summary — 전사 집계 구조', async () => {
+    const res = await api().get('/api/customer360/exec-summary').set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    expect(d.kpis).toHaveProperty('weighted_expected');
+    expect(d.kpis).toHaveProperty('open_quality');
+    expect(d.kpis).toHaveProperty('capa_short_accounts');
+    expect(Array.isArray(d.stage_distribution)).toBe(true);
+    expect(d.stage_distribution).toHaveLength(6); // 6 라이프사이클 단계
+    expect(Array.isArray(d.top_accounts)).toBe(true);
+    expect(d.risks).toHaveProperty('capa_short');
+    expect(d.risks).toHaveProperty('quality');
+    expect(d.risks).toHaveProperty('eval_delay');
+    // /exec-summary 가 /:id 보다 먼저 매칭되어 404/400 이 아님
+    expect(res.body.success).toBe(true);
+  });
+
   it('POST /:id/forecast/sync-capa — 생산예측 → CAPA 반영', async () => {
     // 소재명과 동일 product_name 의 생산예측 1건 (forecast_qty 333)
     const [pf] = await pool.query(
