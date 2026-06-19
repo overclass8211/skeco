@@ -48,6 +48,7 @@ router.get('/customers', async (req, res) => {
     const like = `%${q}%`;
     const where = q ? 'WHERE c.name LIKE ? OR c.industry LIKE ?' : '';
     const params = q ? [like, like] : [];
+    // 동일 회사명 복수 행(소속 담당자) → 회사 단위로 1건만 (대표=MIN id)
     const [rows] = await pool.query(
       `SELECT c.id, c.name, c.industry, c.region, c.country,
               (SELECT COUNT(*) FROM leads l
@@ -57,6 +58,7 @@ router.get('/customers', async (req, res) => {
                  WHERE l.customer_name = c.name
                    AND l.stage NOT IN ('lost','dropped')) AS pipeline_amount
          FROM customers c
+         JOIN (SELECT MIN(id) AS id FROM customers GROUP BY name) rep ON rep.id = c.id
          ${where}
          ORDER BY pipeline_amount DESC, c.name ASC
          LIMIT 500`,
@@ -993,21 +995,23 @@ async function execSummary(req, res) {
             [FORECAST_MONTHS]
           )
           .then(r => r[0]),
-        // Top 계정 (가중 예상매출) — 고객별
+        // Top 계정 (가중 예상매출) — 회사명 단위 집계 후 대표 고객 id 매핑(동일사명 중복행 배수집계 방지)
         pool
           .query(
-            `SELECT c.id, c.name,
-                  COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
-                       THEN l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100 ELSE 0 END),0) AS weighted,
-                  SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
-                  SUM(CASE WHEN l.stage='won' THEN 1 ELSE 0 END) AS won
-             FROM customers c
-             LEFT JOIN leads l ON l.customer_name = c.name
-             LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
-            GROUP BY c.id, c.name
-            HAVING weighted > 0 OR active > 0
-            ORDER BY weighted DESC
-            LIMIT 8`
+            `SELECT rep.id, agg.customer_name AS name, agg.weighted, agg.active, agg.won
+               FROM (
+                 SELECT l.customer_name,
+                        COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
+                             THEN l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100 ELSE 0 END),0) AS weighted,
+                        SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
+                        SUM(CASE WHEN l.stage='won' THEN 1 ELSE 0 END) AS won
+                   FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
+                  GROUP BY l.customer_name
+               ) agg
+               JOIN (SELECT name, MIN(id) AS id FROM customers GROUP BY name) rep ON rep.name = agg.customer_name
+              WHERE agg.weighted > 0 OR agg.active > 0
+              ORDER BY agg.weighted DESC
+              LIMIT 8`
           )
           .then(r => r[0]),
         // 품질 오픈 Top

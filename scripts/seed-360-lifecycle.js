@@ -315,6 +315,37 @@ async function maybeQuality(conn, lead, matId, idx) {
       counts.docs += 1;
     }
 
+    // ── 소속 고객(동일 회사명 담당자) 보강: 회사당 총 3명(추가 2명) — 멱등 ──
+    counts.members = 0;
+    const ADD_CONTACTS = [
+      { role: '구매', sur: '김', given: '상우' },
+      { role: '기술', sur: '이', given: '지훈' },
+    ];
+    const [companies] = await conn.query(
+      `SELECT MIN(id) AS id, name, MAX(region) AS region, MAX(country) AS country,
+              MAX(industry) AS industry, MAX(email) AS email, COUNT(*) AS cnt
+         FROM customers GROUP BY name`
+    );
+    for (const co of companies) {
+      if (co.cnt >= 3) continue; // 이미 3명 이상이면 skip
+      const domain = co.email && co.email.includes('@') ? co.email.split('@')[1] : 'partner.co.kr';
+      for (const c of ADD_CONTACTS) {
+        const person = `${c.sur}${c.given} (${c.role}팀)`;
+        const [[ex]] = await conn.query(
+          'SELECT COUNT(*) AS n FROM customers WHERE name=? AND contact_person=?',
+          [co.name, person]
+        );
+        if (ex.n > 0) continue;
+        const email = `${c.role === '구매' ? 'purchase' : 'tech'}.${co.id}@${domain}`;
+        await conn.query(
+          `INSERT INTO customers (name, region, country, industry, contact_person, phone, email)
+           VALUES (?,?,?,?,?,?,?)`,
+          [co.name, co.region, co.country, co.industry, person, '02-0000-0000', email]
+        );
+        counts.members += 1;
+      }
+    }
+
     console.log('\n✅ 시드 완료(멱등):');
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
@@ -324,6 +355,7 @@ async function maybeQuality(conn, lead, matId, idx) {
     console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
     console.log(`  · 수금 스케줄(payment_schedules): ${counts.payments} 신규`);
     console.log(`  · 품질 문서(quality_documents): ${counts.docs} 신규`);
+    console.log(`  · 소속 고객(동일사명 담당자): ${counts.members} 신규`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');
     console.log(`  · 현재 총 소재: ${m.n}`);
   } catch (e) {

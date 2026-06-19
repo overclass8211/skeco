@@ -1059,7 +1059,6 @@ const CustomersPage = {
               <button class="cust-subtab" data-sub="contracts" data-feature="crm.contracts">계약 <span id="cm-contracts-cnt" class="badge badge-blue">…</span></button>
               <button class="cust-subtab" data-sub="payments" data-feature="crm.payments">수금 <span id="cm-payments-cnt" class="badge badge-blue">…</span></button>
               <button class="cust-subtab" data-sub="support" data-feature="crm.support">지원 <span id="cm-support-cnt" class="badge badge-blue">…</span></button>
-              <button class="cust-subtab" data-sub="view360">360뷰 <span id="cm-view360-cnt" class="badge badge-blue">…</span></button>
             </div>
             <div class="cust-subpane" data-sub="dealslist"><div id="cm-deals-list">${ph}</div></div>
             <div class="cust-subpane" data-sub="quotes" hidden><div id="lq-customer">${ph}</div></div>
@@ -1067,7 +1066,6 @@ const CustomersPage = {
             <div class="cust-subpane" data-sub="contracts" hidden><div id="lc-customer">${ph}</div></div>
             <div class="cust-subpane" data-sub="payments" hidden><div id="lpay-customer">${ph}</div></div>
             <div class="cust-subpane" data-sub="support" hidden><div id="ls-customer">${ph}</div></div>
-            <div class="cust-subpane" data-sub="view360" hidden><div id="c360-customer">${ph}</div></div>
           </div>
 
           <div class="cust-rpane" data-rpane="brief" hidden>
@@ -1166,8 +1164,6 @@ const CustomersPage = {
     this._loadModalGroup(id);
     this._loadCachedBrief(id);
     const setCnt = (cid, n) => { const b = document.getElementById(cid); if (b) b.textContent = String(n || 0); };
-    if (typeof Customer360View !== 'undefined')
-      Customer360View.render('#c360-customer', 'customer', id).then(r => setCnt('cm-view360-cnt', r?.count)).catch(() => setCnt('cm-view360-cnt', 0));
     if (typeof LinkedContracts !== 'undefined')
       LinkedContracts.render('#lc-customer', 'customer', id).then(r => setCnt('cm-contracts-cnt', r?.count)).catch(() => setCnt('cm-contracts-cnt', 0));
     if (typeof LinkedQuotes !== 'undefined')
