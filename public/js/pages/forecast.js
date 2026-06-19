@@ -459,11 +459,11 @@ const ForecastPage = {
     }
     el.innerHTML = `<table class="data-table" style="font-size:12.5px;width:100%">
       <thead><tr>
-        <th>프로젝트명</th><th>고객사</th><th>사업구분</th><th>지역</th><th>담당</th>
+        <th>영업딜</th><th>고객사</th><th>사업구분</th><th>지역</th><th>담당</th>
         <th style="text-align:right">예상매출</th><th style="text-align:right">확률</th>
         <th style="text-align:right">Weighted</th><th>완료월</th><th>상태</th>
       </tr></thead>
-      <tbody>${d.map(r => `<tr>
+      <tbody>${d.map(r => `<tr class="fcst-deal-row" data-lead-id="${r.lead_id}" style="cursor:pointer" title="클릭 시 영업딜 상세">
         <td>${this._esc(r.project_name)}</td>
         <td>${this._esc(r.customer)}</td>
         <td style="color:var(--text-2)">${this._esc(r.business_type)}</td>
@@ -476,6 +476,20 @@ const ForecastPage = {
         <td>${this._statusBadge(r.stage_role, r.status)}</td>
       </tr>`).join('')}</tbody>
     </table>`;
+    // 행 클릭 → 영업딜(리드) 상세 모달 재사용 (편집 내장)
+    el.querySelectorAll('.fcst-deal-row').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const id = parseInt(tr.dataset.leadId, 10);
+        if (id && typeof App !== 'undefined' && App.openLeadDetail) App.openLeadDetail(id);
+      });
+      tr.addEventListener('mouseenter', () => { tr.style.background = '#f9fafb'; });
+      tr.addEventListener('mouseleave', () => { tr.style.background = ''; });
+    });
+  },
+
+  // 외부(딜 편집 등) 변경 후 현재 화면 동기화용 — App._syncAfterLeadChange 가 호출
+  loadData() {
+    return this._load();
   },
 
   _export() {

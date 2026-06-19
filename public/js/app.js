@@ -14,7 +14,7 @@ const App = {
     cost: { obj: () => CostPage, title: '원가관리', crumb: 'ERP / 원가관리' },
     pipeline: { obj: () => PipelinePage, title: '파이프라인', crumb: '영업관리 / 파이프라인' },
     forecast: { obj: () => ForecastPage, title: '매출 포캐스트', crumb: '메인 / 매출 포캐스트' },
-    leads: { obj: () => LeadsPage, title: '영업 리드', crumb: '영업관리 / 리드' },
+    leads: { obj: () => LeadsPage, title: '영업딜', crumb: '영업관리 / 영업딜' },
     projects: { obj: () => ProjectsPage, title: '프로젝트', crumb: '영업관리 / 프로젝트' },
     customers: { obj: () => CustomersPage, title: '고객사', crumb: '영업관리 / 고객사' },
     calendar: { obj: () => CalendarPage, title: '영업 캘린더', crumb: '영업관리 / 캘린더' },
@@ -714,11 +714,11 @@ const App = {
     Modal.open({
       title: lead
         ? typeof Labels !== 'undefined'
-          ? Labels.get('leads.modal_edit', '리드 정보 수정')
-          : '리드 정보 수정'
+          ? Labels.get('leads.modal_edit', '영업딜 정보 수정')
+          : '영업딜 정보 수정'
         : typeof Labels !== 'undefined'
-          ? Labels.get('leads.modal_new', '신규 리드 등록')
-          : '신규 리드 등록',
+          ? Labels.get('leads.modal_new', '신규 영업딜 등록')
+          : '신규 영업딜 등록',
       width: 640,
       body: `
         <form id="lead-form" class="form-grid">
@@ -774,7 +774,7 @@ const App = {
               <input type="number" step="0.01" class="form-input" name="capacity_mw" value="${lead?.capacity_mw || ''}" placeholder="예: 2000 (kg/톤 등)">
             </div>
             <div class="form-row">
-              <label class="form-label" data-label="leads.expected_amount">예상 금액</label>
+              <label class="form-label" data-label="leads.expected_amount">예상 매출</label>
               <input type="number" step="0.01" class="form-input" name="expected_amount" value="${lead?.expected_amount || ''}" placeholder="단위: 원 (예: 366억원 → 36600000000)">
             </div>
             <div class="form-row">
@@ -1070,10 +1070,10 @@ const App = {
     try {
       if (id) {
         await API.leads.update(id, body);
-        Toast.success('리드 정보가 수정되었습니다');
+        Toast.success('영업딜 정보가 수정되었습니다');
       } else {
         await API.leads.create(body);
-        Toast.success('신규 리드가 등록되었습니다');
+        Toast.success('신규 영업딜이 등록되었습니다');
       }
       Modal.close();
       // 현재 페이지 새로고침
@@ -1087,10 +1087,10 @@ const App = {
 
   deleteLead(id) {
     Modal.close();
-    Modal.confirm('이 리드를 삭제하시겠습니까? 활동 이력도 함께 삭제됩니다.', async () => {
+    Modal.confirm('이 영업딜을 삭제하시겠습니까? 활동 이력도 함께 삭제됩니다.', async () => {
       try {
         await API.leads.delete(id);
-        Toast.success('리드가 삭제되었습니다');
+        Toast.success('영업딜이 삭제되었습니다');
         const cur = this.pages[this.currentPage]?.obj();
         if (cur && cur.loadData) cur.loadData();
         this.updateNavBadges();
@@ -1098,6 +1098,18 @@ const App = {
         console.error(err);
       }
     });
+  },
+
+  // 영업딜(리드) 변경 후 현재 화면 동기화 — 매출포캐스트/파이프라인/영업딜 목록 등이
+  // 같은 leads 데이터를 공유하므로, 편집 직후 현재 페이지 데이터를 다시 로드한다.
+  _syncAfterLeadChange() {
+    try {
+      const cur = this.pages[this.currentPage]?.obj();
+      if (cur && typeof cur.loadData === 'function') cur.loadData();
+      this.updateNavBadges();
+    } catch (_) {
+      /* 페이지에 loadData 없으면 무시 */
+    }
   },
 
   // ============================================================
@@ -1271,7 +1283,7 @@ const App = {
               }
             </div>
             <div class="detail-amount">
-              <div class="text-muted fs-12">예상 금액</div>
+              <div class="text-muted fs-12">예상 매출</div>
               <div class="amount-big" id="ld-meta-amount">${Fmt.amount(l.expected_amount, l.currency)}</div>
             </div>
           </div>
@@ -1355,7 +1367,7 @@ const App = {
               <button type="button" class="ld-ie-btn" title="수정">✏️</button>
             </div>
             <div class="kv-row" data-field="expected_amount" data-type="number">
-              <span class="kv-key">예상 금액</span>
+              <span class="kv-key">예상 매출</span>
               <span class="kv-val" id="ld-ie-amount" data-raw="${l.expected_amount !== null && l.expected_amount !== undefined ? l.expected_amount : ''}">${Fmt.amount(l.expected_amount, l.currency)}</span>
               <button type="button" class="ld-ie-btn" title="수정">✏️</button>
             </div>
@@ -1865,6 +1877,8 @@ const App = {
         }
 
         Toast.success?.('저장됨');
+        // 매출포캐스트/파이프라인/영업딜 목록 등 현재 화면 동기화
+        this._syncAfterLeadChange();
       } catch (err) {
         Toast.error?.('저장 실패: ' + (err?.message || err));
         valEl.dataset.raw = rawVal; // 원복

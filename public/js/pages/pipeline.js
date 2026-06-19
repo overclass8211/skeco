@@ -40,7 +40,7 @@ const PipelinePage = {
             title="현재 필터 결과를 엑셀 파일로 다운로드">
             📤 엑셀 다운로드
           </button>
-          <button class="btn btn-primary" id="pipe-add-lead-btn">+ 리드 추가</button>
+          <button class="btn btn-primary" id="pipe-add-lead-btn">+ 영업딜 추가</button>
         </div>
       </div>
 
