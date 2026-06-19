@@ -15,6 +15,7 @@
     "prepare": "husky || echo 'husky skipped (production or unavailable)'",
     "init-db": "node scripts/init-db.js",
     "db:migrate": "node scripts/migrate.js",
+    "db:cleanup-dummy": "node scripts/cleanup-dummy-customers.js",
     "scaffold:page": "node scripts/scaffold-page.js",
     "cap:sync": "npx cap sync",
     "cap:sync:android": "npx cap sync android",
