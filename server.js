@@ -339,6 +339,7 @@ app.use('/api/projects/stages', require('./src/routes/project-stages'));
 app.use('/api/projects', require('./src/routes/projects'));
 app.use('/api/team', require('./src/routes/team'));
 app.use('/api/customers', require('./src/routes/customers'));
+app.use('/api/customer360', require('./src/routes/customer360')); // 고객·제품 360뷰 (MVP 집계)
 app.use('/api/activities', require('./src/routes/activities'));
 app.use('/api/quotes', require('./src/routes/quotes'));
 app.use('/api/proposals', require('./src/routes/proposals'));

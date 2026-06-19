@@ -46,6 +46,7 @@ const App = {
       crumb: '알림 / 전체 목록',
     },
     dev: { obj: () => DevPage, title: '개발자 옵션', crumb: '시스템 / 개발자 옵션' },
+    customer360: { obj: () => Customer360Page, title: '고객·제품 360뷰', crumb: '메인 / 고객·제품 360뷰' },
     // @scaffold:pages — 신규 페이지 라우팅 자동 삽입 지점 (scaffold-page.js)
   },
 

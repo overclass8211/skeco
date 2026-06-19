@@ -22,6 +22,7 @@ const ROLES = {
 
 const ROLE_PAGES = {
   manager: [
+    'customer360',
     'dashboard',
     'pipeline',
     'leads',
@@ -37,6 +38,7 @@ const ROLE_PAGES = {
     'settings',
   ],
   team_lead: [
+    'customer360',
     'dashboard',
     'pipeline',
     'forecast', // 매출 포캐스트 (재무 민감 — team_lead 이상)
@@ -60,6 +62,7 @@ const ROLE_PAGES = {
     'cost',
   ],
   executive: [
+    'customer360',
     'dashboard',
     'pipeline',
     'forecast',
@@ -84,6 +87,7 @@ const ROLE_PAGES = {
     'admin',
   ],
   admin: [
+    'customer360',
     'dashboard',
     'pipeline',
     'forecast',

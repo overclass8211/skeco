@@ -56,6 +56,7 @@ const spaGlobals = {
   Combobox: 'readonly', LinkedContracts: 'readonly', LinkedQuotes: 'readonly', LinkedProposals: 'readonly', LinkedSupport: 'readonly', LinkedPayments: 'readonly', Customer360View: 'readonly', ReadReceipts: 'readonly', ViewToggle: 'readonly', KpiBar: 'readonly', StageProgress: 'readonly', BulkPaste: 'readonly',
   // pages/*.js (app.js 에서 참조)
   DashboardPage: 'readonly', PipelinePage: 'readonly', ForecastPage: 'readonly', LeadsPage: 'readonly',
+  Customer360Page: 'readonly',
   /* @scaffold:page-globals — 신규 페이지 전역 자동 삽입 지점 (scaffold-page.js) */
   ProjectsPage: 'readonly', CustomersPage: 'readonly', CalendarPage: 'readonly',
   TeamPage: 'readonly', BoardPage: 'readonly', MeetingPage: 'readonly',
