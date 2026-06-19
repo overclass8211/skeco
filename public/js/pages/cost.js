@@ -235,9 +235,9 @@ const CostPage = {
             <div class="card mt-3" style="background:var(--surface-2)">
               <div class="card-body">
                 <div class="fs-11 text-muted mb-2">산정 결과</div>
-                <div class="flex-between fs-12 mb-1"><span>모듈/장비 원가</span><span class="mono fw-bold" id="calc-equip">-</span></div>
-                <div class="flex-between fs-12 mb-1"><span>설치/시공비</span><span class="mono fw-bold" id="calc-inst">-</span></div>
-                <div class="flex-between fs-12 mb-2"><span>엔지니어링/기타</span><span class="mono fw-bold" id="calc-eng">-</span></div>
+                <div class="flex-between fs-12 mb-1"><span>원료/소재 원가</span><span class="mono fw-bold" id="calc-equip">-</span></div>
+                <div class="flex-between fs-12 mb-1"><span>가공/공정비</span><span class="mono fw-bold" id="calc-inst">-</span></div>
+                <div class="flex-between fs-12 mb-2"><span>물류/기타</span><span class="mono fw-bold" id="calc-eng">-</span></div>
                 <div style="border-top:1px solid var(--border);padding-top:8px" class="flex-between">
                   <strong>총 원가</strong>
                   <span class="mono" id="calc-total" style="color:var(--oci-red);font-weight:700;font-size:14px">-</span>

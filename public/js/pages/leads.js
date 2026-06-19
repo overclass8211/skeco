@@ -437,7 +437,7 @@ const LeadsPage = {
             <th data-label="leads.customer_name">고객사</th>
             <th data-label="leads.project_name">프로젝트명</th>
             <th data-label="leads.business_type">사업유형</th>
-            <th class="text-right" data-label="leads.capacity_mw">규모(MW)</th>
+            <th class="text-right" data-label="leads.capacity_mw">예상 물량</th>
             <th class="text-right" data-label="leads.expected_amount">예상금액</th>
             <th data-label="leads.stage">상태</th>
             <th>구분</th>
@@ -570,7 +570,7 @@ const LeadsPage = {
         </div>
         <div class="list-card-meta">
           <div class="list-card-meta-row" title="고객사">🏢 <strong>${esc(l.customer_name || '-')}</strong></div>
-          ${l.capacity_mw ? `<div class="list-card-meta-row" title="규모">⚡ ${esc(l.capacity_mw)} MW</div>` : ''}
+          ${l.capacity_mw ? `<div class="list-card-meta-row" title="예상 물량">📦 ${esc(l.capacity_mw)}</div>` : ''}
           ${l.expected_close_date ? `<div class="list-card-meta-row" title="예상 종료">📅 ${esc(fmtDate(l.expected_close_date))}</div>` : ''}
         </div>
         <div class="list-card-stage">${stageBadge(l.stage)}</div>
@@ -656,7 +656,7 @@ const LeadsPage = {
       '고객사',
       '프로젝트명',
       '사업유형',
-      '규모(MW)',
+      '예상 물량',
       '예상금액',
       '통화',
       '단계',
@@ -755,7 +755,7 @@ const LeadsPage = {
         { key: 'business_type', label: '사업유형', default: '식각가스', maxLength: 50 },
         {
           key: 'capacity_mw',
-          label: '규모(MW)',
+          label: '예상 물량',
           transform: v => {
             if (v === null || v === undefined || v === '') return null;
             const n = parseFloat(String(v).replace(/[,₩$¥]/g, ''));

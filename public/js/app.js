@@ -770,8 +770,8 @@ const App = {
 
           <div class="form-row-3">
             <div class="form-row">
-              <label class="form-label" data-label="leads.capacity_mw">규모 (MW)</label>
-              <input type="number" step="0.01" class="form-input" name="capacity_mw" value="${lead?.capacity_mw || ''}">
+              <label class="form-label" data-label="leads.capacity_mw">예상 물량</label>
+              <input type="number" step="0.01" class="form-input" name="capacity_mw" value="${lead?.capacity_mw || ''}" placeholder="예: 2000 (kg/톤 등)">
             </div>
             <div class="form-row">
               <label class="form-label" data-label="leads.expected_amount">예상 금액</label>
@@ -1350,8 +1350,8 @@ const App = {
               <button type="button" class="ld-ie-btn" title="수정">✏️</button>
             </div>
             <div class="kv-row" data-field="capacity_mw" data-type="decimal">
-              <span class="kv-key" data-label="leads.capacity_mw">규모</span>
-              <span class="kv-val mono" data-raw="${l.capacity_mw !== null && l.capacity_mw !== undefined ? l.capacity_mw : ''}">${l.capacity_mw ? parseFloat(l.capacity_mw).toFixed(1) + ' MW' : '-'}</span>
+              <span class="kv-key" data-label="leads.capacity_mw">예상 물량</span>
+              <span class="kv-val mono" data-raw="${l.capacity_mw !== null && l.capacity_mw !== undefined ? l.capacity_mw : ''}">${l.capacity_mw ? parseFloat(l.capacity_mw).toLocaleString('ko-KR') : '-'}</span>
               <button type="button" class="ld-ie-btn" title="수정">✏️</button>
             </div>
             <div class="kv-row" data-field="expected_amount" data-type="number">
@@ -1833,7 +1833,7 @@ const App = {
         // 표시값 갱신
         let displayVal = newVal || '-';
         if (field === 'capacity_mw' && newVal)
-          displayVal = parseFloat(newVal).toFixed(1) + ' MW';
+          displayVal = parseFloat(newVal).toLocaleString('ko-KR');
         else if (field === 'expected_amount' && newVal)
           displayVal = Fmt.amount(parseFloat(newVal), l.currency);
         else if (field === 'profit_rate' && newVal)
@@ -1911,7 +1911,7 @@ const App = {
       전화: { icon: '📞', label: '전화 통화', placeholder: '예: 최영희 담당자와 1차 견적 협의' },
       미팅: { icon: '📅', label: '미팅', placeholder: '예: 부산 본사 방문 미팅' },
       이메일: { icon: '✉️', label: '이메일 발송', placeholder: '예: RFP 회신 보낸' },
-      현장방문: { icon: '🏢', label: '현장 방문', placeholder: '예: 시공 현장 답사' },
+      현장방문: { icon: '🏢', label: '현장 방문', placeholder: '예: 고객사 공장(Fab) 방문' },
       메모: { icon: '✍️', label: '내부 메모', placeholder: '예: 결재라인 변경 공유' },
     };
     return MAP[type] || { icon: '📌', label: type, placeholder: '' };

@@ -154,14 +154,14 @@ function getFlowStages() {
     .map(([k]) => k);
 }
 
-// 사업 유형 색상
+// 사업 유형 색상 (SK 사업영역)
 const BUSINESS_COLORS = {
-  태양광: 'badge-amber',
-  모듈: 'badge-amber',
-  EPC: 'badge-blue',
-  ESS: 'badge-blue',
-  전기: 'badge-purple',
-  설치: 'badge-purple',
+  식각가스: 'badge-amber',
+  프리커서: 'badge-blue',
+  'Wet Chemical': 'badge-blue',
+  디스플레이소재: 'badge-purple',
+  포토소재: 'badge-purple',
+  통합서비스: 'badge-green',
 };
 
 // ----------- 모달 -----------

@@ -975,11 +975,11 @@ const SettingsPage = {
   // {{my_company}} → <span class="tpl-var" title="회사명 — 발송 시 'OCI' 같은 값으로 치환">my_company</span>
   // 알 수 없는 변수는 warning 스타일 (.tpl-var-unknown)
   _TPL_VARS: {
-    customer_name: { label: '고객사명', sample: '한국동서발전' },
+    customer_name: { label: '고객사명', sample: '삼성전자' },
     contact_person: { label: '고객사 담당자', sample: '박팀장' },
-    project_name: { label: '프로젝트명', sample: '30MW EPC 입찰' },
+    project_name: { label: '프로젝트명', sample: '평택 P4 식각가스 공급' },
     my_name: { label: '내 이름', sample: '김영업' },
-    my_company: { label: '회사명', sample: 'OCI' },
+    my_company: { label: '회사명', sample: 'SK에코플랜트 머티리얼즈' },
     today: { label: '오늘 날짜', sample: '2026-05-17' },
     bidding_deadline: { label: '입찰 마감일', sample: '2026-05-31' },
   },

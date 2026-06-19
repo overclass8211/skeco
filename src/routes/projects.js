@@ -352,7 +352,7 @@ router.post('/bulk', async (req, res) => {
         [
           row.name,
           row.customer_name || null,
-          row.project_type || '태양광',
+          row.project_type || '식각가스',
           row.contract_amount || null,
           row.estimated_cost || null,
           margin,
@@ -650,7 +650,7 @@ router.post('/import', upload.memory.single('file'), async (req, res) => {
           [
             name,
             String(row['고객사'] || row['customer_name'] || '').trim() || null,
-            String(row['유형'] || row['project_type'] || '태양광').trim(),
+            String(row['유형'] || row['project_type'] || '식각가스').trim(),
             contractAmt,
             estimatedCost,
             margin,

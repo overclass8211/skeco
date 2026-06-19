@@ -73,7 +73,7 @@ const TeamPage = {
       <div class="metric-card">
         <div class="metric-label">Field (현장)</div>
         <div class="metric-value">${field}<span class="metric-unit">명</span></div>
-        <div class="metric-sub">현장 시공/관리</div>
+        <div class="metric-sub">현장 기술지원/품질</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Sales (영업)</div>
@@ -93,7 +93,7 @@ const TeamPage = {
     });
 
     // 주요 사업영역 카드
-    const order = ['태양광', '전기/ESS', '해외영업', 'CS팀', '미배정'];
+    const order = ['식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스', '해외영업', '기술지원', '미배정'];
     const sortedKeys = Object.keys(groups).sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
@@ -226,7 +226,7 @@ const TeamPage = {
           </div>
           <div class="form-row">
             <label class="form-label">소속팀</label>
-            <input class="form-input" name="team" value="${esc(m?.team || '')}" placeholder="예: 태양광, 전기/ESS, 해외영업">
+            <input class="form-input" name="team" value="${esc(m?.team || '')}" placeholder="예: 식각가스, 디스플레이소재, 해외영업">
           </div>
           <div class="form-row">
             <label class="form-label">이메일</label>
