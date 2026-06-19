@@ -131,10 +131,51 @@ async function maybeQuality(conn, lead, matId, idx) {
       if (q) counts.quality += 1;
       idx += 1;
     }
+
+    // 기준 포캐스트 버전 1개 생성 (고객당, 없을 때만 — 멱등)
+    counts.versions = 0;
+    const [custWithMat] = await conn.query(
+      `SELECT DISTINCT customer_id FROM customer_materials WHERE status<>'closed'`
+    );
+    for (const { customer_id } of custWithMat) {
+      const [[ex]] = await conn.query(
+        `SELECT COUNT(*) AS n FROM forecast_versions WHERE customer_id=?`,
+        [customer_id]
+      );
+      if (ex.n > 0) continue;
+      const [[mids]] = await conn.query(
+        `SELECT GROUP_CONCAT(id) AS ids FROM customer_materials WHERE customer_id=?`,
+        [customer_id]
+      );
+      if (!mids.ids) continue;
+      const matIdList = mids.ids.split(',').map(Number);
+      const [items] = await conn.query(
+        `SELECT * FROM demand_forecasts WHERE customer_material_id IN (?)`,
+        [matIdList]
+      );
+      if (!items.length) continue;
+      const [v] = await conn.query(
+        `INSERT INTO forecast_versions (customer_id, label, version_type, note) VALUES (?, '2026-06 기준본', 'baseline', '데모 시드 기준 스냅샷')`,
+        [customer_id]
+      );
+      for (const it of items) {
+        await conn.query(
+          `INSERT INTO forecast_version_items
+             (version_id, customer_material_id, month, customer_forecast, internal_forecast,
+              production_capacity, win_probability, expected_revenue, unit)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [v.insertId, it.customer_material_id, it.month, it.customer_forecast, it.internal_forecast,
+           it.production_capacity, it.win_probability, it.expected_revenue, it.unit]
+        );
+      }
+      counts.versions += 1;
+    }
+
     console.log('\n✅ 시드 완료(멱등):');
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
     console.log(`  · 품질이슈(quality_cases): ${counts.quality}`);
+    console.log(`  · 기준 포캐스트 버전: ${counts.versions} 신규`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');
     console.log(`  · 현재 총 소재: ${m.n}`);
   } catch (e) {

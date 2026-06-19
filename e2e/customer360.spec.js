@@ -45,10 +45,42 @@ const DETAIL = {
   },
 };
 
+const FORECAST = {
+  success: true,
+  data: {
+    months: ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'],
+    materials: [
+      {
+        id: 11, material_name: '식각가스 C4F6 · Fab12', business_type: '식각가스', unit: 'kg',
+        rows: {
+          '2026-07': { customer_forecast: 2000, internal_forecast: 1800, production_capacity: 1900, gap: -100, expected_revenue: 400000000, win_probability: 80 },
+          '2026-08': { customer_forecast: 2200, internal_forecast: 2000, production_capacity: 2100, gap: -100, expected_revenue: 400000000, win_probability: 80 },
+          '2026-09': { customer_forecast: 0, internal_forecast: 0, production_capacity: null, gap: null, expected_revenue: 0, win_probability: null },
+          '2026-10': { customer_forecast: 0, internal_forecast: 0, production_capacity: null, gap: null, expected_revenue: 0, win_probability: null },
+          '2026-11': { customer_forecast: 0, internal_forecast: 0, production_capacity: null, gap: null, expected_revenue: 0, win_probability: null },
+          '2026-12': { customer_forecast: 0, internal_forecast: 0, production_capacity: null, gap: null, expected_revenue: 0, win_probability: null },
+        },
+      },
+    ],
+    totals: {
+      '2026-07': { customer: 2000, internal: 1800, capacity: 1900, expected: 400000000 },
+      '2026-08': { customer: 2200, internal: 2000, capacity: 2100, expected: 400000000 },
+      '2026-09': { customer: 0, internal: 0, capacity: 0, expected: 0 },
+      '2026-10': { customer: 0, internal: 0, capacity: 0, expected: 0 },
+      '2026-11': { customer: 0, internal: 0, capacity: 0, expected: 0 },
+      '2026-12': { customer: 0, internal: 0, capacity: 0, expected: 0 },
+    },
+    versions: [{ id: 7, label: '2026-06 기준본', version_type: 'baseline', note: null, created_at: '2026-06-15', item_count: 6 }],
+  },
+};
+
 test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
   await page.route('**/api/customer360/customers**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LIST) })
+  );
+  await page.route(`**/api/customer360/${CID}/forecast`, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FORECAST) })
   );
   await page.route(`**/api/customer360/${CID}`, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DETAIL) })
@@ -82,4 +114,12 @@ test('고객·제품 360뷰 — 라이프사이클 보드 + 수요·생산·수�
   // 영업기회 탭
   await page.locator('.c360-tab[data-tab="deals"]').click();
   await expect(page.locator('#c360-tab-body')).toContainText('Fab12 식각가스 공급');
+
+  // 포캐스트 탭 — 고객/내부 분리 + 버전 + 합계
+  await page.locator('.c360-tab[data-tab="forecast"]').click();
+  await expect(page.locator('#c360-fc')).toContainText('고객 Forecast', { timeout: 5000 });
+  await expect(page.locator('#c360-fc')).toContainText('내부 보정');
+  await expect(page.locator('#fc-ver')).toBeVisible();
+  await expect(page.locator('#fc-snapshot')).toBeVisible();
+  await expect(page.locator('#c360-fc')).toContainText('2026-06 기준본');
 });

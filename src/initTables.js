@@ -837,6 +837,33 @@ async function initTables() {
       INDEX idx_qc_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // ── 포캐스트 버전관리 (시점 스냅샷) ────────────────────────
+    await pool.query(`CREATE TABLE IF NOT EXISTS forecast_versions (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id   INT          NOT NULL,
+      label         VARCHAR(120) NOT NULL,                 -- 예: 2026-06 제출본
+      version_type  VARCHAR(20)  DEFAULT 'baseline',       -- baseline/customer/internal/production
+      note          VARCHAR(500) DEFAULT NULL,
+      created_by    INT          DEFAULT NULL,
+      created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_fv_customer (customer_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS forecast_version_items (
+      id                  INT AUTO_INCREMENT PRIMARY KEY,
+      version_id          INT          NOT NULL,
+      customer_material_id INT         NOT NULL,
+      month               VARCHAR(7)   NOT NULL,
+      customer_forecast   DECIMAL(15,2) DEFAULT 0,
+      internal_forecast   DECIMAL(15,2) DEFAULT 0,
+      production_capacity DECIMAL(15,2) DEFAULT NULL,
+      win_probability     TINYINT UNSIGNED DEFAULT NULL,
+      expected_revenue    DECIMAL(20,2) DEFAULT 0,
+      unit                VARCHAR(10)  DEFAULT 'kg',
+      INDEX idx_fvi_version (version_id),
+      INDEX idx_fvi_mat (customer_material_id, month)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 사용자 인증 테이블 ──────────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS users (
       id               INT AUTO_INCREMENT PRIMARY KEY,

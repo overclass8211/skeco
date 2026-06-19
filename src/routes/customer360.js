@@ -17,6 +17,7 @@ const pool = require('../db');
 const { handleError } = require('../middleware/errorHandler');
 const { validateId } = require('../middleware/validate');
 const { requireLevel } = require('../middleware/rbac');
+const { getUserId } = require('../middleware/auth');
 
 // JSON 안전 파싱
 function safeJson(s, fallback) {
@@ -635,6 +636,194 @@ router.post('/forecasts', requireLevel(1), async (req, res) => {
       ]
     );
     res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 포캐스트 탭 (고객/내부 분리 + 버전관리) ──────────────────
+const FORECAST_MONTHS = ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+
+async function buildForecastDetail(customerId) {
+  const [mats] = await pool.query(
+    `SELECT id, material_name, business_type, demand_unit FROM customer_materials
+       WHERE customer_id=? AND status<>'closed' ORDER BY id`,
+    [customerId]
+  );
+  const matIds = mats.map(m => m.id);
+  let fcs = [];
+  if (matIds.length) {
+    [fcs] = await pool.query(
+      `SELECT * FROM demand_forecasts WHERE customer_material_id IN (?) AND month IN (?)`,
+      [matIds, FORECAST_MONTHS]
+    );
+  }
+  const key = (mid, mn) => `${mid}|${mn}`;
+  const fcMap = new Map();
+  for (const f of fcs) fcMap.set(key(f.customer_material_id, f.month), f);
+
+  const totals = {};
+  FORECAST_MONTHS.forEach(
+    mn => (totals[mn] = { customer: 0, internal: 0, capacity: 0, expected: 0 })
+  );
+
+  const materials = mats.map(m => {
+    const rows = {};
+    FORECAST_MONTHS.forEach(mn => {
+      const f = fcMap.get(key(m.id, mn));
+      const cf = Number(f?.customer_forecast) || 0;
+      const inf = Number(f?.internal_forecast) || 0;
+      const capRaw = f ? f.production_capacity : null;
+      const cap = capRaw === null || capRaw === undefined ? null : Number(capRaw);
+      const rev = Number(f?.expected_revenue) || 0;
+      rows[mn] = {
+        customer_forecast: cf,
+        internal_forecast: inf,
+        production_capacity: cap,
+        gap: cap === null ? null : Math.round(cap - cf),
+        expected_revenue: rev,
+        win_probability: f?.win_probability ?? null,
+      };
+      totals[mn].customer += cf;
+      totals[mn].internal += inf;
+      totals[mn].capacity += cap || 0;
+      totals[mn].expected += rev;
+    });
+    return {
+      id: m.id,
+      material_name: m.material_name,
+      business_type: m.business_type,
+      unit: m.demand_unit,
+      rows,
+    };
+  });
+
+  const [vers] = await pool.query(
+    `SELECT v.id, v.label, v.version_type, v.note, v.created_at,
+            (SELECT COUNT(*) FROM forecast_version_items i WHERE i.version_id=v.id) AS item_count
+       FROM forecast_versions v WHERE v.customer_id=? ORDER BY v.created_at DESC, v.id DESC`,
+    [customerId]
+  );
+
+  return {
+    months: FORECAST_MONTHS,
+    materials,
+    totals,
+    versions: vers.map(v => ({
+      id: v.id,
+      label: v.label,
+      version_type: v.version_type,
+      note: v.note,
+      created_at: v.created_at,
+      item_count: Number(v.item_count) || 0,
+    })),
+  };
+}
+
+// 현재 포캐스트 상세 + 버전 목록
+router.get('/:id/forecast', validateId, async (req, res) => {
+  try {
+    const [[c]] = await pool.query('SELECT id FROM customers WHERE id=?', [req.params.id]);
+    if (!c) return res.status(404).json({ success: false, error: '고객사 없음' });
+    res.json({ success: true, data: await buildForecastDetail(req.params.id) });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 현재 포캐스트를 버전(스냅샷)으로 저장
+router.post('/:id/forecast/versions', requireLevel(1), validateId, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const customerId = req.params.id;
+    const label = (req.body?.label || '').trim();
+    if (!label) return res.status(400).json({ success: false, error: 'label 필수' });
+    const versionType = req.body?.version_type || 'baseline';
+    const [mats] = await conn.query('SELECT id FROM customer_materials WHERE customer_id=?', [
+      customerId,
+    ]);
+    const matIds = mats.map(m => m.id);
+    let items = [];
+    if (matIds.length) {
+      [items] = await conn.query(
+        'SELECT * FROM demand_forecasts WHERE customer_material_id IN (?)',
+        [matIds]
+      );
+    }
+    await conn.beginTransaction();
+    const [v] = await conn.query(
+      `INSERT INTO forecast_versions (customer_id, label, version_type, note, created_by) VALUES (?,?,?,?,?)`,
+      [customerId, label, versionType, req.body?.note || null, getUserId(req)]
+    );
+    const vid = v.insertId;
+    for (const it of items) {
+      await conn.query(
+        `INSERT INTO forecast_version_items
+           (version_id, customer_material_id, month, customer_forecast, internal_forecast,
+            production_capacity, win_probability, expected_revenue, unit)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [
+          vid,
+          it.customer_material_id,
+          it.month,
+          it.customer_forecast,
+          it.internal_forecast,
+          it.production_capacity,
+          it.win_probability,
+          it.expected_revenue,
+          it.unit,
+        ]
+      );
+    }
+    await conn.commit();
+    res.json({ success: true, data: { id: vid, item_count: items.length } });
+  } catch (err) {
+    try {
+      await conn.rollback();
+    } catch (_) {
+      /* noop */
+    }
+    handleError(res, err);
+  } finally {
+    conn.release();
+  }
+});
+
+// 특정 버전의 월별 합계 (비교용)
+router.get('/forecast/versions/:vid', async (req, res) => {
+  try {
+    const vid = parseInt(req.params.vid, 10);
+    if (!vid || vid < 1)
+      return res.status(400).json({ success: false, error: '유효하지 않은 버전 ID' });
+    const [[v]] = await pool.query('SELECT * FROM forecast_versions WHERE id=?', [vid]);
+    if (!v) return res.status(404).json({ success: false, error: '버전 없음' });
+    const [items] = await pool.query('SELECT * FROM forecast_version_items WHERE version_id=?', [
+      vid,
+    ]);
+    const totals = {};
+    FORECAST_MONTHS.forEach(
+      mn => (totals[mn] = { customer: 0, internal: 0, capacity: 0, expected: 0 })
+    );
+    for (const it of items) {
+      if (!totals[it.month]) continue;
+      totals[it.month].customer += Number(it.customer_forecast) || 0;
+      totals[it.month].internal += Number(it.internal_forecast) || 0;
+      totals[it.month].capacity += Number(it.production_capacity) || 0;
+      totals[it.month].expected += Number(it.expected_revenue) || 0;
+    }
+    res.json({
+      success: true,
+      data: {
+        version: {
+          id: v.id,
+          label: v.label,
+          version_type: v.version_type,
+          created_at: v.created_at,
+        },
+        months: FORECAST_MONTHS,
+        totals,
+      },
+    });
   } catch (err) {
     handleError(res, err);
   }

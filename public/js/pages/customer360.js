@@ -24,6 +24,9 @@ const Customer360Page = {
     ['massprod', '양산'],
     ['delivery', '납품'],
   ],
+  _FC_MONTHS: ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'],
+  _fcData: null,
+  _cmpVer: null,
 
   _ic: {
     deal: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
@@ -171,6 +174,8 @@ const Customer360Page = {
 
   async _select(id) {
     this._custId = id;
+    this._fcData = null;
+    this._cmpVer = null;
     localStorage.setItem('c360_last', String(id));
     const body = document.getElementById('c360-body');
     if (body) body.innerHTML = `<div class="c360-empty">불러오는 중…</div>`;
@@ -239,6 +244,7 @@ const Customer360Page = {
       <div class="c360-tabs">
         ${[
           ['lifecycle', '라이프사이클'],
+          ['forecast', '포캐스트'],
           ['deals', '영업기회'],
           ['timeline', '활동'],
           ['brief', 'AI 브리핑'],
@@ -263,6 +269,7 @@ const Customer360Page = {
     if (!el) return;
     const m = {
       lifecycle: () => this._tabLifecycle(),
+      forecast: () => this._tabForecast(),
       deals: () => this._tabDeals(),
       timeline: () => this._tabTimeline(),
       brief: () => this._tabBrief(),
@@ -279,6 +286,10 @@ const Customer360Page = {
           if (window.App && typeof App.openLeadDetail === 'function') App.openLeadDetail(id);
         })
       );
+    }
+    if (this._tab === 'forecast') {
+      if (!this._fcData) this._loadForecast();
+      else this._bindForecast(el);
     }
     if (this._tab === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
@@ -469,6 +480,183 @@ const Customer360Page = {
     </div>`;
   },
 
+  // ── 포캐스트 탭 (고객/내부 분리 + 버전관리) ──────────────────
+  _tabForecast() {
+    if (!this._fcData) return '<div id="c360-fc"><div class="c360-empty">포캐스트 불러오는 중…</div></div>';
+    return `<div id="c360-fc">${this._renderForecast()}</div>`;
+  },
+
+  async _loadForecast() {
+    try {
+      const res = await API.get(`/customer360/${this._custId}/forecast`);
+      this._fcData = res.data;
+    } catch (_) {
+      this._fcData = { months: this._FC_MONTHS, materials: [], totals: {}, versions: [] };
+    }
+    const host = document.getElementById('c360-fc');
+    if (host) {
+      host.innerHTML = this._renderForecast();
+      this._bindForecast(host.parentElement || document);
+    }
+  },
+
+  _renderForecast() {
+    const f = this._fcData;
+    const months = f.months;
+    const verOpts = f.versions
+      .map(v => `<option value="${v.id}" ${this._cmpVer && this._cmpVer.version.id === v.id ? 'selected' : ''}>${esc(v.label)} (${String(v.created_at).slice(0, 10)})</option>`)
+      .join('');
+    const cmp = this._cmpVer ? this._cmpVer.totals : null;
+
+    const totalRows = months
+      .map(mn => {
+        const t = f.totals[mn] || { customer: 0, internal: 0, capacity: 0, expected: 0 };
+        const delta = cmp ? Math.round((t.customer || 0) - (cmp[mn]?.customer || 0)) : null;
+        const dtxt =
+          delta === null
+            ? ''
+            : `<td class="text-right" style="color:${delta > 0 ? '#0F7A3F' : delta < 0 ? 'var(--oci-red)' : 'var(--text-3)'}">${delta > 0 ? '+' : ''}${this._qty(delta)}</td>`;
+        return `<tr>
+          <td>${mn}</td>
+          <td class="text-right">${this._qty(t.customer)}</td>
+          <td class="text-right">${this._qty(t.internal)}</td>
+          <td class="text-right">${this._qty(t.capacity)}</td>
+          <td class="text-right">${this._won(t.expected)}</td>
+          ${dtxt}
+        </tr>`;
+      })
+      .join('');
+
+    const matBlocks = f.materials.length
+      ? f.materials
+          .map(m => {
+            const rows = months
+              .map(mn => {
+                const r = m.rows[mn] || {};
+                const gap = r.gap;
+                return `<tr>
+                <td>${mn}</td>
+                <td class="text-right">${this._qty(r.customer_forecast)}</td>
+                <td class="text-right">${this._qty(r.internal_forecast)}</td>
+                <td class="text-right">${r.production_capacity === null ? '-' : this._qty(r.production_capacity)}</td>
+                <td class="text-right" style="${gap !== null && gap < 0 ? 'color:var(--oci-red)' : ''}">${gap === null ? '-' : (gap > 0 ? '+' : '') + this._qty(gap)}</td>
+                <td class="text-right">${this._won(r.expected_revenue)}</td>
+              </tr>`;
+              })
+              .join('');
+            return `<div class="lc-card">
+              <div class="lc-top">
+                <span class="lc-name">${esc(m.material_name)}</span>
+                <span class="pill pill-mut">${esc(m.unit || '')}</span>
+                <span class="lc-edit"><button class="lc-mini" data-fc-edit="${m.id}">수요 입력/수정</button></span>
+              </div>
+              <table class="data-table" style="font-size:12px;margin-top:6px">
+                <thead><tr><th>월</th><th class="text-right">고객 Forecast</th><th class="text-right">내부 보정</th><th class="text-right">생산가능</th><th class="text-right">차이</th><th class="text-right">예상매출</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`;
+          })
+          .join('')
+      : '<div class="c360-empty">등록된 소재가 없습니다. 라이프사이클 탭에서 소재를 추가하세요.</div>';
+
+    return `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <span style="font-size:12px;color:var(--text-2)">버전 비교</span>
+        <select id="fc-ver" style="height:32px;border:1px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;background:var(--surface);color:var(--text-1)">
+          <option value="">현재 (비교 안 함)</option>
+          ${verOpts}
+        </select>
+        <button class="btn btn-primary btn-sm" id="fc-snapshot" style="margin-left:auto">현재 스냅샷 저장</button>
+      </div>
+      <div class="c360-sec" style="margin-top:0">월별 합계 ${cmp ? `<span style="font-size:11px;color:var(--text-3);font-weight:500">· Δ고객 = 현재 − ${esc(this._cmpVer.version.label)}</span>` : ''}</div>
+      <table class="data-table" style="font-size:12px">
+        <thead><tr><th>월</th><th class="text-right">고객 합계</th><th class="text-right">내부 보정</th><th class="text-right">생산가능</th><th class="text-right">예상매출</th>${cmp ? '<th class="text-right">Δ고객</th>' : ''}</tr></thead>
+        <tbody>${totalRows}</tbody>
+      </table>
+      <div class="c360-sec">소재별 상세 (고객 Forecast vs 내부 보정)</div>
+      ${matBlocks}
+    `;
+  },
+
+  _bindForecast(scope) {
+    const root = scope || document;
+    root.querySelector('#fc-snapshot')?.addEventListener('click', () => this._saveSnapshot());
+    root.querySelector('#fc-ver')?.addEventListener('change', e => this._onVersionChange(e.target.value));
+    root.querySelectorAll('[data-fc-edit]').forEach(b =>
+      b.addEventListener('click', () => {
+        const mat = this._fcData.materials.find(m => m.id === Number(b.dataset.fcEdit));
+        // 라이프사이클 소재 구조와 호환되도록 unit 매핑
+        this._openForecastModal({ id: mat.id, material_name: mat.material_name, demand_unit: mat.unit });
+      })
+    );
+  },
+
+  async _onVersionChange(vid) {
+    if (!vid) {
+      this._cmpVer = null;
+    } else {
+      try {
+        const res = await API.get(`/customer360/forecast/versions/${vid}`);
+        this._cmpVer = res.data;
+      } catch (_) {
+        this._cmpVer = null;
+      }
+    }
+    const host = document.getElementById('c360-fc');
+    if (host) {
+      host.innerHTML = this._renderForecast();
+      this._bindForecast(host.parentElement || document);
+    }
+  },
+
+  _saveSnapshot() {
+    Modal.open({
+      title: '포캐스트 스냅샷 저장',
+      width: 460,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row"><label class="form-label">버전 라벨 *</label>
+            <input class="form-input" id="snap-label" placeholder="예: 2026-07 영업 보정본"></div>
+          <div class="form-row"><label class="form-label">유형</label>
+            <select class="form-input" id="snap-type">
+              <option value="baseline">기준(baseline)</option>
+              <option value="customer">고객 제출</option>
+              <option value="internal">내부 보정</option>
+              <option value="production">생산 검토</option>
+            </select></div>
+          <div class="form-row"><label class="form-label">메모</label>
+            <input class="form-input" id="snap-note" placeholder="선택"></div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="snap-cancel">취소</button><button class="btn btn-primary" id="snap-save">저장</button>`,
+      bind: {
+        '#snap-cancel': () => Modal.close(),
+        '#snap-save': async () => {
+          const label = (document.getElementById('snap-label')?.value || '').trim();
+          if (!label) {
+            Toast.error('버전 라벨을 입력하세요');
+            return;
+          }
+          try {
+            await API.post(`/customer360/${this._custId}/forecast/versions`, {
+              label,
+              version_type: document.getElementById('snap-type')?.value || 'baseline',
+              note: document.getElementById('snap-note')?.value || null,
+            });
+            Toast.success('스냅샷 저장 완료');
+            Modal.close();
+            this._fcData = null;
+            this._tab = 'forecast';
+            await this._loadForecast();
+            // 탭 본문 재렌더 보장
+            this._renderTab();
+          } catch (_) {
+            /* Toast 처리 */
+          }
+        },
+      },
+    });
+  },
+
   // ── 편집 모달 ─────────────────────────────────────────────
   _openMaterialModal(mat) {
     const isEdit = !!mat;
@@ -541,7 +729,7 @@ const Customer360Page = {
   },
 
   _openForecastModal(mat) {
-    const months = ['2026-07', '2026-08', '2026-09'];
+    const months = this._FC_MONTHS;
     const rows = months
       .map(
         mn => `<tr>
@@ -569,7 +757,7 @@ const Customer360Page = {
   },
 
   async _saveForecast(mat) {
-    const months = ['2026-07', '2026-08', '2026-09'];
+    const months = this._FC_MONTHS;
     const get = (type, mn) =>
       document.querySelector(`[data-fc="${type}"][data-mn="${mn}"]`)?.value || '';
     let saved = 0;
@@ -598,6 +786,7 @@ const Customer360Page = {
       }
       Toast.success(`${saved}개월 수요 저장 완료`);
       Modal.close();
+      this._fcData = null;
       await this._reload();
     } catch (_) {
       /* Toast 처리 */

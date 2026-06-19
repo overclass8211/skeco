@@ -36,6 +36,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (custId) {
+    const [vs] = await pool.query('SELECT id FROM forecast_versions WHERE customer_id=?', [custId]);
+    for (const v of vs) await pool.query('DELETE FROM forecast_version_items WHERE version_id=?', [v.id]);
+    await pool.query('DELETE FROM forecast_versions WHERE customer_id=?', [custId]);
+  }
   if (matId) {
     await pool.query('DELETE FROM demand_forecasts WHERE customer_material_id=?', [matId]);
     await pool.query('DELETE FROM customer_materials WHERE id=?', [matId]);
@@ -140,5 +145,37 @@ describe('Customer360 (MVP) API', () => {
       .send({ customer_id: custId, material_name: '__C360_MAT2__', lifecycle_stage: 'sample' });
     expect(ok.status).toBe(200);
     await pool.query('DELETE FROM customer_materials WHERE id=?', [ok.body.data.id]);
+  });
+
+  it('GET /:id/forecast — 6개월 그리드 + 고객/내부 분리 + 합계', async () => {
+    const res = await api().get(`/api/customer360/${custId}/forecast`).set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    expect(d.months).toHaveLength(6);
+    const mat = d.materials.find(m => m.id === matId);
+    expect(mat).toBeTruthy();
+    expect(mat.rows['2026-07'].customer_forecast).toBe(100);
+    expect(mat.rows['2026-07'].internal_forecast).toBeDefined();
+    // 합계: 2026-08 은 POST 테스트에서 120 추가됨 (앞선 it 실행 후), 07 은 100 보장
+    expect(d.totals['2026-07'].customer).toBe(100);
+    expect(Array.isArray(d.versions)).toBe(true);
+  });
+
+  let versionId;
+  it('POST /:id/forecast/versions — 스냅샷 저장', async () => {
+    const res = await api()
+      .post(`/api/customer360/${custId}/forecast/versions`)
+      .set('X-User-Id', '1')
+      .send({ label: '__C360_VER__', version_type: 'internal' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.item_count).toBeGreaterThanOrEqual(1);
+    versionId = res.body.data.id;
+  });
+
+  it('GET /forecast/versions/:vid — 버전 월별 합계', async () => {
+    const res = await api().get(`/api/customer360/forecast/versions/${versionId}`).set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    expect(res.body.data.version.label).toBe('__C360_VER__');
+    expect(res.body.data.totals['2026-07'].customer).toBe(100);
   });
 });
