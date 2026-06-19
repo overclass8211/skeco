@@ -469,8 +469,14 @@ const LeadsPage = {
               <td><span class="badge ${BUSINESS_COLORS[l.business_type] || 'badge-gray'}">${esc(l.business_type)}</span></td>
               <td class="text-right mono">${l.capacity_mw ? parseFloat(l.capacity_mw).toFixed(0) : '-'}</td>
               <td class="text-right mono">${Fmt.amount(l.expected_amount, l.currency)}</td>
-              <td>${stageBadge(l.stage)}</td>
-              <td><span class="badge ${l.region === '해외' ? 'badge-purple' : 'badge-blue'}">${esc(l.region)}</span></td>
+              <td data-stop-propagation="1">
+                <span class="lead-stage-trigger" data-lead-id="${l.id}" data-stage="${esc(l.stage)}"
+                      style="cursor:pointer;display:inline-flex;align-items:center;gap:4px" title="클릭하여 단계 변경">
+                  ${stageBadge(l.stage)}
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3)"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+              </td>
+              <td><span class="badge ${l.region === '해외' || l.region === 'overseas' ? 'badge-purple' : 'badge-blue'}">${l.region === '해외' || l.region === 'overseas' ? '해외' : '국내'}</span></td>
               <td>${esc(l.assigned_name || '-')}</td>
               <td>${Fmt.date(l.expected_close_date)}</td>
               <td class="text-muted fs-11">${Fmt.relTime(l.updated_at)}</td>
@@ -499,6 +505,13 @@ const LeadsPage = {
         return;
       }
 
+      // 단계 셀 클릭 → 인라인 단계 선택 드롭다운
+      const stageTrig = e.target.closest('.lead-stage-trigger');
+      if (stageTrig) {
+        this._openStagePopover(stageTrig, parseInt(stageTrig.dataset.leadId), stageTrig.dataset.stage);
+        return;
+      }
+
       const cb = e.target.closest('.cp-checkbox[data-id]');
       if (cb) {
         this._toggleRow(parseInt(cb.dataset.id), cb.checked);
@@ -516,6 +529,67 @@ const LeadsPage = {
         if (tr) App.openLeadDetail(parseInt(tr.dataset.leadId));
       }
     });
+  },
+
+  // ── 인라인 단계 선택 드롭다운 (테이블 단계 셀 클릭) ──────────
+  _closeStagePop() {
+    document.querySelectorAll('.lead-stage-pop').forEach(el => el.remove());
+    if (this._stagePopOutside) {
+      document.removeEventListener('click', this._stagePopOutside, true);
+      this._stagePopOutside = null;
+    }
+  },
+  _openStagePopover(triggerEl, leadId, current) {
+    this._closeStagePop();
+    // STAGES(서버 동기화) 를 sort_order 순으로 — 없으면 기본 8단계
+    const entries = Object.entries(STAGES || {})
+      .map(([k, v]) => ({ key: k, label: v.label, role: v.role, order: v.sort_order || 0 }))
+      .sort((a, b) => a.order - b.order);
+    const dot = role =>
+      role === 'won' ? '#0F7A3F' : role === 'lost' ? '#9CA3AF' : role === 'dropped' ? '#E63329' : '#2357E8';
+    const menu = document.createElement('div');
+    menu.className = 'lead-stage-pop';
+    menu.style.cssText =
+      'position:fixed;z-index:9600;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:6px';
+    menu.innerHTML = entries
+      .map(
+        s => `<button class="lead-stage-opt" data-stage="${s.key}"
+          style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:0;background:none;cursor:pointer;text-align:left;border-radius:6px;font-size:13px;color:var(--text-1)">
+          <span style="width:8px;height:8px;border-radius:50%;background:${dot(s.role)};flex-shrink:0"></span>
+          <span style="flex:1">${esc(s.label)}</span>
+          ${s.key === current ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--oci-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
+        </button>`
+      )
+      .join('');
+    document.body.appendChild(menu);
+    const rect = triggerEl.getBoundingClientRect();
+    let left = rect.left;
+    if (left + 200 > window.innerWidth - 12) left = window.innerWidth - 212;
+    menu.style.left = Math.max(12, left) + 'px';
+    menu.style.top = rect.bottom + 4 + 'px';
+    menu.querySelectorAll('.lead-stage-opt').forEach(b => {
+      b.addEventListener('mouseenter', () => (b.style.background = 'var(--surface-2)'));
+      b.addEventListener('mouseleave', () => (b.style.background = 'none'));
+      b.addEventListener('click', () => {
+        const next = b.dataset.stage;
+        this._closeStagePop();
+        if (next && next !== current) this._changeStage(leadId, next);
+      });
+    });
+    this._stagePopOutside = ev => {
+      if (!menu.contains(ev.target) && ev.target !== triggerEl && !triggerEl.contains(ev.target)) this._closeStagePop();
+    };
+    setTimeout(() => document.addEventListener('click', this._stagePopOutside, true), 0);
+  },
+  async _changeStage(leadId, stage) {
+    try {
+      await API.patch(`/leads/${leadId}/stage`, { stage });
+      Toast.success(`단계 변경: ${STAGES[stage]?.label || stage}`);
+      if (window.App && typeof App._syncAfterLeadChange === 'function') App._syncAfterLeadChange();
+      await this.loadData();
+    } catch (_) {
+      /* Toast 는 API 가 처리 */
+    }
   },
 
   // ── v6.0.0: 카드뷰 렌더링 (5개 모듈 통일) ──────────────────
