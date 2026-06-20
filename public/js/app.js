@@ -1304,14 +1304,14 @@ const App = {
                   l.assigned_name
                     ? `<a href="#" data-assignee-link="${l.assigned_to || ''}"
                          class="ld-person-chip" title="팀원 페이지로 이동">
-                         👤 ${esc(l.assigned_name)}
+                         ${esc(l.assigned_name)}
                        </a>`
                     : '<span style="color:var(--text-4);font-size:12px">미배정</span>'
                 }
               </span>
               <!-- Phase 2: 주 담당자 변경 버튼 -->
               <button type="button" class="ld-section-edit-btn" id="ld-owner-edit"
-                      data-lead-id="${l.id}" title="주 담당자 변경">✏️ 변경</button>
+                      data-lead-id="${l.id}" title="주 담당자 변경">변경</button>
             </div>
             <div class="ld-people-row" id="ld-collab-display">
               <span class="ld-people-label">협업자</span>
@@ -1322,7 +1322,7 @@ const App = {
                         .map(
                           c => `<span class="ld-person-chip collab"
                                       title="협업자 — 활동 업데이트 시 함께 알림 수신">
-                                  👥 ${esc(c.name)}
+                                  ${esc(c.name)}
                                 </span>`
                         )
                         .join('')
@@ -1331,7 +1331,7 @@ const App = {
               </span>
               <!-- Phase 2: 협업자 편집 버튼 -->
               <button type="button" class="ld-section-edit-btn" id="ld-collab-edit"
-                      data-lead-id="${l.id}" title="협업자 편집">✏️ 편집</button>
+                      data-lead-id="${l.id}" title="협업자 편집">편집</button>
             </div>
           </div>
 
@@ -1343,9 +1343,9 @@ const App = {
                 ${
                   customerId
                     ? `<a href="#" data-cust-link="${customerId}"
-                       style="color:var(--oci-blue);text-decoration:none;font-weight:600;cursor:pointer"
-                       title="고객사 상세 보기">🏢 ${esc(l.customer_name)}</a>`
-                    : `<span style="font-weight:600">🏢 ${esc(l.customer_name)}</span>
+                       style="color:var(--oci-red);text-decoration:none;font-weight:600;cursor:pointer"
+                       title="고객사 상세 보기">${esc(l.customer_name)}</a>`
+                    : `<span style="font-weight:600">${esc(l.customer_name)}</span>
                      <span style="font-size:11px;color:var(--text-4);margin-left:6px">(미등록)</span>`
                 }
               </span>
@@ -1356,8 +1356,8 @@ const App = {
                 ${
                   customerId && contactPerson !== '-'
                     ? `<a href="#" data-contact-link="${customerId}"
-                       style="color:var(--oci-blue);text-decoration:none;cursor:pointer"
-                       title="고객사 상세 보기">👥 ${esc(contactPerson)}</a>`
+                       style="color:var(--oci-red);text-decoration:none;cursor:pointer"
+                       title="고객사 상세 보기">${esc(contactPerson)}</a>`
                     : `<span>${esc(contactPerson)}</span>`
                 }
                 ${contactPhone ? ' · <span class="mono" style="font-size:11px">' + esc(contactPhone) + '</span>' : ''}
@@ -1426,7 +1426,7 @@ const App = {
             <div class="card mb-3" id="ld-timeline-card">
               <div class="card-header" style="flex-wrap:wrap;gap:10px;align-items:center">
                 <div class="card-title" style="margin-right:auto">
-                  📊 <span id="ld-timeline-title">활동 이력</span> <span id="ld-timeline-count" style="font-size:11px;color:var(--text-3);font-weight:400">(로딩 중...)</span>
+                  <span id="ld-timeline-title">활동 이력</span> <span id="ld-timeline-count" style="font-size:11px;color:var(--text-3);font-weight:400">(로딩 중...)</span>
                 </div>
                 <button class="btn btn-ghost btn-sm" id="ld-tl-sort"
                         title="정렬 방향 전환" style="font-size:12px">📅 최신순 ▼</button>
@@ -1439,26 +1439,26 @@ const App = {
               <!-- 인라인 활동 추가 (퀵 칩) — 빠른 기록 -->
               <div style="padding:10px 16px;border-bottom:1px solid var(--border);background:#fafafa">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <span style="font-size:11px;color:var(--text-3);font-weight:600">⚡ 빠른 활동:</span>
+                  <span style="font-size:11px;color:var(--text-3);font-weight:600">빠른 활동</span>
                   <button type="button" class="ld-quick-act" data-quick="전화"
                     style="padding:4px 10px;background:#fff;border:1px solid var(--border);border-radius:14px;font-size:11px;cursor:pointer;transition:all .12s">
-                    📞 전화
+                    전화
                   </button>
                   <button type="button" class="ld-quick-act" data-quick="미팅"
                     style="padding:4px 10px;background:#fff;border:1px solid var(--border);border-radius:14px;font-size:11px;cursor:pointer;transition:all .12s">
-                    📅 미팅
+                    미팅
                   </button>
                   <button type="button" class="ld-quick-act" data-quick="이메일"
                     style="padding:4px 10px;background:#fff;border:1px solid var(--border);border-radius:14px;font-size:11px;cursor:pointer;transition:all .12s">
-                    ✉️ 이메일
+                    이메일
                   </button>
                   <button type="button" class="ld-quick-act" data-quick="현장방문"
                     style="padding:4px 10px;background:#fff;border:1px solid var(--border);border-radius:14px;font-size:11px;cursor:pointer;transition:all .12s">
-                    🏢 현장방문
+                    현장방문
                   </button>
                   <button type="button" class="ld-quick-act" data-quick="메모"
                     style="padding:4px 10px;background:#fff;border:1px solid var(--border);border-radius:14px;font-size:11px;cursor:pointer;transition:all .12s">
-                    ✍️ 메모
+                    메모
                   </button>
                   <button type="button" class="btn btn-ghost btn-sm" id="ld-add-act" title="상세 입력 (캘린더 연동)"
                           style="margin-left:auto;font-size:11px">+ 상세 활동</button>
@@ -1486,7 +1486,7 @@ const App = {
                   <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
                     <span style="font-size:10px;color:var(--text-4)">Ctrl+Enter 저장</span>
                     <button type="button" class="btn btn-primary btn-sm" id="ld-quick-save"
-                            style="font-size:11px">💾 저장</button>
+                            style="font-size:11px">저장</button>
                   </div>
                 </div>
               </div>
@@ -1502,15 +1502,15 @@ const App = {
                 </div>
                 <div style="display:flex;gap:6px;align-items:flex-start">
                   <select id="ld-comment-type" class="form-input" style="width:100px;font-size:12px;flex-shrink:0">
-                    <option value="general">💭 의견</option>
-                    <option value="coach">🧭 코칭</option>
-                    <option value="question">❓ 질문</option>
-                    <option value="urgent">🚨 긴급</option>
+                    <option value="general">의견</option>
+                    <option value="coach">코칭</option>
+                    <option value="question">질문</option>
+                    <option value="urgent">긴급</option>
                   </select>
                   <textarea id="ld-comment-body" class="form-input" rows="2"
                             placeholder="코멘트 입력... (Ctrl+Enter 등록)"
                             style="flex:1;min-width:0;font-size:12px"></textarea>
-                  <button id="ld-comment-submit" type="button" class="btn btn-primary btn-sm" style="flex-shrink:0">💬 등록</button>
+                  <button id="ld-comment-submit" type="button" class="btn btn-primary btn-sm" style="flex-shrink:0">등록</button>
                 </div>
               </div>
             </div>
@@ -1518,8 +1518,8 @@ const App = {
           </div><!-- /ld-modal-grid -->
         `,
         footer: `
-          <button class="ai-gen-btn" id="ld-ai" data-feature="ai.lead_summary">🤖 AI 요약</button>
-          <button class="btn btn-ghost" id="ld-email">✉️ 이메일</button>
+          <button class="ai-gen-btn" id="ld-ai" data-feature="ai.lead_summary">AI 요약</button>
+          <button class="btn btn-ghost" id="ld-email">이메일</button>
           <button class="btn btn-ghost" id="ld-close">닫기</button>
           <button class="btn btn-primary" id="ld-edit">편집</button>
         `,
@@ -2513,18 +2513,19 @@ const App = {
         const m = META[key];
         const cnt = counts[key] || 0;
         const isActive = this._tlState.activeChip === key;
-        const bg = isActive ? m.color : m.bg;
-        const fg = isActive ? '#fff' : m.color;
-        const border = isActive ? m.color : 'transparent';
+        // 고객사 서브탭 톤으로 통일 — 단색 pill, 활성 시 OCI Red (다색 칩 제거)
+        const bg = isActive ? 'var(--oci-red-light)' : 'var(--surface)';
+        const fg = isActive ? 'var(--oci-red-dark)' : 'var(--text-2)';
+        const border = isActive ? 'var(--oci-red)' : 'var(--border)';
         const opacity = !isActive && cnt === 0 ? '0.45' : '1';
         return `<button type="button" class="ld-tl-chip" data-chip="${key}"
           style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;
-                 border:1.5px solid ${border};border-radius:14px;background:${bg};
+                 border:1px solid ${border};border-radius:999px;background:${bg};
                  color:${fg};font-size:12px;font-weight:600;cursor:pointer;
                  transition:all .15s;opacity:${opacity}"
           ${cnt === 0 && key !== 'all' ? 'disabled' : ''}>
-          ${m.icon} ${esc(m.label)}
-          <span style="display:inline-block;padding:1px 6px;background:${isActive ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.08)'};
+          ${esc(m.label)}
+          <span style="display:inline-block;padding:1px 6px;background:${isActive ? 'rgba(230,51,41,0.14)' : 'rgba(0,0,0,0.06)'};
                        border-radius:8px;font-size:10px;font-weight:700">${cnt}</span>
         </button>`;
       })
@@ -2619,7 +2620,7 @@ const App = {
         <div class="ld-tl-meta">
           <div class="ld-tl-dot" style="background:${m.color}" title="${esc(m.label)}"></div>
           <span class="ld-tl-badge" style="background:${m.bg};color:${m.color}">
-            ${m.icon} ${esc(subLabel)}
+            ${esc(subLabel)}
           </span>
         </div>
         <div class="ld-tl-body">
