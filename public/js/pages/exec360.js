@@ -47,18 +47,25 @@ const Exec360Page = {
         .ex-brief-box-h{font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:4px}
         .ex-brief-box .ex-brief-ul{margin:0;font-size:12.5px}
         .ex-brief-empty{font-size:12.5px;color:var(--text-3);padding:8px 0}
-        .ex-flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 6px;margin-bottom:6px}
-        .ex-fstep{flex:1;min-width:92px;border:1px solid var(--border);border-radius:10px;padding:12px 10px 11px;text-align:center;position:relative;background:var(--surface)}
-        .ex-ftop{height:4px;border-radius:3px;background:var(--c,#2357E8);margin-bottom:9px}
-        .ex-fcount{font-size:24px;font-weight:700;color:var(--text-1);line-height:1.1;font-variant-numeric:tabular-nums}
-        .ex-flabel{font-size:12.5px;color:var(--text-1);margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .ex-fpct{font-size:13px;color:var(--text-1);font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums}
-        .ex-fpct .u{font-size:11px;font-weight:600;color:var(--text-3)}
-        .ex-fbar{height:5px;border-radius:3px;background:var(--surface-2);margin-top:7px;overflow:hidden}
-        .ex-fbar > i{display:block;height:100%;border-radius:3px;background:var(--c,#2357E8)}
-        .ex-fstep.ex-fzero{opacity:.5}
-        .ex-farrow{display:flex;align-items:center;color:var(--text-3);padding:0 5px;flex-shrink:0}
-        .ex-fmax-chip{position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;color:#fff;background:var(--c,#2357E8);border-radius:5px;padding:1px 5px}
+        /* 공정 라이프사이클 — 스트림(퍼널) 그래픽 */
+        .ex-fn-wrap{margin-bottom:8px}
+        .ex-fn{display:block;width:100%;height:auto;overflow:visible}
+        .ex-fn-col{cursor:pointer}
+        .ex-fn-col:hover circle{r:8}
+        .ex-fn-col:hover .ex-fn-label{fill:var(--oci-red)}
+        .ex-fn-count{font-size:20px;font-weight:700;fill:var(--text-1)}
+        .ex-fn-max{font-size:10px;font-weight:700;fill:var(--oci-red)}
+        .ex-fn-label{font-size:13px;font-weight:600;fill:var(--text-1)}
+        .ex-fn-label.ex-fn-zero{fill:var(--text-3)}
+        .ex-fn-pct{font-size:12px;font-weight:700;fill:var(--text-3)}
+        /* 단계 AI 진단 모달 */
+        .ex-stage-stats{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-2);padding:2px 0 12px;border-bottom:1px solid var(--border);margin-bottom:12px}
+        .ex-stage-stats b{font-weight:700;color:var(--text-1)}
+        .ex-stage-ai{background:linear-gradient(135deg,rgba(124,77,255,.06),rgba(22,100,229,.04));border-radius:8px;padding:12px 14px;margin-bottom:14px}
+        .ex-stage-diag{font-size:13px;line-height:1.6;color:var(--text-1)}
+        .ex-stage-acth{font-size:11px;font-weight:700;color:var(--text-3);margin-top:8px}
+        .ex-stage-acts{margin:4px 0 0;padding-left:18px;line-height:1.7;font-size:12.5px;color:var(--text-2)}
+        .ex-stage-th{font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px}
         .ex-risk{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
         .ex-rcard{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface)}
         .ex-rcard .h{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px;margin-bottom:8px;font-weight:600}
@@ -88,7 +95,6 @@ const Exec360Page = {
   _renderBody() {
     const d = this._data;
     const k = d.kpis;
-    const maxStage = Math.max(1, ...d.stage_distribution.map(s => s.count));
     const sub = document.getElementById('ex-sub');
     if (sub) sub.textContent = `전사 · Top 계정 ${d.top_accounts.length} · 단계 소재 ${d.stage_distribution.reduce((a, s) => a + s.count, 0)}`;
 
@@ -102,27 +108,8 @@ const Exec360Page = {
     </div>`;
 
     const stageTotal = d.stage_distribution.reduce((a, s) => a + s.count, 0) || 1;
-    const stageSteps = d.stage_distribution
-      .map((s, i) => {
-        const color = this._STAGE_COLOR[s.stage] || '#2357E8';
-        const isMax = maxStage > 0 && s.count === maxStage;
-        const pct = Math.round((s.count / stageTotal) * 100);
-        const zero = s.count === 0 ? ' ex-fzero' : '';
-        const st = isMax ? `--c:${color};border-color:${color};background:${color}0d` : `--c:${color}`;
-        const step = `<div class="ex-fstep${isMax ? ' ex-fmax' : ''}${zero}" style="${st}">
-          ${isMax ? '<span class="ex-fmax-chip">최다</span>' : ''}
-          <div class="ex-ftop"></div>
-          <div class="ex-fcount">${s.count}</div>
-          <div class="ex-flabel" title="${esc(s.label)}">${esc(s.label)}</div>
-          <div class="ex-fpct">${pct}<span class="u">%</span></div>
-          <div class="ex-fbar" title="비중 ${pct}%"><i style="width:${pct}%"></i></div>
-        </div>`;
-        const arrow = i < d.stage_distribution.length - 1 ? '<span class="ex-farrow">→</span>' : '';
-        return step + arrow;
-      })
-      .join('');
-    const stage = `<div class="ex-sec">공정 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">발굴 → 납품 · 총 ${stageTotal}개 소재</span></div>
-      <div class="ex-flow">${stageSteps}</div>`;
+    const stage = `<div class="ex-sec">공정 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">발굴 → 납품 · 총 ${stageTotal}개 소재 · 단계 클릭 시 AI 진단</span></div>
+      ${this._renderStageFunnel(d.stage_distribution, stageTotal)}`;
 
     const accounts = `<div class="ex-sec">Top 계정 (가중 예상매출)</div>
       <table class="data-table" style="font-size:13px">
@@ -166,7 +153,114 @@ const Exec360Page = {
         location.hash = '#customer360';
       })
     );
+    // 공정 단계 클릭 → AI 진단 모달
+    body.querySelectorAll('.ex-fn-col[data-stage]').forEach(g =>
+      g.addEventListener('click', () => this._openStageModal(g.dataset.stage, g.dataset.label))
+    );
     this._loadBrief();
+  },
+
+  // ── 공정 라이프사이클 — 스트림(퍼널) 그래픽 + 단계 클릭 ──────
+  _renderStageFunnel(dist, total) {
+    const N = dist.length;
+    if (!N) return '';
+    const max = Math.max(1, ...dist.map(s => s.count));
+    const W = 1080;
+    const baseY = 120;
+    const minH = 8;
+    const maxH = 104;
+    const colW = W / N;
+    const cx = i => colW * i + colW / 2;
+    const ty = c => baseY - (minH + (c / max) * (maxH - minH));
+    const pts = dist.map((s, i) => ({
+      ...s,
+      x: cx(i),
+      y: ty(s.count),
+      color: this._STAGE_COLOR[s.stage] || '#2357E8',
+      pct: Math.round((s.count / total) * 100),
+    }));
+    const maxIdx = pts.findIndex(p => p.count === max);
+    // 채움 영역 (스트림) — 중심점 직선 연결, baseline 으로 닫음
+    let area = `M ${pts[0].x.toFixed(1)} ${baseY}`;
+    pts.forEach(p => (area += ` L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`));
+    area += ` L ${pts[N - 1].x.toFixed(1)} ${baseY} Z`;
+    const cols = pts
+      .map(
+        (p, i) => `
+      <g class="ex-fn-col" data-stage="${p.stage}" data-label="${esc(p.label)}">
+        <rect x="${(colW * i).toFixed(1)}" y="0" width="${colW.toFixed(1)}" height="${baseY + 44}" fill="transparent"/>
+        <line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.x.toFixed(1)}" y2="${baseY}" stroke="${p.color}" stroke-width="2.5" opacity="0.4"/>
+        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i === maxIdx ? 7 : 5}" fill="${p.color}"/>
+        <text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" text-anchor="middle" class="ex-fn-count">${p.count}</text>
+        ${i === maxIdx ? `<text x="${p.x.toFixed(1)}" y="${(p.y - 26).toFixed(1)}" text-anchor="middle" class="ex-fn-max">최다</text>` : ''}
+        <text x="${p.x.toFixed(1)}" y="${baseY + 20}" text-anchor="middle" class="ex-fn-label${p.count === 0 ? ' ex-fn-zero' : ''}">${esc(p.label)}</text>
+        <text x="${p.x.toFixed(1)}" y="${baseY + 36}" text-anchor="middle" class="ex-fn-pct">${p.pct}%</text>
+      </g>`
+      )
+      .join('');
+    return `<div class="ex-fn-wrap"><svg class="ex-fn" viewBox="0 0 ${W} ${baseY + 44}" width="100%" role="img" aria-label="공정 라이프사이클 단계 분포">
+      <defs><linearGradient id="exFnGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="rgba(35,87,232,0.18)"/><stop offset="1" stop-color="rgba(35,87,232,0.02)"/>
+      </linearGradient></defs>
+      <line x1="0" y1="${baseY}" x2="${W}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>
+      <path d="${area}" fill="url(#exFnGrad)" stroke="#2357E8" stroke-width="1.5" stroke-opacity="0.5"/>
+      ${cols}
+    </svg></div>`;
+  },
+
+  async _openStageModal(stage, label) {
+    if (typeof Modal === 'undefined') return;
+    Modal.open({
+      title: `${label || ''} 단계 — AI 진단`,
+      width: 720,
+      body: '<div class="loading" style="padding:40px;text-align:center;color:var(--text-3)">단계 데이터 분석 중…</div>',
+    });
+    try {
+      const r = await API.post(`/customer360/exec-stage/${stage}`, {});
+      const d = r.data || {};
+      const st = d.stats || {};
+      const won = v => '₩' + (Math.round(Number(v) || 0) / 1_0000_0000).toFixed(1) + '억';
+      const rows = (d.materials || [])
+        .slice(0, 30)
+        .map(
+          m => `<tr>
+            <td><strong>${esc(m.customer_name)}</strong></td>
+            <td>${esc((m.material_name || '').split(' · ')[0])}</td>
+            <td>${esc(m.business_type || '-')}</td>
+            <td class="text-right">${won(m.expected_order)}</td>
+            <td>${m.capa_short ? '<span class="pill p-d">CAPA 부족</span>' : ''}${m.open_quality ? `<span class="pill p-w">품질 ${m.open_quality}</span>` : ''}</td>
+          </tr>`
+        )
+        .join('');
+      const ai = d.ai;
+      const aiHtml = ai
+        ? `<div class="ex-stage-ai">
+            ${ai.diagnosis ? `<div class="ex-stage-diag">${esc(ai.diagnosis)}</div>` : ''}
+            ${Array.isArray(ai.actions) && ai.actions.length ? `<div class="ex-stage-acth">권고 액션</div><ul class="ex-stage-acts">${ai.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+          </div>`
+        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0">AI 진단을 생성하지 못했습니다 (데이터는 아래 참조).</div>';
+      const html = `
+        <div class="ex-stage-stats">
+          <span>소재 <b>${st.count || 0}</b>개</span>
+          <span>CAPA 부족 <b style="color:var(--oci-red)">${st.capa_short || 0}</b></span>
+          <span>품질 오픈 <b style="color:#b45309">${st.open_quality || 0}</b></span>
+          <span>분기 예상수주 <b>${won(st.expected_order)}</b></span>
+        </div>
+        ${aiHtml}
+        <div class="ex-stage-th">소재 목록</div>
+        <div style="max-height:38vh;overflow:auto">
+          <table class="data-table" style="font-size:12.5px">
+            <thead><tr><th>고객사</th><th>소재</th><th>사업유형</th><th class="text-right">예상수주</th><th>리스크</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:20px">해당 단계 소재 없음</td></tr>'}</tbody>
+          </table>
+        </div>`;
+      const box = document.querySelector('#modal-overlay .modal-body');
+      if (box) box.innerHTML = html;
+    } catch (e) {
+      const box = document.querySelector('#modal-overlay .modal-body');
+      if (box)
+        box.innerHTML = `<div style="padding:30px;text-align:center;color:var(--oci-red)">분석 실패: ${esc(e.message || e)}</div>`;
+    }
   },
 
   // ── 임원 AI 브리핑 (전사 요약) ──────────────────────────────

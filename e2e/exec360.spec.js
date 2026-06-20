@@ -45,8 +45,8 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
   await expect(page.locator('#ex-body')).toContainText('CAPA 부족 계정');
   await expect(page.locator('#ex-body .ex-kpi')).toHaveCount(6);
 
-  // 단계 분포 (6 단계 — 가로 흐름형)
-  await expect(page.locator('#ex-body .ex-fstep')).toHaveCount(6);
+  // 단계 분포 (6 단계 — 스트림/퍼널 그래픽, 클릭 가능)
+  await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(6);
 
   // Top 계정 + 리스크
   await expect(page.locator('#ex-body')).toContainText('E2E임원고객');

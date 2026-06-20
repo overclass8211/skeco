@@ -87,6 +87,7 @@ router.get('/exec-summary', execSummary);
 // 임원 AI 브리핑 — 캐시 조회(GET) / 생성(POST). /:id 보다 먼저 등록
 router.get('/exec-brief', execBriefGet);
 router.post('/exec-brief', execBriefPost);
+router.post('/exec-stage/:stage', execStageAnalyze);
 
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
@@ -1297,6 +1298,92 @@ ${top || '없음'}
       console.warn('[exec-brief] 캐시 저장 실패(무시):', e.message);
     }
     res.json({ success: true, data: brief });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+// ── 공정 단계 클릭 → 해당 단계 소재 + AI 진단 (모달) ──────────
+async function execStageAnalyze(req, res) {
+  try {
+    const stage = String(req.params.stage || '');
+    if (!STAGE_ORDER.includes(stage)) {
+      return res.status(400).json({ success: false, error: '알 수 없는 단계' });
+    }
+    const [rows] = await pool.query(
+      `SELECT m.id, m.material_name, m.business_type, m.win_probability, c.name AS customer_name,
+              COALESCE(df.demand,0) AS demand, COALESCE(df.capacity,0) AS capacity,
+              COALESCE(df.exp_order,0) AS expected_order, COALESCE(q.openq,0) AS open_quality
+         FROM customer_materials m
+         JOIN customers c ON c.id = m.customer_id
+         LEFT JOIN (SELECT customer_material_id,
+                      SUM(customer_forecast) demand, SUM(production_capacity) capacity,
+                      SUM(expected_revenue * COALESCE(win_probability,0)/100) exp_order
+                    FROM demand_forecasts WHERE month IN (?) GROUP BY customer_material_id) df
+                ON df.customer_material_id = m.id
+         LEFT JOIN (SELECT customer_material_id, COUNT(*) openq FROM quality_cases
+                     WHERE status <> 'resolved' GROUP BY customer_material_id) q
+                ON q.customer_material_id = m.id
+        WHERE m.lifecycle_stage = ? AND m.status <> 'closed'
+        ORDER BY expected_order DESC, m.id`,
+      [FLOW_MONTHS, stage]
+    );
+    const materials = rows.map(r => ({
+      customer_name: r.customer_name,
+      material_name: r.material_name,
+      business_type: r.business_type,
+      win_probability: r.win_probability,
+      capa_short: Number(r.capacity) > 0 && Number(r.capacity) < Number(r.demand),
+      open_quality: Number(r.open_quality) || 0,
+      expected_order: Math.round(Number(r.expected_order) || 0),
+    }));
+    const stats = {
+      count: materials.length,
+      capa_short: materials.filter(m => m.capa_short).length,
+      open_quality: materials.reduce((s, m) => s + m.open_quality, 0),
+      expected_order: materials.reduce((s, m) => s + m.expected_order, 0),
+    };
+
+    let ai = null;
+    try {
+      const won = n => '₩' + (Math.round(Number(n) || 0) / 1_0000_0000).toFixed(1) + '억';
+      const listTxt = materials
+        .slice(0, 12)
+        .map(
+          m =>
+            `${m.customer_name}·${m.material_name.split(' · ')[0]}(${m.business_type}, 예상수주 ${won(m.expected_order)}${m.capa_short ? ', CAPA부족' : ''}${m.open_quality ? `, 품질${m.open_quality}` : ''})`
+        )
+        .join('\n');
+      const prompt = `당신은 SK에코플랜트 머티리얼즈(반도체·디스플레이 소재) 영업 임원 보좌역입니다.
+'${STAGE_LABELS[stage]}' 공정 단계의 소재 현황을 임원에게 진단·코칭하세요. 주어진 수치만 사용(추측 금지).
+
+[단계] ${STAGE_LABELS[stage]} · 소재 ${stats.count}개 · CAPA 부족 ${stats.capa_short} · 품질 오픈 ${stats.open_quality} · 분기 예상수주 합 ${won(stats.expected_order)}
+[소재]
+${listTxt || '없음'}
+
+다음 JSON 형식으로만 응답 (마크다운 없이 JSON):
+{ "diagnosis": "이 단계 현황 진단 2~3문장", "actions": ["권고 액션 2~3개 (구체적으로)"] }`;
+      const model = genAI.getGenerativeModel({
+        model: MODEL_FAST,
+        safetySettings: SAFETY_SETTINGS,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.3,
+          maxOutputTokens: 600,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      });
+      const r = await model.generateContent(prompt);
+      const parsed = JSON.parse(r.response.text());
+      ai = {
+        diagnosis: parsed.diagnosis || '',
+        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+      };
+    } catch (e) {
+      console.warn('[exec-stage] AI 진단 실패(무시):', e.message);
+    }
+
+    res.json({ success: true, data: { stage, label: STAGE_LABELS[stage], stats, materials, ai } });
   } catch (err) {
     handleError(res, err);
   }
