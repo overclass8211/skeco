@@ -76,6 +76,9 @@ const Customer360Page = {
         .c360-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
         .c360-tab{padding:9px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;margin-bottom:-1px}
         .c360-tab.active{color:var(--oci-red);border-bottom-color:var(--oci-red)}
+        .c360-sec{margin-bottom:28px}
+        .c360-sec:last-child{margin-bottom:0}
+        .c360-sec-h{font-size:13px;font-weight:700;color:var(--text-1);margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
         .c360-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:18px}
         .c360-kpi{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--surface)}
         .c360-kpi .h{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);margin-bottom:4px}
@@ -251,14 +254,10 @@ const Customer360Page = {
       <div class="c360-narr">${this._svg('bulb', 16)}<span>${this._narrative()}</span></div>
       <div class="c360-tabs">
         ${[
-          ['lifecycle', '라이프사이클'],
-          ['forecast', '포캐스트'],
-          ['revenue', '계약/매출/수금'],
-          ['samples', '샘플/평가'],
-          ['quality', '품질'],
-          ['org', '조직'],
-          ['deals', '영업기회'],
-          ['timeline', '활동'],
+          ['lifecycle', '현황'],
+          ['qualification', '공급 자격'],
+          ['commercial', '상거래'],
+          ['relationship', '관계'],
           ['brief', 'AI 브리핑'],
         ]
           .map(([k, l]) => `<button class="c360-tab ${this._tab === k ? 'active' : ''}" data-tab="${k}">${l}</button>`)
@@ -279,15 +278,20 @@ const Customer360Page = {
   _renderTab() {
     const el = document.getElementById('c360-tab-body');
     if (!el) return;
+    const sec = (title, html) =>
+      `<section class="c360-sec"><h3 class="c360-sec-h">${esc(title)}</h3>${html}</section>`;
     const m = {
+      // ① 현황 — 라이프사이클 + 수요·생산·수주 + 리스크 (한눈에)
       lifecycle: () => this._tabLifecycle(),
-      forecast: () => this._tabForecast(),
-      revenue: () => this._tabRevenue(),
-      samples: () => this._tabSamples(),
-      quality: () => this._tabQuality(),
-      org: () => this._tabOrg(),
-      deals: () => this._tabDeals(),
-      timeline: () => this._tabTimeline(),
+      // ② 공급 자격 — 샘플/평가 + 품질
+      qualification: () => sec('샘플 / 평가', this._tabSamples()) + sec('품질', this._tabQuality()),
+      // ③ 상거래 — 영업기회 + 포캐스트 + 계약/매출/수금
+      commercial: () =>
+        sec('영업기회', this._tabDeals()) +
+        sec('포캐스트', this._tabForecast()) +
+        sec('계약 / 매출 / 수금', this._tabRevenue()),
+      // ④ 관계 — 조직 + 활동
+      relationship: () => sec('조직', this._tabOrg()) + sec('활동', this._tabTimeline()),
       brief: () => this._tabBrief(),
     };
     el.innerHTML = (m[this._tab] || m.lifecycle)();
@@ -295,29 +299,29 @@ const Customer360Page = {
   },
 
   _bindTab(el) {
-    if (this._tab === 'deals') {
+    const t = this._tab;
+    // ③ 상거래 = 영업기회 + 포캐스트 + 계약/매출/수금
+    if (t === 'commercial') {
       el.querySelectorAll('tr[data-lead-id]').forEach(tr =>
         tr.addEventListener('click', () => {
           const id = Number(tr.dataset.leadId);
           if (window.App && typeof App.openLeadDetail === 'function') App.openLeadDetail(id);
         })
       );
-    }
-    if (this._tab === 'forecast') {
       if (!this._fcData) this._loadForecast();
       else this._bindForecast(el);
+      if (!this._revenue) this._loadRevenue();
     }
-    if (this._tab === 'revenue' && !this._revenue) this._loadRevenue();
-    if (this._tab === 'samples') {
+    // ② 공급 자격 = 샘플/평가 + 품질
+    if (t === 'qualification') {
       if (!this._samples) this._loadSamples();
       else this._bindSamples(el);
-    }
-    if (this._tab === 'quality') {
       if (!this._quality) this._loadQuality();
       else this._bindQuality(el);
     }
-    if (this._tab === 'org') this._bindOrg(el);
-    if (this._tab === 'lifecycle') {
+    // ④ 관계 = 조직 + 활동
+    if (t === 'relationship') this._bindOrg(el);
+    if (t === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
       el.querySelectorAll('[data-edit-mat]').forEach(b =>
         b.addEventListener('click', () => {
