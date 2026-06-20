@@ -166,7 +166,7 @@ async function _flushComments(contractId, entry) {
     if (emails.length === 0) return;
 
     const count = entry.comments.length;
-    const subject = `[OCI CRM] ${c.contract_no} — 새 검토 의견 ${count}건`;
+    const subject = `[SK ecoplant materials] ${c.contract_no} — 새 검토 의견 ${count}건`;
     const preview = entry.comments
       .slice(0, 5)
       .map((co, i) => `${i + 1}. [${co.author}] ${co.body}`)
@@ -229,7 +229,7 @@ async function notifyStatusChange({ contractId, fromStatus, toStatus, changedByU
     const toLabel = STATUS_LABELS[toStatus] || toStatus;
     const nextAction = NEXT_ACTION[toStatus] || '-';
 
-    const subject = `[OCI CRM] ${c.contract_no} — 상태 변경: ${toLabel}`;
+    const subject = `[SK ecoplant materials] ${c.contract_no} — 상태 변경: ${toLabel}`;
     const bodyText = `계약 [${c.contract_no} — ${c.title}] 의 상태가 변경되었습니다.
 
 전 상태: ${fromLabel}
@@ -287,7 +287,7 @@ async function notifyShareInvite({ contractId, token, role, recipients }) {
     for (const r of recipients) {
       if (!r.email) continue;
       const link = shareUrl(r.email, r.name);
-      const subject = `[OCI CRM] ${c.contract_no} — 계약 검토 요청 (${ROLE_DESC[role] || role})`;
+      const subject = `[SK ecoplant materials] ${c.contract_no} — 계약 검토 요청 (${ROLE_DESC[role] || role})`;
       const deadlineText = c.review_deadline ? `\n📅 검토 기한: ${c.review_deadline}` : '';
       const bodyText = `안녕하세요${r.name ? ' ' + r.name : ''}님,
 
@@ -301,7 +301,7 @@ ${link}
 본 링크는 본인 전용으로 발급되었으며, 만료 기간 이후 접근이 차단됩니다.
 
 --
-OCI CRM`;
+SK ecoplant materials`;
 
       await _enqueueAndSend({
         contractId,

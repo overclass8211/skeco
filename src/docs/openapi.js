@@ -1,17 +1,17 @@
 'use strict';
 
 /**
- * OpenAPI 3.0 스펙 — OCI CRM REST API
+ * OpenAPI 3.0 스펙 — SK ecoplant materials REST API
  * GET /api/docs  → Swagger UI
  * GET /api/docs/spec → JSON 스펙 다운로드
  */
 const spec = {
   openapi: '3.0.3',
   info: {
-    title: 'OCI CRM API',
+    title: 'SK ecoplant materials API',
     version: '1.0.0',
-    description: '핑거세일즈 기반 태양광·ESS 영업 관리 시스템 REST API',
-    contact: { name: 'OCI', email: 'dev@oci.com' },
+    description: 'SK에코플랜트 머티리얼즈 반도체·디스플레이 소재 영업 관리 시스템 REST API',
+    contact: { name: 'SK ecoplant materials' },
   },
   servers: [{ url: '/api', description: '현재 서버' }],
   tags: [

@@ -119,7 +119,7 @@ const Onboarding = {
         : '';
 
     Modal.open({
-      title: `🎉 OCI CRM에 오신 것을 환영합니다${progressLabel}`,
+      title: `SK ecoplant materials CRM에 오신 것을 환영합니다${progressLabel}`,
       width: 640,
       body: this._buildBody(completed),
       footer: `

@@ -2985,7 +2985,7 @@ router.get('/dev/source-report', devOnly, async (req, res) => {
   }
 
   <p class="meta" style="margin-top:32px;border-top:1px solid #e5e7eb;padding-top:10px">
-    OCI CRM Source Monitor · 자동 생성 리포트
+    SK ecoplant materials Source Monitor · 자동 생성 리포트
   </p>
 </body></html>`;
 

@@ -53,11 +53,11 @@ const ProposalsPage = (() => {
   //   3. 발송 & 이력 (이메일/공유 + 리비전/이력)
   // 이전 4탭의 'ai' 탭은 기본정보 탭에 통합됨 (DB 컬럼/API 무변경)
   const TABS = [
-    { id: 'basic', label: '📋 기본정보', alwaysOn: true },
-    { id: 'content', label: '📊 제안평가', editOnly: true },
-    { id: 'send', label: '📤 발송 & 이력', editOnly: true },
+    { id: 'basic', label: '기본정보', alwaysOn: true },
+    { id: 'content', label: '제안평가', editOnly: true },
+    { id: 'send', label: '발송 & 이력', editOnly: true },
     // v6.0.0 Phase B: 계약 탭 (LinkedContracts 컴포넌트 활용)
-    { id: 'contracts', label: '📜 계약', editOnly: true },
+    { id: 'contracts', label: '계약', editOnly: true },
   ];
 
   // ── 유틸 ─────────────────────────────────────────────────
@@ -466,13 +466,13 @@ const ProposalsPage = (() => {
 
     Modal.open({
       title: _isTempProposal
-        ? `✏️ 새 제안 작성 — ${esc(e.proposal_no)}`
-        : `📝 제안 상세 — ${esc(e.proposal_no)} (${_statusLabel(e.status)})`,
+        ? `새 제안 작성 — ${esc(e.proposal_no)}`
+        : `제안 상세 — ${esc(e.proposal_no)} (${_statusLabel(e.status)})`,
       width: 1180,
       body: _renderModalBody(e),
       footer: `
         <button class="btn btn-ghost" id="pr-cancel-btn">닫기</button>
-        <button class="btn btn-primary" id="pr-save-btn">💾 저장</button>
+        <button class="btn btn-primary" id="pr-save-btn">저장</button>
       `,
       disableOverlayClose: true,
       bind: {

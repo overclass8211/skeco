@@ -137,7 +137,7 @@ async function scanOverdue() {
           )} ${s.currency || 'KRW'} (D+${s.overdue_days}, 예정일 ${String(s.due_date || '').slice(0, 10)})`
       )
       .join('\n');
-    const subject = `[OCI CRM] 연체 미수금 알림 — 신규 ${fresh.length}건 (합계 ${_fmt(totalRemain)}원)`;
+    const subject = `[SK ecoplant materials] 연체 미수금 알림 — 신규 ${fresh.length}건 (합계 ${_fmt(totalRemain)}원)`;
     const bodyText = `연체된 미수금이 발생했습니다. (신규 ${fresh.length}건)
 
 ${lines}${fresh.length > 20 ? `\n…외 ${fresh.length - 20}건` : ''}

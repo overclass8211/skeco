@@ -3115,7 +3115,7 @@ const AdminPage = {
               <div class="si-section-title">🏢 회사 정보</div>
               <div class="form-row">
                 <label class="form-label">회사명 <span style="color:#d93025">*</span></label>
-                <input class="form-input si-input" id="si-supplier_company_name" value="${esc(d.supplier_company_name || '')}" placeholder="예: OCI Holdings Co., Ltd." ${readonlyAttr}>
+                <input class="form-input si-input" id="si-supplier_company_name" value="${esc(d.supplier_company_name || '')}" placeholder="예: SK에코플랜트 머티리얼즈" ${readonlyAttr}>
               </div>
               <div class="form-row" style="margin-top:8px">
                 <label class="form-label">주소</label>

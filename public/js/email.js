@@ -94,7 +94,7 @@ const Email = {
       contact_person: ctx.customer?.contact_person || '',
       project_name: ctx.lead?.project_name || ctx.project?.name || '',
       my_name: user.full_name || user.username || '',
-      my_company: 'OCI', // TODO: system_settings.company_name 연동 가능
+      my_company: 'SK에코플랜트 머티리얼즈', // TODO: system_settings.company_name 연동 가능
       today,
       bidding_deadline: ctx.lead?.bidding_deadline
         ? String(ctx.lead.bidding_deadline).slice(0, 10)

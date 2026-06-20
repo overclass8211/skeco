@@ -97,7 +97,7 @@ async function _setSetting(key, value) {
 
 async function _getCompany() {
   const v = await _getSetting(COMPANY_NAME_KEY);
-  return (v && String(v).trim()) || 'OCI';
+  return (v && String(v).trim()) || 'SK에코플랜트 머티리얼즈';
 }
 
 // ── 정책 ────────────────────────────────────────────────────

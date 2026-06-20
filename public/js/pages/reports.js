@@ -437,7 +437,7 @@ const ReportsPage = {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `OCI_Power_영업리포트_${y}_${Fmt.date(new Date())}.csv`;
+      a.download = `SK_영업리포트_${y}_${Fmt.date(new Date())}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       Toast.success('CSV 파일이 다운로드되었습니다');

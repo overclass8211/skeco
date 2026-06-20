@@ -163,7 +163,7 @@ async function _flushComments(leadId, entry) {
 
     const count = entry.comments.length;
     const title = `${l.customer_name || '리드'} — ${l.project_name || ''}`;
-    const subject = `[OCI CRM] 영업리드 새 코멘트 ${count}건 — ${title}`;
+    const subject = `[SK ecoplant materials] 영업리드 새 코멘트 ${count}건 — ${title}`;
     const preview = entry.comments
       .slice(0, 5)
       .map((co, i) => `${i + 1}. [${co.author}] ${co.body}`)
@@ -236,7 +236,7 @@ async function notifyOwnerChange({
       if (oldOwner?.email) {
         await _sendOne({
           to: oldOwner.email,
-          subject: `[OCI CRM] 영업리드 담당자 변경 알림 — ${title}`,
+          subject: `[SK ecoplant materials] 영업리드 담당자 변경 알림 — ${title}`,
           bodyText: `안녕하세요, ${oldOwner.name || '담당자'}님.\n\n영업리드 [${title}]의 주 담당자가 변경되었습니다.\n\n변경자: ${actor}\n\n🔗 리드 상세: ${appUrl}/#leads\n\n--\n본 메일은 자동 발송되었습니다.`,
           senderUserId,
         });
@@ -251,7 +251,7 @@ async function notifyOwnerChange({
       if (newOwner?.email) {
         await _sendOne({
           to: newOwner.email,
-          subject: `[OCI CRM] 새 영업리드 배정 알림 — ${title}`,
+          subject: `[SK ecoplant materials] 새 영업리드 배정 알림 — ${title}`,
           bodyText: `안녕하세요, ${newOwner.name || '담당자'}님.\n\n영업리드 [${title}]의 주 담당자로 배정되었습니다.\n\n배정자: ${actor}\n\n🔗 리드 상세: ${appUrl}/#leads\n\n--\n본 메일은 자동 발송되었습니다.`,
           senderUserId,
         });

@@ -215,7 +215,12 @@ function decryptOtpSecret(s) {
 
 function generateOtpUri(secret, user) {
   // secret은 복호화된 원문이어야 함
-  return otplib.generateURI({ strategy: 'totp', label: user, issuer: 'OCI AI CRM', secret });
+  return otplib.generateURI({
+    strategy: 'totp',
+    label: user,
+    issuer: 'SK ecoplant materials',
+    secret,
+  });
 }
 function verifyOtp(token, secret) {
   // secret은 복호화된 원문이어야 함

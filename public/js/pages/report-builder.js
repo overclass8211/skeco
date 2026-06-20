@@ -1600,7 +1600,7 @@ const ReportBuilderPage = {
       tempDiv.innerHTML = `
         <div style="border-bottom:2px solid #E63329;padding-bottom:12px;margin-bottom:18px">
           <h1 style="margin:0 0 6px;color:#E63329;font-size:22px;font-weight:700;letter-spacing:0;word-spacing:0.1em;white-space:nowrap">
-            ${_preserveSpaces('OCI CRM 리포트')}\u00A0—\u00A0${_preserveSpaces(reportName)}
+            ${_preserveSpaces('SK ecoplant materials 리포트')}\u00A0—\u00A0${_preserveSpaces(reportName)}
           </h1>
           <div style="font-size:12px;color:#666;letter-spacing:0;word-spacing:0.06em">
             ${_preserveSpaces('데이터 소스:')}\u00A0<strong>${_preserveSpaces(dsLabel)}</strong>
@@ -1639,7 +1639,7 @@ const ReportBuilderPage = {
             : ''
         }
         <div style="margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:10px;color:#999;text-align:center;letter-spacing:0;word-spacing:0.05em">
-          ${_preserveSpaces('OCI CRM Report Builder')}\u00A0·\u00A0${_preserveSpaces(generatedAt)}
+          ${_preserveSpaces('SK ecoplant materials Report Builder')}\u00A0·\u00A0${_preserveSpaces(generatedAt)}
         </div>
       `;
       document.body.appendChild(tempDiv);

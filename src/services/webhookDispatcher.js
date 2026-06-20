@@ -231,7 +231,7 @@ async function testDispatch(webhookId, sampleEvent = 'lead.won') {
     id: 0,
     customer_name: '__TEST__',
     project_name: 'Webhook Test',
-    note: '이것은 OCI CRM Webhook 테스트 발송입니다.',
+    note: '이것은 SK ecoplant materials Webhook 테스트 발송입니다.',
   };
   const deliveryId = generateDeliveryId();
   return deliverToWebhook(w, sampleEvent, sampleData, deliveryId);

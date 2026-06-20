@@ -35,17 +35,17 @@ const ContractsPage = (() => {
   // { to, label, kind } — kind: primary/ghost/danger
   const QUICK_ACTIONS = {
     draft: [
-      { to: 'review', label: '📋 검토 요청', kind: 'primary' },
-      { to: 'completed', label: '✕ 종료', kind: 'danger' },
+      { to: 'review', label: '검토 요청', kind: 'primary' },
+      { to: 'completed', label: '종료', kind: 'danger' },
     ],
     review: [
-      { to: 'approved', label: '✅ 승인', kind: 'primary' },
-      { to: 'draft', label: '✏ 수정 요청', kind: 'ghost' },
-      { to: 'completed', label: '✕ 종료', kind: 'danger' },
+      { to: 'approved', label: '승인', kind: 'primary' },
+      { to: 'draft', label: '수정 요청', kind: 'ghost' },
+      { to: 'completed', label: '종료', kind: 'danger' },
     ],
     approved: [
-      { to: 'completed', label: '🤝 계약 완료', kind: 'primary' },
-      { to: 'review', label: '⬅ 재검토', kind: 'ghost' },
+      { to: 'completed', label: '계약 완료', kind: 'primary' },
+      { to: 'review', label: '재검토', kind: 'ghost' },
     ],
     completed: [], // 종착점
   };
@@ -113,7 +113,7 @@ const ContractsPage = (() => {
     container.innerHTML = `
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div>
-          <h1 style="margin:0;font-size:20px">📜 계약 관리</h1>
+          <h1 style="margin:0;font-size:20px">계약 관리</h1>
           <div style="font-size:12px;color:var(--text-3);margin-top:4px">계약 아카이빙 + 4단계 상태 + 연결 추적 + AI 법무 검토</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -465,7 +465,7 @@ const ContractsPage = (() => {
   //   B. ✏️ 빈 양식 — 직접 입력 (소형, 우리가 작성)
   function _openNewModeChooser() {
     Modal.open({
-      title: '➕ 새 계약 등록 — 어떻게 시작하시겠습니까?',
+      title: '새 계약 등록 — 어떻게 시작하시겠습니까?',
       width: 720,
       body: `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -635,9 +635,9 @@ const ContractsPage = (() => {
 
     const title = id
       ? isTempMode
-        ? `📜 새 계약 등록 (파일 첨부 모드) — ${esc(entity.contract_no || '')}`
-        : `📜 계약 편집 — ${esc(entity.contract_no || '')}`
-      : '📜 새 계약 등록';
+        ? `새 계약 등록 (파일 첨부 모드) — ${esc(entity.contract_no || '')}`
+        : `계약 편집 — ${esc(entity.contract_no || '')}`
+      : '새 계약 등록';
     const actions = id && !isTempMode ? (QUICK_ACTIONS[entity.status] || []) : [];
 
     // 취소/닫기 핸들러 — 임시 모드 시 cleanup 우선
@@ -659,8 +659,8 @@ const ContractsPage = (() => {
         }).join('')}
         <span style="flex:1"></span>
         <button class="btn btn-ghost" id="ct-cancel-btn">${isTempMode ? '취소 (삭제)' : '취소'}</button>
-        <button class="btn btn-primary" id="ct-save-btn">${id ? '💾 저장' : '➕ 등록'}</button>
-        ${id ? `<button class="btn btn-secondary" id="ct-share-btn" type="button" style="background:#7c3aed;color:#fff;border:none">🔗 공유 링크</button>` : ''}
+        <button class="btn btn-primary" id="ct-save-btn">${id ? '저장' : '등록'}</button>
+        ${id ? `<button class="btn btn-secondary" id="ct-share-btn" type="button" style="background:#7c3aed;color:#fff;border:none">공유 링크</button>` : ''}
       `,
       bind: {
         '#ct-cancel-btn': cancelHandler,

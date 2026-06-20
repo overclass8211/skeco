@@ -621,14 +621,14 @@ const QuotesPage = (() => {
     };
 
     Modal.open({
-      title: id ? `📝 견적서 편집 — ${esc(e.quote_no)}` : '✏️ 새 견적서',
+      title: id ? `견적서 편집 — ${esc(e.quote_no)}` : '새 견적서',
       width: 1180,
       body: _renderModalBody(e),
       // Bug 2: 편집 모드일 때만 [📨 이메일 보내기] 버튼 (저장된 견적이 있어야 발송 가능)
       footer: `
         <button class="btn btn-ghost" id="qt-cancel-btn">취소</button>
-        ${id ? `<button class="btn btn-ghost" id="qt-email-btn" type="button" title="저장 후 PDF 자동 다운로드 + 메일앱 열기" style="color:#1664E5">📨 이메일 보내기</button>` : ''}
-        <button class="btn btn-primary" id="qt-save-btn">💾 저장</button>
+        ${id ? `<button class="btn btn-ghost" id="qt-email-btn" type="button" title="저장 후 PDF 자동 다운로드 + 메일앱 열기" style="color:#1664E5">이메일 보내기</button>` : ''}
+        <button class="btn btn-primary" id="qt-save-btn">저장</button>
       `,
       // 🛡 외부 클릭으로 닫히지 않음 — 폼 데이터 보호 (× 버튼/취소 버튼만 허용)
       disableOverlayClose: true,
@@ -729,18 +729,18 @@ const QuotesPage = (() => {
           </div>
           <!-- 영업리드 Combobox (선택 시 견적명/고객명 자동 채우기) -->
           <div class="form-row" style="grid-column:1 / span 2">
-            <label class="form-label">💼 영업리드 연결 (선택)</label>
+            <label class="form-label">영업딜 연결 (선택)</label>
             <input class="form-input" id="qt-f-lead-input"
               value="${esc(_leadInitialText(e.lead_id))}"
-              placeholder="🔍 고객사 또는 프로젝트명 1글자 이상 입력 → 자동완성 → 선택 시 견적명·고객명 채움">
+              placeholder="고객사 또는 프로젝트명 1글자 이상 입력 → 자동완성 → 선택 시 견적명·고객명 채움">
             <input type="hidden" id="qt-f-lead_id" value="${e.lead_id || ''}">
             <input type="hidden" id="qt-f-customer_id" value="${e.customer_id || ''}">
             <!-- 선택된 lead 정보 패널 (편집 시 / 선택 시 표시) -->
             <div id="qt-lead-info" style="display:none;margin-top:6px;padding:8px 12px;background:#f0f7ff;border:1px solid #d0e3ff;border-radius:4px;font-size:12px;color:var(--text-2)">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
                 <div style="display:flex;gap:16px;flex-wrap:wrap">
-                  <span id="qt-lead-info-stage">📊 단계: <strong>-</strong></span>
-                  <span id="qt-lead-info-amount">💰 예상금액: <strong>₩0</strong></span>
+                  <span id="qt-lead-info-stage">단계: <strong>-</strong></span>
+                  <span id="qt-lead-info-amount">예상금액: <strong>₩0</strong></span>
                 </div>
                 <button class="btn btn-ghost btn-sm" id="qt-lead-clear-btn" type="button" style="color:#d93025;flex-shrink:0">연결 해제</button>
               </div>
@@ -770,7 +770,7 @@ const QuotesPage = (() => {
         <!-- 📑 공급사 정보 (collapsible) — localStorage 자동 채움 -->
         <div style="border:1px solid var(--border);border-radius:6px;background:#fafafa;margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer" id="qt-supplier-toggle">
-            <strong style="font-size:13px;color:var(--text-2)">📑 공급사 정보 — PDF 우측 상단 출력 영역 <span style="color:var(--text-3);font-weight:400">(localStorage 자동 저장)</span></strong>
+            <strong style="font-size:13px;color:var(--text-2)">공급사 정보 — PDF 우측 상단 출력 영역 <span style="color:var(--text-3);font-weight:400">(localStorage 자동 저장)</span></strong>
             <span id="qt-supplier-chevron" style="color:var(--text-3)">▼</span>
           </div>
           <div id="qt-supplier-body" style="padding:12px 14px;border-top:1px solid var(--border);display:none">
@@ -1575,7 +1575,7 @@ const QuotesPage = (() => {
 
         <!-- 푸터 -->
         <div style="margin-top:24px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:10px;color:#999;text-align:center">
-          ${_ps('OCI CRM Quotation')}\u00A0·\u00A0${_ps('생성:')}\u00A0${_ps(generatedAt)}
+          ${_ps('SK ecoplant materials · Quotation')}\u00A0·\u00A0${_ps('생성:')}\u00A0${_ps(generatedAt)}
           ${q.created_by_name ? `\u00A0·\u00A0${_ps('작성자:')}\u00A0${_ps(q.created_by_name)}` : ''}
         </div>
       </div>

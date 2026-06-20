@@ -2008,7 +2008,7 @@ router.get('/:id/ai-strategy/word', async (req, res) => {
     }
 
     const doc = new Document({
-      creator: 'OCI CRM AI',
+      creator: 'SK ecoplant materials CRM',
       title: `AI 제안전략 요약 — ${prop.proposal_no || ''}`,
       styles: {
         default: {

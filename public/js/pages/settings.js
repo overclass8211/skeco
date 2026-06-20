@@ -254,7 +254,7 @@ const SettingsPage = {
         <div class="card-header"><div class="card-title">시스템 정보</div></div>
         <div class="card-body">
           <div class="kv-grid">
-            <div class="kv-row"><span class="kv-key">서비스명</span><span class="kv-val">OCI CRM</span></div>
+            <div class="kv-row"><span class="kv-key">서비스명</span><span class="kv-val">SK ecoplant materials CRM</span></div>
             <div class="kv-row"><span class="kv-key">버전</span><span class="kv-val mono">v1.0.0</span></div>
             <div class="kv-row"><span class="kv-key">백엔드</span><span class="kv-val mono">Node.js + Express</span></div>
             <div class="kv-row"><span class="kv-key">데이터베이스</span><span class="kv-val mono">MariaDB 10.x</span></div>
