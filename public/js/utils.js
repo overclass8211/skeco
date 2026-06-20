@@ -164,6 +164,107 @@ const BUSINESS_COLORS = {
   통합서비스: 'badge-green',
 };
 
+// ----------- 자동저장 폼 (노션식) -----------
+// 단건 상세 화면의 form 을 필드별 자동저장으로 배선하는 공통 헬퍼.
+//   - blur / 입력 멈춤(debounce) / select change 시 해당 필드만 저장
+//   - 저장 상태 칩(저장 중…/✓ 저장됨/실패) 피드백
+//   - 필수·숫자 검증 시 저장 보류, 저장 실패 시 직전값 롤백, Esc 되돌리기
+//
+// 사용:
+//   AutosaveForm.wire({
+//     formSel: '#ld-edit-form', statusSel: '#ld-save-status',
+//     numeric: ['expected_amount'], required: { project_name: '딜명' },
+//     exclude: ['address'],
+//     save: (name, value) => API.leads.update(id, { [name]: value }),
+//     onSaved: (name, value) => { /* 헤더 동기화 등 */ },
+//   });
+const AutosaveForm = {
+  wire(opts) {
+    const form =
+      typeof opts.formSel === 'string' ? document.querySelector(opts.formSel) : opts.formSel;
+    if (!form) return;
+    const statusEl =
+      typeof opts.statusSel === 'string' ? document.querySelector(opts.statusSel) : opts.statusSel;
+    const numeric = opts.numeric || [];
+    const required = opts.required || {};
+    const exclude = new Set(opts.exclude || []);
+    const debounceMs = opts.debounceMs || 800;
+    let hideT = null;
+    const setStatus = (state, msg) => {
+      if (!statusEl) return;
+      clearTimeout(hideT);
+      statusEl.style.opacity = '1';
+      if (state === 'saving') {
+        statusEl.style.color = 'var(--text-3)';
+        statusEl.textContent = '저장 중…';
+      } else if (state === 'saved') {
+        statusEl.style.color = '#17A85A';
+        statusEl.textContent = '✓ 저장됨';
+        hideT = setTimeout(() => (statusEl.style.opacity = '0'), 1800);
+      } else if (state === 'error') {
+        statusEl.style.color = 'var(--oci-red)';
+        statusEl.textContent = msg || '저장 실패 — 다시 시도하세요';
+      }
+    };
+    const fields = [...form.querySelectorAll('[name]')].filter(el => !exclude.has(el.name));
+    const last = {};
+    fields.forEach(el => (last[el.name] = el.value));
+
+    const saveField = async el => {
+      const name = el.name;
+      const raw = el.value;
+      if (raw === last[name]) return;
+      if (required[name] && raw.trim() === '') {
+        setStatus('error', `${required[name]}은(는) 비울 수 없습니다`);
+        return;
+      }
+      let val;
+      if (numeric.includes(name)) {
+        const s = raw.trim();
+        if (s === '') val = null;
+        else {
+          val = parseFloat(s);
+          if (isNaN(val)) {
+            setStatus('error', '숫자 형식으로 입력하세요');
+            return;
+          }
+        }
+      } else {
+        val = raw.trim() === '' ? null : raw.trim();
+      }
+      setStatus('saving');
+      try {
+        await opts.save(name, val);
+        last[name] = raw;
+        if (typeof opts.onSaved === 'function') opts.onSaved(name, val);
+        setStatus('saved');
+      } catch (e) {
+        el.value = last[name];
+        setStatus('error', opts.errorMsg && opts.errorMsg(e));
+      }
+    };
+
+    fields.forEach(el => {
+      el.addEventListener('blur', () => saveField(el));
+      if (el.tagName === 'SELECT') el.addEventListener('change', () => saveField(el));
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          el.value = last[el.name];
+          if (statusEl) statusEl.style.opacity = '0';
+          el.blur();
+        }
+      });
+      if (el.tagName === 'TEXTAREA' || el.type === 'text') {
+        el.addEventListener('input', () => {
+          clearTimeout(el._saveT);
+          el._saveT = setTimeout(() => saveField(el), debounceMs);
+        });
+      }
+    });
+  },
+};
+
 // ----------- 모달 -----------
 // 전체 시스템 모달 표준 폭 (고객사 통합 모달 기준 — 정보 시안성 우선)
 const MODAL_STANDARD_WIDTH = 1080;

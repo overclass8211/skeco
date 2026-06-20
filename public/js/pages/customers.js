@@ -981,9 +981,10 @@ const CustomersPage = {
         <button class="btn btn-ghost btn-sm" id="cm-back">‹ 목록</button>
         <div class="cust-detail-title">${esc(cust.name)}</div>
         <div class="cust-detail-actions">
+          <span id="cm-save-status" style="font-size:12px;color:var(--text-3);align-self:center;white-space:nowrap;margin-right:2px;transition:opacity .2s"></span>
           <button class="btn btn-ghost btn-sm" id="cm-email-btn">이메일</button>
           <button class="btn btn-ghost btn-sm" id="cm-delete-btn" style="color:var(--oci-red)">삭제</button>
-          <button class="btn btn-primary btn-sm" id="cm-save-btn">저장</button>
+          <button class="btn btn-primary btn-sm" id="cm-save-btn" title="전체 저장 (자동저장 외 수동 백업)">저장</button>
         </div>
       </div>
 
@@ -1088,6 +1089,23 @@ const CustomersPage = {
     // ── 뒤로/저장/삭제/이메일 ──
     document.getElementById('cm-back').addEventListener('click', () => this.render());
     document.getElementById('cm-save-btn').addEventListener('click', () => this._saveCustomerEdit(id));
+    // Phase B: 노션식 필드별 자동저장 (공통 AutosaveForm) — address 는 주소검색으로 설정되어 제외
+    AutosaveForm.wire({
+      formSel: '#cm-edit-form',
+      statusSel: '#cm-save-status',
+      required: { name: '고객사명' },
+      exclude: ['address'],
+      save: (name, value) => API.put(`/customers/${id}`, { [name]: value }),
+      onSaved: (name, value) => {
+        // 캐시 동기화 — 재진입/목록이 옛값을 보이지 않도록
+        const c = (this.data || []).find(x => x.id === id);
+        if (c) c[name] = value;
+      },
+      errorMsg: e => {
+        const msg = e?.message || '';
+        return /사업자등록번호|business_no|BRN/i.test(msg) ? msg : '저장 실패 — 다시 시도하세요';
+      },
+    });
     document.getElementById('cm-delete-btn').addEventListener('click', () => this._deleteCustomer(id, cust.name));
     document.getElementById('cm-email-btn')?.addEventListener('click', () => {
       if (typeof Email !== 'undefined') Email.open({ customer: cust, defaultCategory: 'customer' });

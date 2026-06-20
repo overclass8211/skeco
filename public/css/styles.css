@@ -10953,40 +10953,6 @@ body,
   color: var(--oci-red, #e63329);
 }
 
-/* v7.0.0 Option C R2: 인라인 편집 (kv-row 연필 버튼) */
-.ld-ie-btn {
-  display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 11px;
-  padding: 2px 4px;
-  color: var(--text-4);
-  border-radius: 4px;
-  transition: color 0.12s, background 0.12s;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.kv-row:hover .ld-ie-btn {
-  display: inline-flex;
-  align-items: center;
-}
-.ld-ie-btn:hover {
-  color: var(--oci-red, #e63329);
-  background: var(--surface-2, #f5f5f5);
-}
-.ld-ie-input {
-  font-size: 12px !important;
-  padding: 3px 6px !important;
-  border: 1.5px solid var(--oci-red, #e63329) !important;
-  border-radius: 4px !important;
-  outline: none !important;
-  width: 100%;
-  background: #fff;
-  flex: 1;
-  min-width: 0;
-}
-
 /* 프로젝트 상세 — 마일스톤 단계 노드 (클릭 시 전환·목표일 설정) */
 .pd-ms-node {
   transition: background 0.12s ease;

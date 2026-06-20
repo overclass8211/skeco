@@ -1808,95 +1808,23 @@ const App = {
     }
   },
 
-  // ── Phase A: 영업딜 상세 필드별 자동저장 (노션식) ──────────────
-  //   blur 또는 입력 멈춤(debounce)에 해당 필드만 PATCH. 상태 칩으로 피드백,
-  //   검증 실패 시 보류, 저장 실패 시 직전값 롤백, Esc 로 되돌리기.
+  // ── Phase A: 영업딜 상세 필드별 자동저장 (공통 AutosaveForm 헬퍼) ──
   _wireLeadAutosave(l) {
-    const form = document.getElementById('ld-edit-form');
-    if (!form) return;
-    const statusEl = document.getElementById('ld-save-status');
-    let hideT = null;
-    const setStatus = (state, msg) => {
-      if (!statusEl) return;
-      clearTimeout(hideT);
-      statusEl.style.opacity = '1';
-      if (state === 'saving') {
-        statusEl.style.color = 'var(--text-3)';
-        statusEl.textContent = '저장 중…';
-      } else if (state === 'saved') {
-        statusEl.style.color = '#17A85A';
-        statusEl.textContent = '✓ 저장됨';
-        hideT = setTimeout(() => (statusEl.style.opacity = '0'), 1800);
-      } else if (state === 'error') {
-        statusEl.style.color = 'var(--oci-red)';
-        statusEl.textContent = msg || '저장 실패 — 다시 시도하세요';
-      }
-    };
-    const num = v => {
-      const s = (v || '').trim();
-      if (s === '') return null;
-      const n = parseFloat(s);
-      return isNaN(n) ? NaN : n;
-    };
-    const last = {};
-    const fields = [...form.querySelectorAll('[name]')];
-    fields.forEach(el => (last[el.name] = el.value));
-
-    const saveField = async el => {
-      const name = el.name;
-      const raw = el.value;
-      if (raw === last[name]) return; // 변경 없음
-      // 검증
-      if (name === 'project_name' && raw.trim() === '') {
-        setStatus('error', '딜명은 비울 수 없습니다');
-        return;
-      }
-      let val;
-      if (['capacity_mw', 'expected_amount', 'profit_rate'].includes(name)) {
-        val = num(raw);
-        if (Number.isNaN(val)) {
-          setStatus('error', '숫자 형식으로 입력하세요');
-          return;
-        }
-      } else {
-        val = raw.trim() === '' ? null : raw.trim();
-      }
-      setStatus('saving');
-      try {
-        await API.leads.update(l.id, { [name]: val });
-        last[name] = raw;
-        // 헤더 예상매출 동기화
+    AutosaveForm.wire({
+      formSel: '#ld-edit-form',
+      statusSel: '#ld-save-status',
+      numeric: ['capacity_mw', 'expected_amount', 'profit_rate'],
+      required: { project_name: '딜명' },
+      save: (name, value) => API.leads.update(l.id, { [name]: value }),
+      onSaved: (name, value) => {
         if (name === 'expected_amount') {
-          l.expected_amount = val;
+          l.expected_amount = value;
           const hdr = document.getElementById('ld-meta-amount');
-          if (hdr) hdr.textContent = Fmt.amount(val, l.currency);
+          if (hdr) hdr.textContent = Fmt.amount(value, l.currency);
         }
-        if (name === 'profit_rate') l.profit_rate = val;
-        setStatus('saved');
+        if (name === 'profit_rate') l.profit_rate = value;
         if (typeof App._syncAfterLeadChange === 'function') App._syncAfterLeadChange();
-      } catch (_) {
-        el.value = last[name]; // 롤백
-        setStatus('error');
-      }
-    };
-
-    fields.forEach(el => {
-      el.addEventListener('blur', () => saveField(el));
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          el.value = last[el.name];
-          if (statusEl) statusEl.style.opacity = '0';
-          el.blur();
-        }
-      });
-      // 텍스트/메모는 입력 멈춤(debounce) 시에도 저장
-      if (el.tagName === 'TEXTAREA' || el.type === 'text') {
-        el.addEventListener('input', () => {
-          clearTimeout(el._saveT);
-          el._saveT = setTimeout(() => saveField(el), 800);
-        });
-      }
+      },
     });
   },
 
@@ -1980,151 +1908,9 @@ const App = {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '💬 등록';
+        btn.textContent = '등록';
       }
     }
-  },
-
-  // ── v7.0.0 Option C R2: 인라인 편집 설정 ─────────────────
-  _setupLeadInlineEdit(l) {
-    const grid = document.querySelector('.ld-info-grid');
-    if (!grid) return;
-    grid.addEventListener('click', e => {
-      const btn = e.target.closest('.ld-ie-btn');
-      const row = e.target.closest('.kv-row[data-field]');
-      if (!row) return;
-      // 연필 버튼 클릭 또는 값 영역 클릭 시만 진입
-      if (!btn && !e.target.closest('.kv-val')) return;
-      this._startInlineEdit(row, l);
-    });
-  },
-
-  _startInlineEdit(row, l) {
-    if (row.dataset.editing === '1') return;
-    const field = row.dataset.field;
-    const type = row.dataset.type; // text | number | decimal | date | textarea
-    const valEl = row.querySelector('.kv-val');
-    const btnEl = row.querySelector('.ld-ie-btn');
-    if (!valEl) return;
-
-    row.dataset.editing = '1';
-    const rawVal = valEl.dataset.raw || '';
-
-    // 입력 요소 생성
-    let input;
-    if (type === 'textarea') {
-      input = document.createElement('textarea');
-      input.rows = 3;
-      input.style.cssText = 'resize:vertical;min-height:54px';
-    } else {
-      input = document.createElement('input');
-      if (type === 'date') {
-        input.type = 'date';
-      } else if (type === 'number' || type === 'decimal') {
-        input.type = 'number';
-        input.step = type === 'decimal' ? '0.1' : '1';
-        input.min = '0';
-        if (field === 'profit_rate') input.max = '100';
-      } else {
-        input.type = 'text';
-      }
-    }
-    input.value = rawVal;
-    input.className = 'form-input ld-ie-input';
-
-    // 표시값 숨기고 입력 삽입
-    valEl.style.display = 'none';
-    if (btnEl) btnEl.style.display = 'none';
-    row.insertBefore(input, valEl.nextSibling);
-    try { input.focus(); if (input.select) input.select(); } catch (_) {}
-
-    const cancel = () => {
-      input.remove();
-      valEl.style.display = '';
-      if (btnEl) btnEl.style.display = '';
-      delete row.dataset.editing;
-    };
-
-    const save = async () => {
-      if (row.dataset.saving === '1') return;
-      row.dataset.saving = '1';
-      const newVal = input.value.trim();
-      input.remove();
-      valEl.style.display = '';
-      if (btnEl) btnEl.style.display = '';
-      delete row.dataset.editing;
-      delete row.dataset.saving;
-
-      if (newVal === rawVal) return; // 변경 없음
-
-      // 저장 값 파싱
-      let updateVal = newVal || null;
-      if ((type === 'number' || type === 'decimal') && newVal !== '') {
-        updateVal = parseFloat(newVal);
-        if (isNaN(updateVal)) {
-          Toast.error?.('숫자 형식으로 입력하세요');
-          return;
-        }
-      }
-
-      try {
-        await API.leads.update(l.id, { [field]: updateVal });
-
-        // 표시값 갱신
-        let displayVal = newVal || '-';
-        if (field === 'capacity_mw' && newVal)
-          displayVal = parseFloat(newVal).toLocaleString('ko-KR');
-        else if (field === 'expected_amount' && newVal)
-          displayVal = Fmt.amount(parseFloat(newVal), l.currency);
-        else if (field === 'profit_rate' && newVal)
-          displayVal = parseFloat(newVal).toFixed(1) + '%';
-        else if (field === 'expected_close_date' || field === 'bidding_deadline')
-          displayVal = Fmt.date(newVal) || '-';
-        else if (field === 'notes' && !newVal)
-          displayVal = '<span style="color:var(--text-4);font-size:11px">클릭하여 메모 추가</span>';
-
-        if (field === 'notes' && !newVal) valEl.innerHTML = displayVal;
-        else valEl.textContent = displayVal;
-        valEl.dataset.raw = newVal || '';
-
-        // 연동 갱신: 예상이익금 + 헤더 금액
-        if (field === 'expected_amount' || field === 'profit_rate') {
-          const amt =
-            field === 'expected_amount' ? parseFloat(newVal) || 0 : parseFloat(l.expected_amount) || 0;
-          const rate =
-            field === 'profit_rate' ? parseFloat(newVal) || 0 : parseFloat(l.profit_rate) || 0;
-          const profitEl = document.getElementById('ld-ie-profit-amount');
-          if (profitEl)
-            profitEl.textContent = amt && rate ? Fmt.amount(Math.round(amt * rate / 100), l.currency) : '-';
-          if (field === 'expected_amount') {
-            const hdr = document.getElementById('ld-meta-amount');
-            if (hdr) hdr.textContent = Fmt.amount(parseFloat(newVal), l.currency);
-            l.expected_amount = parseFloat(newVal);
-          }
-          if (field === 'profit_rate') l.profit_rate = parseFloat(newVal);
-        }
-
-        Toast.success?.('저장됨');
-        // 매출포캐스트/파이프라인/영업딜 목록 등 현재 화면 동기화
-        this._syncAfterLeadChange();
-      } catch (err) {
-        Toast.error?.('저장 실패: ' + (err?.message || err));
-        valEl.dataset.raw = rawVal; // 원복
-      }
-    };
-
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        input.removeEventListener('blur', save);
-        cancel();
-      } else if (e.key === 'Enter' && type !== 'textarea') {
-        e.preventDefault();
-        input.removeEventListener('blur', save);
-        save();
-      }
-    });
   },
 
   // ── v6.0.0 Phase C: 단계 변경 퀵 액션 ────────────────────
