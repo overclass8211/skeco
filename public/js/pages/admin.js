@@ -14,6 +14,14 @@ const AdminPage = {
     const html = `
       <div class="filter-bar" style="margin-bottom:0;border-bottom:none">
         <div class="card-title" style="margin-right:auto">관리자 콘솔</div>
+        ${
+          App.currentUser?.role === 'superadmin'
+            ? `<button class="btn btn-ghost btn-sm" id="admin-open-dev" data-feature="dev.options" title="개발자 옵션 (기능 토글·스키마·헬스맵)">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>
+                개발자 옵션
+              </button>`
+            : ''
+        }
       </div>
 
       <div class="tab-bar" id="admin-tab-bar" style="display:flex;gap:4px;padding:0 0 0 0;border-bottom:2px solid var(--border);margin-bottom:18px">
@@ -61,6 +69,9 @@ const AdminPage = {
       const btn = e.target.closest('.tab-btn[data-tab]');
       if (btn) this.switchTab(btn.dataset.tab);
     });
+
+    // 개발자 옵션 진입 (관리자 콘솔 하위) — 사이드바 독립 메뉴 대체
+    document.getElementById('admin-open-dev')?.addEventListener('click', () => App.navigate('dev'));
 
     // inject minimal tab-btn styles if not present
     if (!document.getElementById('admin-tab-style')) {

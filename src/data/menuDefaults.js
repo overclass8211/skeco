@@ -42,7 +42,7 @@ const DEFAULT_ITEMS = [
   // 시스템 섹션 항목 — 관리자가 자기 발 묶지 않도록 hide 불가
   { menu_key: 'admin', section_key: 'system', display_order: 1, is_system: 1 },
   { menu_key: 'settings', section_key: 'system', display_order: 2, is_system: 1 },
-  { menu_key: 'dev', section_key: 'system', display_order: 3, is_system: 1 },
+  // 'dev'(개발자 옵션): 사이드바 메뉴 제거 → 관리자 콘솔 하위 진입(관리자 페이지 헤더 버튼)으로 이동
   { menu_key: 'customer360', section_key: 'main', display_order: 4, is_system: 0 },
   { menu_key: 'exec360', section_key: 'main', display_order: 5, is_system: 0 },
   // @scaffold:menu-items — 신규 페이지 메뉴 시드 자동 삽입 지점 (scaffold-page.js)

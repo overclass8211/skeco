@@ -585,6 +585,7 @@ const App = {
       revenue: 'crm.revenue', // P2 매출관리
       payments: 'crm.payments', // v8.0.0 SFR-011
       support: 'crm.support', // 고객지원(A/S) P1
+      team: 'crm.team', // 팀 현황
       reports: 'crm.reports',
       'report-builder': 'crm.report_builder',
       board: 'crm.board',

@@ -240,6 +240,18 @@ const FEATURE_REGISTRY = [
     default_enabled: true,
   },
   {
+    key: 'crm.team',
+    name: '팀 현황',
+    description: '팀원별 영업 성과·활동 현황 대시보드',
+    category: 'crm',
+    risk_level: 'safe',
+    required_features: [],
+    affects_routes: '/api/team',
+    affects_tables: 'team_members,leads',
+    is_experimental: false,
+    default_enabled: true,
+  },
+  {
     key: 'crm.board',
     name: '커뮤니케이션 게시판',
     description: '팀 공지·자유게시판·FAQ·댓글',
