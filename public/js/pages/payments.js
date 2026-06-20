@@ -45,13 +45,8 @@ const PaymentsPage = {
         </div>
       </div>
 
-      <!-- KPI 카드 영역 -->
-      <div id="pay-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-        <div class="pay-kpi-card loading-skeleton" style="height:80px;border-radius:8px"></div>
-        <div class="pay-kpi-card loading-skeleton" style="height:80px;border-radius:8px"></div>
-        <div class="pay-kpi-card loading-skeleton" style="height:80px;border-radius:8px"></div>
-        <div class="pay-kpi-card loading-skeleton" style="height:80px;border-radius:8px"></div>
-      </div>
+      <!-- KPI 카드 영역 (공통 KpiBar 로 렌더) -->
+      <div id="pay-kpi"></div>
 
       <!-- 탭 바 -->
       <div class="tab-bar" style="margin-bottom:12px">
@@ -185,28 +180,26 @@ const PaymentsPage = {
     if (!kpi) return;
     const elKpi = document.getElementById('pay-kpi');
     if (!elKpi) return; // 타 페이지(매출관리) 위임 시 #pay-kpi 부재 — KPI는 해당 페이지 자체 영역 사용
-    const fmt = n => Number(n || 0).toLocaleString('ko-KR');
-    elKpi.innerHTML = `
-      <div class="pay-kpi-card" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">수주잔액 (미수금)</div>
-        <div style="font-size:20px;font-weight:700;color:#1664E5">₩${fmt(kpi.outstanding_amount)}</div>
-      </div>
-      <div class="pay-kpi-card" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">이번달 예정수금</div>
-        <div style="font-size:20px;font-weight:700;color:#0F7A3F">₩${fmt(kpi.this_month_scheduled)}</div>
-      </div>
-      <div class="pay-kpi-card" style="background:${kpi.overdue_amount > 0 ? '#FFF5F5' : '#fff'};border:1px solid ${kpi.overdue_amount > 0 ? '#FECACA' : 'var(--border)'};border-radius:8px;padding:14px 16px">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">연체 미수금 (${kpi.overdue_count}건)</div>
-        <div style="font-size:20px;font-weight:700;color:${kpi.overdue_amount > 0 ? '#E63329' : '#6B7280'}">₩${fmt(kpi.overdue_amount)}</div>
-      </div>
-      <div class="pay-kpi-card" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">수금 달성률</div>
-        <div style="font-size:20px;font-weight:700;color:#7C4DFF">${kpi.collection_rate ?? 0}%</div>
-        <div style="height:4px;background:#EDE9FE;border-radius:2px;margin-top:6px">
-          <div style="height:100%;width:${Math.min(kpi.collection_rate ?? 0, 100)}%;background:#7C4DFF;border-radius:2px"></div>
-        </div>
-      </div>
-    `;
+    // 공통 KpiBar 로 통일 (고객사/영업딜 등과 동일 톤)
+    const won = n => '₩' + this._fmtKrwCompact(n);
+    const overdue = Number(kpi.overdue_amount) || 0;
+    KpiBar.render({
+      containerSel: '#pay-kpi',
+      cards: [
+        { icon: 'money', label: '수주잔액 (미수금)', valueText: won(kpi.outstanding_amount), color: '#1664E5', sub: '계약 대비 미수금' },
+        { icon: 'clock', label: '이번달 예정수금', valueText: won(kpi.this_month_scheduled), color: '#0F7A3F', sub: '당월 수금 예정액' },
+        { icon: 'ban', label: '연체 미수금', valueText: won(overdue), color: overdue > 0 ? '#E63329' : '#6B7280', sub: `연체 ${kpi.overdue_count || 0}건` },
+        { icon: 'check', label: '수금 달성률', valueText: `${kpi.collection_rate ?? 0}%`, color: '#7C4DFF', sub: '목표 대비 수금률' },
+      ],
+    });
+  },
+
+  // ₩ 금액을 억/만 단위로 압축 (KPI 카드 가독성)
+  _fmtKrwCompact(n) {
+    const v = Number(n) || 0;
+    if (Math.abs(v) >= 1_0000_0000) return (v / 1_0000_0000).toFixed(1).replace(/\.0$/, '') + '억';
+    if (Math.abs(v) >= 1_0000) return Math.round(v / 1_0000).toLocaleString('ko-KR') + '만';
+    return v.toLocaleString('ko-KR');
   },
 
   // ── F1. 수금현황 탭 ─────────────────────────────────────────

@@ -27,7 +27,7 @@ const RevenuePage = {
         <span><b>매출 인식 관점</b> — 세금계산서 발행 기준. 현금 회수(입금) 현황은 <b>수금관리</b>에서 관리합니다.</span>
       </div>
       <div id="rev-sched-controls">
-        <div id="rev-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">${this._kpiHtml()}</div>
+        <div id="rev-kpi"></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
           <select id="rev-fl-status" class="form-input" style="width:130px;font-size:12px;padding:5px 8px">
             <option value="">매출상태 전체</option>
@@ -66,6 +66,7 @@ const RevenuePage = {
         this._renderTab();
       })
     );
+    this._renderKpi();
     this._renderTab();
   },
 
@@ -78,8 +79,7 @@ const RevenuePage = {
       q: $('rev-fl-q').value.trim(),
     };
     this._loadSummary().then(() => {
-      const kpi = document.getElementById('rev-kpi');
-      if (kpi) kpi.innerHTML = this._kpiHtml();
+      this._renderKpi();
       this._renderTab();
     });
   },
@@ -112,30 +112,33 @@ const RevenuePage = {
     return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
   },
 
-  _kpiHtml() {
+  // 공통 KpiBar 로 통일 (고객사/영업딜 등과 동일 톤)
+  _renderKpi() {
+    if (!document.getElementById('rev-kpi')) return;
     const k = this._summary?.kpi || {};
-    const card = (label, obj, color) => {
-      const o = obj || { cnt: 0, amount: 0 };
-      return `<div style="background:var(--bg-2,#f9fafb);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
-        <div style="font-size:12px;color:var(--text-3)">${label}</div>
-        <div style="font-size:22px;font-weight:700;color:${color};margin-top:4px">${this._fmt(o.amount)}<span style="font-size:12px;font-weight:400;color:var(--text-3)"> 원</span></div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:2px">${o.cnt || 0} 건</div>
-      </div>`;
-    };
     const planned = k['예정'] || { cnt: 0, amount: 0 };
     const confirmed = k['확정'] || { cnt: 0, amount: 0 };
+    const cancelled = k['취소'] || { cnt: 0, amount: 0 };
     const totalAmt = (planned.amount || 0) + (confirmed.amount || 0);
     const rate = totalAmt ? Math.round(((confirmed.amount || 0) / totalAmt) * 100) : 0;
-    return [
-      card('매출 예정', planned, 'var(--text-1,#1d1d1f)'),
-      card('매출 확정', confirmed, 'var(--oci-red,#E63329)'),
-      `<div style="background:var(--bg-2,#f9fafb);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
-        <div style="font-size:12px;color:var(--text-3)">확정률</div>
-        <div style="font-size:22px;font-weight:700;margin-top:4px">${rate}<span style="font-size:12px;font-weight:400;color:var(--text-3)"> %</span></div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:2px">확정 / (예정+확정)</div>
-      </div>`,
-      card('취소', k['취소'], 'var(--text-3,#86868b)'),
-    ].join('');
+    const won = n => '₩' + this._fmtKrwCompact(n);
+    KpiBar.render({
+      containerSel: '#rev-kpi',
+      cards: [
+        { icon: 'clock', label: '매출 예정', valueText: won(planned.amount), color: '#1664E5', sub: `${planned.cnt || 0}건` },
+        { icon: 'money', label: '매출 확정', valueText: won(confirmed.amount), color: '#E63329', sub: `${confirmed.cnt || 0}건 · 세금계산서 발행` },
+        { icon: 'trophy', label: '확정률', valueText: `${rate}%`, color: '#7C4DFF', sub: '확정 / (예정+확정)' },
+        { icon: 'ban', label: '취소', valueText: won(cancelled.amount), color: '#6B7280', sub: `${cancelled.cnt || 0}건` },
+      ],
+    });
+  },
+
+  // ₩ 금액을 억/만 단위로 압축 (KPI 카드 가독성)
+  _fmtKrwCompact(n) {
+    const v = Number(n) || 0;
+    if (Math.abs(v) >= 1_0000_0000) return (v / 1_0000_0000).toFixed(1).replace(/\.0$/, '') + '억';
+    if (Math.abs(v) >= 1_0000) return Math.round(v / 1_0000).toLocaleString('ko-KR') + '만';
+    return v.toLocaleString('ko-KR');
   },
 
   _tabStyle(t) {

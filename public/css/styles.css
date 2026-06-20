@@ -2813,36 +2813,30 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   position: relative;
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
-  padding: 12px 16px 11px 18px;
+  border-radius: 12px;
+  padding: 16px 18px;
   cursor: pointer;
   transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
   overflow: hidden;
-  min-height: 76px;
+  min-height: 84px;
   display: flex;
   align-items: stretch;
 }
 .kpi-card:hover {
-  transform: translateY(-2px);
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.04);
+    0 2px 8px rgba(16, 24, 40, 0.06),
+    0 1px 2px rgba(16, 24, 40, 0.04);
   border-color: var(--border-2, #d1d5db);
 }
 .kpi-card:focus-visible {
   outline: 2px solid var(--oci-red, #e63329);
   outline-offset: 2px;
 }
+/* accent 바 제거 — 색은 아이콘 칩에만 (세련된 톤) */
 .kpi-card-accent {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: #6b7280;
+  display: none;
 }
 .kpi-card-body {
   flex: 1;
@@ -2851,37 +2845,47 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
 .kpi-card-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-2, #4b5563);
-  font-weight: 500;
-  margin-bottom: 4px;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-3, #6b7280);
+  font-weight: 600;
+  margin-bottom: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 소프트 틴트 아이콘 칩 */
 .kpi-icon {
-  font-size: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 .kpi-icon svg {
   display: block;
+  width: 16px;
+  height: 16px;
 }
 .kpi-label {
   letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi-card-value {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   line-height: 1.1;
+  color: var(--text-1, #1f2329);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 .kpi-card-sub {
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: 4px;
+  font-size: 11.5px;
   color: var(--text-3, #9ca3af);
   white-space: nowrap;
   overflow: hidden;

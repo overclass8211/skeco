@@ -83,15 +83,17 @@ const KpiBar = (() => {
    */
   function _cardHtml(card, idx) {
     const color = card.color || '#6b7280';
+    // 세련된 톤: 큰 숫자는 중성(dark), 색은 소프트 틴트 아이콘 칩에만 — accent 바 제거
+    const tint = /^#[0-9a-fA-F]{6}$/.test(color) ? color + '1A' : 'rgba(107,114,128,0.1)';
+    const _titleVal = card.valueText !== undefined && card.valueText !== null ? card.valueText : card.value;
     return `<div class="kpi-card" data-kpi-idx="${idx}" role="button" tabindex="0"
-        title="${esc(card.label)} — ${esc(card.value)}">
-      <div class="kpi-card-accent" style="background:${color}"></div>
+        title="${esc(card.label)} — ${esc(_titleVal)}">
       <div class="kpi-card-body">
         <div class="kpi-card-header">
-          <span class="kpi-icon" aria-hidden="true" style="color:${color}">${_icon(card.icon)}</span>
+          <span class="kpi-icon" aria-hidden="true" style="color:${color};background:${tint}">${_icon(card.icon)}</span>
           <span class="kpi-label">${esc(card.label)}</span>
         </div>
-        <div class="kpi-card-value" style="color:${color}">${esc(_fmtValue(card.value))}</div>
+        <div class="kpi-card-value">${esc(card.valueText !== undefined && card.valueText !== null ? card.valueText : _fmtValue(card.value))}</div>
         ${card.sub ? `<div class="kpi-card-sub">${esc(card.sub)}</div>` : ''}
       </div>
     </div>`;
