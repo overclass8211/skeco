@@ -36,16 +36,63 @@ const AI = {
     document.getElementById('ai-overlay').classList.remove('show');
   },
 
+  // ── 넓게 보기(센터 워크스페이스) 토글 ───────────────────────
+  toggleExpand() {
+    const panel = document.getElementById('ai-panel');
+    const overlay = document.getElementById('ai-overlay');
+    if (!panel) return;
+    const expanded = panel.classList.toggle('ai-expanded');
+    if (overlay) overlay.classList.toggle('ai-expanded-dim', expanded);
+    if (expanded) {
+      panel.style.width = ''; // 확장 시 중앙 모달 폭(CSS) 사용
+    } else {
+      const w = localStorage.getItem('ai_panel_width');
+      if (w) panel.style.width = w + 'px';
+    }
+  },
+
+  // ── 우측 드로어 너비 드래그 리사이즈 ────────────────────────
+  initResize() {
+    const panel = document.getElementById('ai-panel');
+    const handle = document.getElementById('ai-resize-handle');
+    if (!panel || !handle || handle._wired) return;
+    handle._wired = true;
+    const saved = parseInt(localStorage.getItem('ai_panel_width'), 10);
+    if (saved && saved >= 380) panel.style.width = saved + 'px';
+    let startX = 0;
+    let startW = 0;
+    const onMove = e => {
+      const dx = startX - e.clientX; // 왼쪽으로 끌면 넓어짐
+      const w = Math.min(window.innerWidth * 0.9, Math.max(380, startW + dx));
+      panel.style.width = w + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+      localStorage.setItem('ai_panel_width', String(parseInt(panel.style.width, 10) || 480));
+    };
+    handle.addEventListener('mousedown', e => {
+      if (panel.classList.contains('ai-expanded')) return;
+      startX = e.clientX;
+      startW = panel.offsetWidth;
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  },
+
   addWelcome() {
     const ctx = App.currentPage;
     const welcomes = {
       dashboard: '대시보드 현황을 분석해드릴까요? 파이프라인 인사이트나 주요 리스크를 물어보세요.',
       leads:
-        '영업 리드에 대해 궁금한 점을 물어보세요. 특정 고객사 현황, 단계별 현황 등을 안내해드립니다.',
-      pipeline: '파이프라인 현황 분석을 도와드립니다. 수주 가능성이 높은 리드를 알아볼까요?',
+        '영업딜에 대해 궁금한 점을 물어보세요. 특정 고객사 현황, 단계별 현황 등을 안내해드립니다.',
+      pipeline: '파이프라인 현황 분석을 도와드립니다. 수주 가능성이 높은 영업딜을 알아볼까요?',
       customers: '고객사 브리핑이나 영업 전략을 도와드립니다.',
       reports: '주간/월간 보고서를 생성해드릴 수 있습니다. "주간보고서 작성해줘"라고 입력해보세요.',
-      default: 'SK ecoplant materials CRM AI 어시스턴트입니다. 영업 현황, 리드 분석, 보고서 작성 등을 도와드립니다.',
+      default: 'SK ecoplant materials CRM AI 어시스턴트입니다. 영업 현황, 영업딜 분석, 보고서 작성 등을 도와드립니다.',
     };
     const text = welcomes[ctx] || welcomes.default;
     this.appendBotMessage(text);

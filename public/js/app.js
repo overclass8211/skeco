@@ -239,9 +239,13 @@ const App = {
     document.getElementById('ai-btn-close')?.addEventListener('click', () => {
       if (typeof AI !== 'undefined') AI.close();
     });
+    document.getElementById('ai-btn-expand')?.addEventListener('click', () => {
+      if (typeof AI !== 'undefined') AI.toggleExpand();
+    });
     document.getElementById('ai-send-btn')?.addEventListener('click', () => {
       if (typeof AI !== 'undefined') AI.send();
     });
+    if (typeof AI !== 'undefined' && AI.initResize) AI.initResize();
 
     // 6) AI 퀵 액션 버튼 (data-ai-report, data-ai-prompt)
     document.getElementById('ai-quick-actions')?.addEventListener('click', e => {

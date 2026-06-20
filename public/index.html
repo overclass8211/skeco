@@ -297,12 +297,16 @@
 <!-- ============== AI PANEL ============== -->
 <div class="ai-overlay" id="ai-overlay" data-action="ai-close"></div>
 <div class="ai-panel" id="ai-panel">
+  <div class="ai-resize-handle" id="ai-resize-handle" title="드래그하여 너비 조절"></div>
   <div class="ai-panel-header">
     <div class="ai-panel-title">
       <div class="ai-status-dot"></div>
-      <span>SK ecoplant materials AI 어시스턴트</span>
+      <span>AI 어시스턴트</span>
     </div>
     <div class="ai-panel-actions">
+      <button class="ai-icon-btn" title="넓게 보기" id="ai-btn-expand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M16 21h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
       <button class="ai-icon-btn" title="대화 복사" id="ai-btn-copy">
         <svg viewBox="0 0 20 20" fill="currentColor" width="14"><path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z"/><path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/></svg>
       </button>
@@ -317,10 +321,10 @@
 
   <!-- 퀵 액션 -->
   <div class="ai-quick-actions" id="ai-quick-actions">
-    <button class="ai-quick-btn" data-ai-report="weekly">📊 주간보고서</button>
-    <button class="ai-quick-btn" data-ai-prompt="파이프라인 분석해줘">🔍 파이프라인</button>
-    <button class="ai-quick-btn" data-ai-prompt="수주 가능성 높은 리드 알려줘">🏆 수주예측</button>
-    <button class="ai-quick-btn" data-ai-prompt="입찰 임박한 건 알려줘">⚠️ 긴급입찰</button>
+    <button class="ai-quick-btn" data-ai-report="weekly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="13" y="6" width="3" height="11"/></svg>주간보고서</button>
+    <button class="ai-quick-btn" data-ai-prompt="파이프라인 분석해줘"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>파이프라인</button>
+    <button class="ai-quick-btn" data-ai-prompt="수주 가능성 높은 리드 알려줘"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>수주예측</button>
+    <button class="ai-quick-btn" data-ai-prompt="입찰 임박한 건 알려줘"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>긴급입찰</button>
   </div>
 
   <!-- 메시지 목록 -->
