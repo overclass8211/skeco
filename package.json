@@ -18,6 +18,7 @@
     "db:cleanup-dummy": "node scripts/cleanup-dummy-customers.js",
     "db:seed-360": "node scripts/seed-360-demo.js",
     "db:seed-360-lc": "node scripts/seed-360-lifecycle.js",
+    "db:purge-test": "node scripts/purge-test-data.js",
     "scaffold:page": "node scripts/scaffold-page.js",
     "cap:sync": "npx cap sync",
     "cap:sync:android": "npx cap sync android",
