@@ -324,6 +324,7 @@ const Customer360Page = {
     // ⑤ AI 브리핑 — 360 내 직접 생성/재생성
     if (t === 'brief') {
       el.querySelector('#c360-brief-gen')?.addEventListener('click', () => this._generateBrief());
+      el.querySelector('#c360-brief-history')?.addEventListener('click', () => this._openBriefHistory());
     }
     if (t === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
@@ -496,11 +497,21 @@ const Customer360Page = {
   _tabBrief() {
     const b = this._data.brief;
     const when = b && b.generated_at ? this._fmtWhen(b.generated_at) : null;
-    // 헤더: 생성 시점 + 직접 생성/재생성 버튼 (고객사 상세로 가지 않아도 360에서 바로 생성)
+    const ago = b && b.generated_at ? this._fmtAgo(b.generated_at) : null;
+    const days =
+      b && b.generated_at
+        ? Math.floor((Date.now() - new Date(b.generated_at).getTime()) / 86400000)
+        : null;
+    const stale = days !== null && days >= 14; // 2주 경과 → 갱신 권장
+    // 헤더: 생성 시점/신선도 + 이력 + 직접 생성/재생성 (360에서 바로 생성)
     const header = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:700">AI 브리핑</span>
-        ${when ? `<span style="font-size:11px;color:var(--text-3)">생성 시점 · ${esc(when)}</span>` : '<span style="font-size:11px;color:var(--text-3)">아직 생성 안 됨</span>'}
-        <button class="btn btn-sm ${b ? 'btn-ghost' : 'btn-primary'}" id="c360-brief-gen" style="margin-left:auto">${b ? '다시 생성' : 'AI 브리핑 생성'}</button>
+        ${when ? `<span style="font-size:11px;color:var(--text-3)">생성 시점 · ${esc(when)}${ago ? ` (${esc(ago)})` : ''}</span>` : '<span style="font-size:11px;color:var(--text-3)">아직 생성 안 됨</span>'}
+        ${stale ? '<span style="font-size:10px;font-weight:700;color:#b45309;background:rgba(245,156,0,.14);border-radius:6px;padding:2px 7px">갱신 권장</span>' : ''}
+        <span style="margin-left:auto;display:inline-flex;gap:6px">
+          ${b ? '<button class="btn btn-ghost btn-sm" id="c360-brief-history">이력</button>' : ''}
+          <button class="btn btn-sm ${b ? 'btn-ghost' : 'btn-primary'}" id="c360-brief-gen">${b ? '다시 생성' : 'AI 브리핑 생성'}</button>
+        </span>
       </div>`;
     if (!b) {
       return (
@@ -546,6 +557,45 @@ const Customer360Page = {
     if (isNaN(d)) return String(ts).slice(0, 16).replace('T', ' ');
     const p = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  },
+
+  // 상대 시점 (방금 / n시간 전 / n일 전)
+  _fmtAgo(ts) {
+    const d = new Date(ts);
+    if (isNaN(d)) return '';
+    const diff = Date.now() - d.getTime();
+    const day = Math.floor(diff / 86400000);
+    if (day <= 0) {
+      const hr = Math.floor(diff / 3600000);
+      return hr <= 0 ? '방금' : `${hr}시간 전`;
+    }
+    return `${day}일 전`;
+  },
+
+  // AI 브리핑 생성 이력 (시점별) — GET /customers/:id/brief/history
+  async _openBriefHistory() {
+    try {
+      const r = await API.get(`/customers/${this._custId}/brief/history`);
+      const rows = r.data || [];
+      const body = rows.length
+        ? rows
+            .map(
+              h => `<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <span style="font-size:12px;font-weight:700">${esc(this._fmtWhen(h.generated_at))}</span>
+              <span style="font-size:11px;color:var(--text-3)">${esc(this._fmtAgo(h.generated_at))}${h.generated_by_name ? ' · ' + esc(h.generated_by_name) : ''}</span>
+            </div>
+            ${h.headline ? `<div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(h.headline)}</div>` : ''}
+            ${h.next_action ? `<div style="font-size:12px;color:var(--text-2)"><b style="font-weight:600">다음 액션</b> · ${esc(h.next_action)}</div>` : ''}
+            ${h.risk ? `<div style="font-size:12px;color:var(--oci-red)"><b style="font-weight:600">리스크</b> · ${esc(h.risk)}</div>` : ''}
+          </div>`
+            )
+            .join('')
+        : '<div class="c360-empty" style="padding:24px">생성 이력이 없습니다.</div>';
+      Modal.open({ title: 'AI 브리핑 생성 이력', width: 640, body });
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error?.('이력 조회 실패: ' + (e.message || e));
+    }
   },
 
   // ── 포캐스트 탭 (고객/내부 분리 + 버전관리) ──────────────────
