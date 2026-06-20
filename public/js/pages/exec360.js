@@ -26,10 +26,22 @@ const Exec360Page = {
         .ex-bar2 h2{font-size:18px;font-weight:700;margin:0}
         .ex-sub{font-size:12px;color:var(--text-3)}
         .ex-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
-        .ex-kpi{border:1px solid var(--border);border-radius:10px;padding:15px 16px;background:var(--surface)}
+        .ex-kpi{border:1px solid var(--border);border-radius:10px;padding:15px 16px;background:var(--surface);position:relative;cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
+        .ex-kpi:hover{border-color:var(--oci-red);box-shadow:0 3px 12px rgba(0,0,0,.07);transform:translateY(-1px)}
+        .ex-kpi::after{content:'근거 ›';position:absolute;top:14px;right:14px;font-size:10.5px;font-weight:700;color:var(--text-3);opacity:0;transition:opacity .12s}
+        .ex-kpi:hover::after{opacity:.85}
         .ex-kpi .l{font-size:12.5px;color:var(--text-2);font-weight:600}
         .ex-kpi .v{font-size:28px;font-weight:700;margin-top:5px;color:var(--text-1);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
         .ex-kpi .s{font-size:11.5px;color:var(--text-3);margin-top:2px}
+        /* KPI 근거 모달 */
+        .ex-kpi-lead{font-size:24px;font-weight:700;color:var(--text-1);margin-bottom:6px;font-variant-numeric:tabular-nums}
+        .ex-kpi-lead span{font-size:12px;font-weight:500;color:var(--text-3);margin-left:7px}
+        .ex-kpi-formula{font-size:12px;line-height:1.55;color:var(--text-2);background:rgba(22,100,229,.05);border-radius:7px;padding:9px 12px;margin-bottom:14px}
+        .ex-kpi-scroll{max-height:42vh;overflow:auto}
+        .ex-kpi-note{font-size:11px;color:var(--text-3);margin-top:10px}
+        .ex-kpi-grades{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+        .ex-kpi-grade{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-2)}
+        .ex-kpi-grade .gr{width:24px;height:24px;border-radius:6px;font-size:11px}
         .ex-sec{font-size:14px;font-weight:700;color:var(--text-1);margin:22px 0 12px}
         /* 단계 분포 — 가로 흐름(발굴→납품) + 비중 + 병목(최다) 강조 */
         /* AI 임원 브리핑 */
@@ -112,12 +124,12 @@ const Exec360Page = {
     if (sub) sub.textContent = `전사 · Top 계정 ${d.top_accounts.length} · 단계 소재 ${d.stage_distribution.reduce((a, s) => a + s.count, 0)}`;
 
     const kpis = `<div class="ex-kpis">
-      <div class="ex-kpi"><div class="l">가중 예상매출</div><div class="v">${this._won(k.weighted_expected)}</div><div class="s">진행 딜 가중합</div></div>
-      <div class="ex-kpi"><div class="l">진행 딜</div><div class="v">${k.active_deals}건</div><div class="s">활성 파이프라인</div></div>
-      <div class="ex-kpi"><div class="l">마감 승률</div><div class="v">${k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%'}</div><div class="s">${this._winRateSub(k)}</div></div>
-      <div class="ex-kpi"><div class="l">평균 Health</div><div class="v">${k.avg_health}</div><div class="s">Top 계정 기준</div></div>
-      <div class="ex-kpi"><div class="l">품질 오픈</div><div class="v" style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건</div><div class="s">VOC/NCR 미해결</div></div>
-      <div class="ex-kpi"><div class="l">CAPA 부족 계정</div><div class="v" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</div><div class="s">생산 < 수요</div></div>
+      <div class="ex-kpi" data-kpi="weighted"><div class="l">가중 예상매출</div><div class="v">${this._won(k.weighted_expected)}</div><div class="s">진행 딜 가중합</div></div>
+      <div class="ex-kpi" data-kpi="deals"><div class="l">진행 딜</div><div class="v">${k.active_deals}건</div><div class="s">활성 파이프라인</div></div>
+      <div class="ex-kpi" data-kpi="winrate"><div class="l">마감 승률</div><div class="v">${k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%'}</div><div class="s">${this._winRateSub(k)}</div></div>
+      <div class="ex-kpi" data-kpi="health"><div class="l">평균 Health</div><div class="v">${k.avg_health}</div><div class="s">Top 계정 기준</div></div>
+      <div class="ex-kpi" data-kpi="quality"><div class="l">품질 오픈</div><div class="v" style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건</div><div class="s">VOC/NCR 미해결</div></div>
+      <div class="ex-kpi" data-kpi="capa"><div class="l">CAPA 부족 계정</div><div class="v" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</div><div class="s">생산 < 수요</div></div>
     </div>`;
 
     const stageTotal = d.stage_distribution.reduce((a, s) => a + s.count, 0) || 1;
@@ -169,6 +181,10 @@ const Exec360Page = {
     // 공정 단계 클릭 → AI 진단 모달
     body.querySelectorAll('.ex-fn-col[data-stage]').forEach(g =>
       g.addEventListener('click', () => this._openStageModal(g.dataset.stage, g.dataset.label))
+    );
+    // KPI 카드 클릭 → 근거 모달
+    body.querySelectorAll('.ex-kpi[data-kpi]').forEach(c =>
+      c.addEventListener('click', () => this._openKpiModal(c.dataset.kpi))
     );
     this._loadBrief();
   },
@@ -301,6 +317,108 @@ const Exec360Page = {
       if (box)
         box.innerHTML = `<div style="padding:30px;text-align:center;color:var(--oci-red)">분석 실패: ${esc(e.message || e)}</div>`;
     }
+  },
+
+  // KPI 카드 클릭 → 근거 요약 모달 (클라이언트 데이터, 즉시 표시)
+  _openKpiModal(kpi) {
+    if (typeof Modal === 'undefined' || !this._data) return;
+    const d = this._data;
+    const k = d.kpis;
+    const won = v => this._won(v);
+    const note = '<div class="ex-kpi-note">※ 상위 계정(Top 8) 및 주요 항목 기준 요약입니다. 전체 명세는 영업딜·품질·생산예측 메뉴에서 확인하세요.</div>';
+    const tbl = (head, rows, empty) =>
+      `<div class="ex-kpi-scroll"><table class="data-table" style="font-size:12.5px"><thead><tr>${head}</tr></thead><tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:20px">${empty}</td></tr>`}</tbody></table></div>`;
+    let title;
+    let body;
+
+    if (kpi === 'weighted') {
+      title = '가중 예상매출 — 근거';
+      const rows = (d.top_accounts || [])
+        .filter(a => a.weighted > 0)
+        .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td class="text-right">${won(a.weighted)}</td><td class="text-right">${a.active}</td></tr>`)
+        .join('');
+      body =
+        `<div class="ex-kpi-lead">${won(k.weighted_expected)}<span>진행 딜 가중합</span></div>` +
+        `<div class="ex-kpi-formula">계산식: Σ (딜 예상금액 × 단계별 수주확률) — 수주/실주/중단 딜은 제외</div>` +
+        `<div class="ex-stage-th">계정별 가중매출</div>` +
+        tbl('<th>고객사</th><th class="text-right">가중매출</th><th class="text-right">진행딜</th>', rows, '진행 딜 없음') +
+        note;
+    } else if (kpi === 'deals') {
+      title = '진행 딜 — 근거';
+      const rows = (d.top_accounts || [])
+        .filter(a => a.active > 0)
+        .sort((a, b) => b.active - a.active)
+        .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td class="text-right">${a.active}</td><td class="text-right">${won(a.weighted)}</td></tr>`)
+        .join('');
+      const stageBars = (d.stage_distribution || [])
+        .map(s => `<span class="ex-kpi-grade">${esc(s.label)} <b style="color:var(--text-1)">${s.count}</b></span>`)
+        .join('');
+      body =
+        `<div class="ex-kpi-lead">${k.active_deals}건<span>활성 파이프라인</span></div>` +
+        `<div class="ex-kpi-formula">기준: 영업 단계가 수주·실주·중단이 아닌 모든 딜</div>` +
+        `<div class="ex-stage-th">공정 단계 분포</div><div class="ex-kpi-grades">${stageBars}</div>` +
+        `<div class="ex-stage-th">계정별 진행딜</div>` +
+        tbl('<th>고객사</th><th class="text-right">진행딜</th><th class="text-right">가중매출</th>', rows, '진행 딜 없음') +
+        note;
+    } else if (kpi === 'winrate') {
+      title = '마감 승률 — 근거';
+      const wv = k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%';
+      body =
+        `<div class="ex-kpi-lead">${wv}<span>마감(종결) 딜 기준</span></div>` +
+        `<div class="ex-kpi-formula">계산식: 수주 ÷ (수주 + 실주). 진행 중인 딜은 분모에서 제외하므로, 마감 실주가 0이면 100%로 표시됩니다.</div>` +
+        `<div class="ex-stage-stats">` +
+        `<span>수주 <b style="color:#17A85A">${k.won_deals ?? '-'}</b></span>` +
+        `<span>실주 <b style="color:var(--oci-red)">${k.lost_deals ?? '-'}</b></span>` +
+        `<span>진행 <b>${k.active_deals}</b></span>` +
+        `</div>` +
+        `<div style="font-size:12.5px;color:var(--text-2);line-height:1.6">전체 딜 대비 수주율(진행딜 포함)이 아니라, <b>종결된 딜의 질</b>을 보는 업계표준 지표입니다.</div>`;
+    } else if (kpi === 'health') {
+      title = '평균 Health — 근거';
+      const order = ['A+', 'A', 'B+', 'B', 'C', 'D'];
+      const cnt = {};
+      (d.top_accounts || []).forEach(a => {
+        cnt[a.health_grade] = (cnt[a.health_grade] || 0) + 1;
+      });
+      const grades = order
+        .filter(g => cnt[g])
+        .map(g => `<span class="ex-kpi-grade"><span class="gr" style="background:${this._gradeColor(g)}">${g}</span> ${cnt[g]}곳</span>`)
+        .join('');
+      const rows = (d.top_accounts || [])
+        .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td><span class="gr" style="background:${this._gradeColor(a.health_grade)};width:24px;height:24px;font-size:11px">${a.health_grade}</span></td><td class="text-right">${won(a.weighted)}</td></tr>`)
+        .join('');
+      body =
+        `<div class="ex-kpi-lead">${k.avg_health}<span>Top 계정 평균 등급</span></div>` +
+        `<div class="ex-kpi-formula">기준: 수주·진행·계약 가점, 연체·품질·CAPA 감점으로 산출한 계정 Health(상세뷰와 동일 산식)의 평균</div>` +
+        `<div class="ex-stage-th">등급 분포</div><div class="ex-kpi-grades">${grades || '<span style="color:var(--text-3);font-size:12px">데이터 없음</span>'}</div>` +
+        `<div class="ex-stage-th">계정별 등급</div>` +
+        tbl('<th>고객사</th><th>Health</th><th class="text-right">가중매출</th>', rows, '계정 없음') +
+        note;
+    } else if (kpi === 'quality') {
+      title = '품질 오픈 (VOC/NCR) — 근거';
+      const rows = (d.risks?.quality || [])
+        .map(q => `<tr><td><strong>${esc(q.name)}</strong></td><td>${esc(q.title)}</td><td>${esc(q.type || '-')}</td><td><span class="pill ${q.severity === 'high' ? 'p-d' : 'p-w'}">${esc(q.severity)}</span></td></tr>`)
+        .join('');
+      body =
+        `<div class="ex-kpi-lead" style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건<span>미해결 VOC/NCR</span></div>` +
+        `<div class="ex-kpi-formula">기준: 상태가 '해결(resolved)'이 아닌 품질 케이스</div>` +
+        `<div class="ex-stage-th">미해결 목록</div>` +
+        tbl('<th>고객사</th><th>제목</th><th>유형</th><th>심각도</th>', rows, '미해결 품질 이슈 없음') +
+        note;
+    } else if (kpi === 'capa') {
+      title = 'CAPA 부족 계정 — 근거';
+      const rows = (d.risks?.capa_short || [])
+        .map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="text-right" style="color:var(--oci-red)">${Math.round(x.gap).toLocaleString('ko-KR')}</td></tr>`)
+        .join('');
+      body =
+        `<div class="ex-kpi-lead" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳<span>생산 < 수요</span></div>` +
+        `<div class="ex-kpi-formula">기준: 향후 분기 고객 수요 합계 > 생산 가능량 합계인 계정</div>` +
+        `<div class="ex-stage-th">계정별 부족량</div>` +
+        tbl('<th>고객사</th><th class="text-right">부족량</th>', rows, 'CAPA 부족 계정 없음') +
+        note;
+    } else {
+      return;
+    }
+    Modal.open({ title, width: 640, body });
   },
 
   // ── 임원 AI 브리핑 (전사 요약) ──────────────────────────────

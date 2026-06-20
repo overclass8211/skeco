@@ -56,3 +56,19 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
   await page.locator('#ex-body tr[data-acct]').first().click();
   await expect(page).toHaveURL(/#customer360/, { timeout: 5000 });
 });
+
+test('임원 360 요약 — KPI 카드 클릭 시 근거 모달', async ({ page }) => {
+  await page.goto('/#exec360');
+  await page.waitForSelector('#ex-body .ex-kpi[data-kpi]', { timeout: 15000 });
+
+  // 가중 예상매출 카드 클릭 → 근거 모달 + 계정별 내역
+  await page.locator('.ex-kpi[data-kpi="weighted"]').click();
+  await expect(page.locator('#modal-overlay')).toContainText('가중 예상매출 — 근거');
+  await expect(page.locator('#modal-overlay')).toContainText('E2E임원고객');
+  await page.locator('#modal-overlay .modal-close, #modal-overlay [class*="close"]').first().click();
+
+  // 품질 오픈 카드 클릭 → VOC/NCR 목록
+  await page.locator('.ex-kpi[data-kpi="quality"]').click();
+  await expect(page.locator('#modal-overlay')).toContainText('품질 오픈');
+  await expect(page.locator('#modal-overlay')).toContainText('순도 편차');
+});
