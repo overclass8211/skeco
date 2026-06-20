@@ -1262,11 +1262,6 @@ const App = {
         })
         .join('');
 
-      // v7.0.0 Option C R2: 인라인 편집용 메모 표시값
-      const notesHtml = l.notes
-        ? esc(l.notes)
-        : '<span style="color:var(--text-4);font-size:11px">클릭하여 메모 추가</span>';
-
       const _ldBody = `
           <div class="ld-modal-grid">
           <div class="ld-modal-left">
@@ -1332,7 +1327,8 @@ const App = {
           </div>
 
           <!-- v7.0.0 Option C: 기본 정보 (인라인 편집 지원) -->
-          <div class="kv-grid ld-info-grid mb-2">
+          <!-- Phase 3: 고객사식 form 직접편집 (헤더 저장 버튼으로 일괄 저장) -->
+          <div class="kv-grid mb-2" style="margin-bottom:10px">
             <div class="kv-row">
               <span class="kv-key" data-label="leads.customer_name">고객사</span>
               <span class="kv-val">
@@ -1359,54 +1355,58 @@ const App = {
                 ${contactPhone ? ' · <span class="mono" style="font-size:11px">' + esc(contactPhone) + '</span>' : ''}
               </span>
             </div>
-            <div class="kv-row" data-field="project_name" data-type="text">
-              <span class="kv-key">프로젝트명</span>
-              <span class="kv-val" data-raw="${esc(l.project_name || '')}">${esc(l.project_name || '-')}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
+          </div>
+
+          <form id="ld-edit-form" class="form-grid" style="gap:10px">
+            <div class="form-row">
+              <label class="form-label">프로젝트명</label>
+              <input class="form-input" name="project_name" value="${esc(l.project_name || '')}">
             </div>
-            <div class="kv-row" data-field="capacity_mw" data-type="decimal">
-              <span class="kv-key" data-label="leads.capacity_mw">예상 물량</span>
-              <span class="kv-val mono" data-raw="${l.capacity_mw !== null && l.capacity_mw !== undefined ? l.capacity_mw : ''}">${l.capacity_mw ? parseFloat(l.capacity_mw).toLocaleString('ko-KR') : '-'}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
+            <div class="form-row-2">
+              <div class="form-row">
+                <label class="form-label" data-label="leads.capacity_mw">예상 물량</label>
+                <input class="form-input" name="capacity_mw" type="number" step="0.1" min="0" value="${l.capacity_mw !== null && l.capacity_mw !== undefined ? l.capacity_mw : ''}">
+              </div>
+              <div class="form-row">
+                <label class="form-label">예상 매출 (₩)</label>
+                <input class="form-input" name="expected_amount" type="number" min="0" value="${l.expected_amount !== null && l.expected_amount !== undefined ? l.expected_amount : ''}">
+              </div>
             </div>
-            <div class="kv-row" data-field="expected_amount" data-type="number">
-              <span class="kv-key">예상 매출</span>
-              <span class="kv-val" id="ld-ie-amount" data-raw="${l.expected_amount !== null && l.expected_amount !== undefined ? l.expected_amount : ''}">${Fmt.amount(l.expected_amount, l.currency)}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
+            <div class="form-row-2">
+              <div class="form-row">
+                <label class="form-label">예상 이익률 (%)</label>
+                <input class="form-input" name="profit_rate" type="number" step="0.1" min="0" max="100" value="${l.profit_rate !== null && l.profit_rate !== undefined ? l.profit_rate : ''}">
+              </div>
+              <div class="form-row">
+                <label class="form-label">예상 이익금</label>
+                <input class="form-input" id="ld-profit-amount" readonly style="background:var(--surface-2);color:var(--text-2)"
+                  value="${l.profit_rate !== null && l.profit_rate !== undefined && l.expected_amount ? Fmt.amount(Math.round((Number(l.expected_amount) * Number(l.profit_rate)) / 100), l.currency) : '-'}">
+              </div>
             </div>
-            <div class="kv-row" data-field="profit_rate" data-type="decimal">
-              <span class="kv-key">예상이익률</span>
-              <span class="kv-val" id="ld-ie-profit-rate" data-raw="${l.profit_rate !== null && l.profit_rate !== undefined ? l.profit_rate : ''}">${l.profit_rate !== null && l.profit_rate !== undefined ? parseFloat(l.profit_rate).toFixed(1) + '%' : '-'}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
+            <div class="form-row">
+              <label class="form-label">경쟁사</label>
+              <input class="form-input" name="competitor" value="${esc(l.competitor || '')}">
             </div>
-            <div class="kv-row">
-              <span class="kv-key">예상이익금</span>
-              <span class="kv-val" id="ld-ie-profit-amount">${l.profit_rate !== null && l.profit_rate !== undefined && l.expected_amount ? Fmt.amount(Math.round(Number(l.expected_amount) * Number(l.profit_rate) / 100), l.currency) : '-'}</span>
+            <div class="form-row-2">
+              <div class="form-row">
+                <label class="form-label" data-label="leads.expected_close_date">예상 마감일</label>
+                <input class="form-input" name="expected_close_date" type="date" value="${l.expected_close_date ? l.expected_close_date.slice(0, 10) : ''}">
+              </div>
+              <div class="form-row">
+                <label class="form-label" data-label="leads.bidding_deadline">입찰 마감일</label>
+                <input class="form-input" name="bidding_deadline" type="date" value="${l.bidding_deadline ? l.bidding_deadline.slice(0, 10) : ''}">
+              </div>
             </div>
-            <div class="kv-row" data-field="competitor" data-type="text">
-              <span class="kv-key">경쟁사</span>
-              <span class="kv-val" data-raw="${esc(l.competitor || '')}">${l.competitor ? esc(l.competitor) : '-'}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
+            <div class="form-row">
+              <label class="form-label">메모</label>
+              <textarea class="form-input" name="notes" rows="3" style="resize:vertical">${esc(l.notes || '')}</textarea>
             </div>
-            <div class="kv-row" data-field="expected_close_date" data-type="date">
-              <span class="kv-key" data-label="leads.expected_close_date">예상 마감일</span>
-              <span class="kv-val" data-raw="${l.expected_close_date ? l.expected_close_date.slice(0, 10) : ''}">${Fmt.date(l.expected_close_date)}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
-            </div>
-            <div class="kv-row" data-field="bidding_deadline" data-type="date">
-              <span class="kv-key" data-label="leads.bidding_deadline">입찰 마감일</span>
-              <span class="kv-val" data-raw="${l.bidding_deadline ? l.bidding_deadline.slice(0, 10) : ''}">${Fmt.date(l.bidding_deadline)}</span>
-              <button type="button" class="ld-ie-btn" title="수정">✏️</button>
-            </div>
+          </form>
+
+          <div class="kv-grid" style="margin-top:10px">
             <div class="kv-row"><span class="kv-key" data-label="leads.created_at">최초 등록</span><span class="kv-val">${Fmt.date(l.created_at)}</span></div>
             <div class="kv-row"><span class="kv-key" data-label="leads.updated_at">최근 업데이트</span><span class="kv-val">${Fmt.relTime(l.updated_at)}</span></div>
             ${contactEmail ? `<div class="kv-row"><span class="kv-key">고객 이메일</span><span class="kv-val mono" style="font-size:11px">${esc(contactEmail)}</span></div>` : ''}
-            <!-- 메모 (항상 표시, textarea 인라인 편집) -->
-            <div class="kv-row" data-field="notes" data-type="textarea" style="align-items:flex-start">
-              <span class="kv-key" style="padding-top:2px">메모</span>
-              <span class="kv-val" data-raw="${esc(l.notes || '')}" style="white-space:pre-wrap;font-size:12px;color:var(--text-2);line-height:1.5;min-height:18px">${notesHtml}</span>
-              <button type="button" class="ld-ie-btn" title="수정" style="align-self:flex-start;margin-top:1px">✏️</button>
-            </div>
           </div>
 
           </div><!-- /ld-modal-left -->
@@ -1432,7 +1432,7 @@ const App = {
                 <button class="btn btn-ghost btn-sm" id="ld-add-support" title="고객지원 항목 추가">+ 지원</button>
               </div>
               <!-- 카테고리 칩 (필터) -->
-              <div id="ld-tl-chips" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;border-bottom:1px solid var(--border)">
+              <div id="ld-tl-chips" style="display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0">
                 <div class="loading" style="padding:6px;color:var(--text-3);font-size:11px">불러오는 중...</div>
               </div>
               <!-- 인라인 활동 추가 (퀵 칩) — 빠른 기록 -->
@@ -1545,7 +1545,8 @@ const App = {
           <div class="ld-page-actions">
             <button class="ai-gen-btn" id="ld-ai" data-feature="ai.lead_summary">AI 요약</button>
             <button class="btn btn-ghost btn-sm" id="ld-email">이메일</button>
-            <button class="btn btn-primary btn-sm" id="ld-edit">편집</button>
+            <button class="btn btn-ghost btn-sm" id="ld-edit">상세 편집</button>
+            <button class="btn btn-primary btn-sm" id="ld-save">저장</button>
           </div>
         </div>
         <div class="ld-page-body">${_ldBody}</div>`;
@@ -1562,6 +1563,7 @@ const App = {
             Modal.close();
             App.openLeadForm(l.id);
           },
+          '#ld-save': () => this._saveLeadEdit(l.id),
           '#ld-email': () => {
             if (typeof Email !== 'undefined') {
               Email.open({
@@ -1679,9 +1681,9 @@ const App = {
       document.getElementById('ld-back')?.addEventListener('click', () => App.navigate('leads'));
       // 드래그 거터로 좌우 폭 조절
       this._wireLeadSplitGutter();
+      // Phase 3: 예상 이익금 라이브 계산 (예상매출 × 이익률)
+      this._wireLeadProfitCalc(l);
       // v7.0.0 R3: 댓글은 _loadTimeline 에서 7번째 소스로 통합 로드 — 별도 호출 불필요
-      // v7.0.0 R2: 인라인 편집 이벤트 설정
-      this._setupLeadInlineEdit(l);
       // 📊 v6.0.0 Phase A: 통합 타임라인 lazy load (활동/회의/견적/제안/계약/지원 통합)
       this._loadTimeline(l.id, l.customer_name);
       // F2: 연결된 고객지원(A/S) 티켓 목록 (support_tickets.lead_id)
@@ -1742,6 +1744,65 @@ const App = {
       document.addEventListener('mouseup', onUp);
       e.preventDefault();
     });
+  },
+
+  // ── Phase 3: 예상 이익금 라이브 계산 (예상매출 × 이익률) ──────
+  _wireLeadProfitCalc(l) {
+    const form = document.getElementById('ld-edit-form');
+    if (!form) return;
+    const amtEl = form.querySelector('[name="expected_amount"]');
+    const rateEl = form.querySelector('[name="profit_rate"]');
+    const out = document.getElementById('ld-profit-amount');
+    if (!amtEl || !rateEl || !out) return;
+    const recalc = () => {
+      const amt = parseFloat(amtEl.value);
+      const rate = parseFloat(rateEl.value);
+      out.value =
+        !isNaN(amt) && !isNaN(rate) ? Fmt.amount(Math.round((amt * rate) / 100), l.currency) : '-';
+    };
+    amtEl.addEventListener('input', recalc);
+    rateEl.addEventListener('input', recalc);
+  },
+
+  // ── Phase 3: 좌측 form 일괄 저장 ───────────────────────────────
+  async _saveLeadEdit(id) {
+    const form = document.getElementById('ld-edit-form');
+    if (!form) return;
+    const g = name => form.querySelector(`[name="${name}"]`);
+    const txt = v => {
+      const s = (v || '').trim();
+      return s === '' ? null : s;
+    };
+    const num = v => {
+      const s = (v || '').trim();
+      if (s === '') return null;
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    };
+    const body = {
+      project_name: txt(g('project_name')?.value),
+      capacity_mw: num(g('capacity_mw')?.value),
+      expected_amount: num(g('expected_amount')?.value),
+      profit_rate: num(g('profit_rate')?.value),
+      competitor: txt(g('competitor')?.value),
+      expected_close_date: txt(g('expected_close_date')?.value),
+      bidding_deadline: txt(g('bidding_deadline')?.value),
+      notes: txt(g('notes')?.value),
+    };
+    if (!body.project_name) {
+      Toast.error?.('프로젝트명을 입력하세요');
+      return;
+    }
+    const btn = document.getElementById('ld-save');
+    if (btn) btn.disabled = true;
+    try {
+      await API.leads.update(id, body);
+      Toast.success?.('저장되었습니다');
+      if (typeof App._syncAfterLeadChange === 'function') App._syncAfterLeadChange();
+      await this.openLeadDetail(id); // 헤더/타임라인 갱신
+    } catch (_) {
+      if (btn) btn.disabled = false; // 실패 시 재시도 가능 (성공 시 모달 재렌더)
+    }
   },
 
   // ── v6.0.0: 영업리드 댓글 (계약 모듈 패턴 통일) ──────────
@@ -2578,20 +2639,21 @@ const App = {
         const m = META[key];
         const cnt = counts[key] || 0;
         const isActive = this._tlState.activeChip === key;
-        // 고객사 서브탭 톤으로 통일 — 단색 pill, 활성 시 OCI Red (다색 칩 제거)
-        const bg = isActive ? 'var(--oci-red-light)' : 'var(--surface)';
-        const fg = isActive ? 'var(--oci-red-dark)' : 'var(--text-2)';
-        const border = isActive ? 'var(--oci-red)' : 'var(--border)';
-        const opacity = !isActive && cnt === 0 ? '0.45' : '1';
+        // 고객사 상세뷰 탭(cust-rtab) 톤 — 언더라인 탭, 활성 시 OCI Red
+        const fg = isActive ? 'var(--oci-red)' : 'var(--text-3)';
+        const underline = isActive ? 'var(--oci-red)' : 'transparent';
+        const opacity = !isActive && cnt === 0 ? '0.4' : '1';
+        const badgeBg = isActive ? 'rgba(230,51,41,0.12)' : 'rgba(0,0,0,0.06)';
         return `<button type="button" class="ld-tl-chip" data-chip="${key}"
-          style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;
-                 border:1px solid ${border};border-radius:999px;background:${bg};
-                 color:${fg};font-size:12px;font-weight:600;cursor:pointer;
-                 transition:all .15s;opacity:${opacity}"
+          style="display:inline-flex;align-items:center;gap:6px;padding:9px 14px;
+                 border:none;background:none;cursor:pointer;white-space:nowrap;
+                 font-size:13px;font-weight:600;color:${fg};
+                 border-bottom:2px solid ${underline};margin-bottom:-1px;
+                 transition:color .15s,border-color .15s;opacity:${opacity}"
           ${cnt === 0 && key !== 'all' ? 'disabled' : ''}>
           ${esc(m.label)}
-          <span style="display:inline-block;padding:1px 6px;background:${isActive ? 'rgba(230,51,41,0.14)' : 'rgba(0,0,0,0.06)'};
-                       border-radius:8px;font-size:10px;font-weight:700">${cnt}</span>
+          <span style="display:inline-block;padding:1px 6px;background:${badgeBg};
+                       color:${fg};border-radius:8px;font-size:10px;font-weight:700">${cnt}</span>
         </button>`;
       })
       .join('');

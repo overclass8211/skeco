@@ -32,7 +32,23 @@ test('영업딜 상세 — 풀페이지 분할로 열리고 목록 복귀', asyn
     .evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   expect(tracks).toBe(3);
 
-  // 3) ‹목록 → 영업딜 목록 복귀
+  // 3) Phase 3 — 좌측 form 직접편집 + 저장 버튼
+  await expect(page.locator('#ld-edit-form')).toHaveCount(1);
+  await expect(page.locator('#ld-edit-form [name="project_name"]')).toHaveCount(1);
+  await expect(page.locator('#ld-edit-form [name="expected_amount"]')).toHaveCount(1);
+  await expect(page.locator('#ld-save')).toBeVisible();
+  // 인라인 편집 연필(✏️) 버튼은 제거됨
+  await expect(page.locator('.ld-ie-btn')).toHaveCount(0);
+
+  // 4) Phase 4 — 타임라인 칩이 언더라인 탭(cust-rtab 톤): radius 0
+  await page.waitForSelector('.ld-tl-chip', { timeout: 8000 });
+  const radius = await page
+    .locator('.ld-tl-chip')
+    .first()
+    .evaluate(el => getComputedStyle(el).borderTopLeftRadius);
+  expect(radius).toBe('0px');
+
+  // 5) ‹목록 → 영업딜 목록 복귀
   await page.locator('#ld-back').click();
   await expect(page.locator('.ld-page-head')).toHaveCount(0);
   await expect(page.locator('[data-lead-id]').first()).toBeVisible({ timeout: 8000 });

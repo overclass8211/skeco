@@ -355,9 +355,12 @@ const LeadsPage = {
 
   // ── 테이블 렌더링 (체크박스 컬럼 추가) ──────────────────────
   renderTable(leads) {
-    document.getElementById('leads-count').textContent = `(총 ${leads.length}건)`;
     // v6.0.0: 카드뷰 분기 (목록 vs 카드)
     this._allLeads = leads;
+    // 영업딜 목록이 화면에 없으면(상세 페이지 등) 캐시만 갱신하고 DOM 렌더는 skip
+    const countEl = document.getElementById('leads-count');
+    if (!countEl) return;
+    countEl.textContent = `(총 ${leads.length}건)`;
     if (this._view === 'card' && leads.length > 0) {
       return this._renderCardList(leads);
     }
