@@ -1094,7 +1094,8 @@ const CustomersPage = {
       formSel: '#cm-edit-form',
       statusSel: '#cm-save-status',
       required: { name: '고객사명' },
-      exclude: ['address'],
+      // address(주소검색), business_no(전용 검증 핸들러 _matchBusinessNo 가 처리) 는 제외
+      exclude: ['address', 'business_no'],
       save: (name, value) => API.put(`/customers/${id}`, { [name]: value }),
       onSaved: (name, value) => {
         // 캐시 동기화 — 재진입/목록이 옛값을 보이지 않도록
@@ -1773,15 +1774,17 @@ const CustomersPage = {
         return;
       }
 
-      // 매칭 안 됨 — 신규 BRN
+      // 매칭 안 됨 — 신규 BRN (유효 → 자동저장)
       if (!d.found) {
         hint.innerHTML = '<span style="color:#16a34a">✓ 검증 완료 (신규 등록 가능)</span>';
+        this._autosaveBrn(currentId, rawBrn);
         return;
       }
 
-      // 자기 자신과 매칭 — 변경 없음
+      // 자기 자신과 매칭 — 변경 없음 (유효 → 자동저장)
       if (currentId && Number(d.customer?.id) === Number(currentId)) {
         hint.innerHTML = '<span style="color:#16a34a">✓ 현재 고객사와 동일</span>';
+        this._autosaveBrn(currentId, rawBrn);
         return;
       }
 
@@ -1795,6 +1798,30 @@ const CustomersPage = {
       }
     } catch (e) {
       hint.innerHTML = `<span style="color:var(--oci-red)">매칭 오류: ${esc(e.message || '서버 오류')}</span>`;
+    }
+  },
+
+  // 유효한 BRN(10자리+체크섬, 충돌 없음)만 자동저장 — 미완성 입력 중에는 호출 안 됨
+  async _autosaveBrn(currentId, value) {
+    if (!currentId) return;
+    const c = (this.data || []).find(x => x.id === currentId);
+    if (c && c.business_no === value) return; // 변경 없음
+    const st = document.getElementById('cm-save-status');
+    try {
+      await API.put(`/customers/${currentId}`, { business_no: value });
+      if (c) c.business_no = value;
+      if (st) {
+        st.style.opacity = '1';
+        st.style.color = '#17A85A';
+        st.textContent = '✓ 저장됨';
+        setTimeout(() => (st.style.opacity = '0'), 1800);
+      }
+    } catch (_) {
+      if (st) {
+        st.style.opacity = '1';
+        st.style.color = 'var(--oci-red)';
+        st.textContent = '사업자번호 저장 실패';
+      }
     }
   },
 
