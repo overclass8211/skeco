@@ -30,11 +30,22 @@ const SUMMARY = {
   },
 };
 
+// KPI 카드 클릭 시 lazy-load 되는 /exec-kpi/:kpi 별 결정적 fixture
+const KPI_LISTS = {
+  weighted: { kpi: 'weighted', total: 1, items: [{ name: 'E2E임원고객', weighted: 12800000000, active: 5 }] },
+  quality: { kpi: 'quality', total: 1, items: [{ name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }] },
+};
+
 test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
   await page.route('**/api/customer360/exec-summary', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SUMMARY) })
   );
+  await page.route('**/api/customer360/exec-kpi/**', route => {
+    const kpi = route.request().url().split('/exec-kpi/')[1].split(/[?#]/)[0];
+    const data = KPI_LISTS[kpi] || { kpi, total: 0, items: [] };
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
+  });
 });
 
 test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async ({ page }) => {

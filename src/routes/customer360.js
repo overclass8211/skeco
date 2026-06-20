@@ -88,6 +88,7 @@ router.get('/exec-summary', execSummary);
 router.get('/exec-brief', execBriefGet);
 router.post('/exec-brief', execBriefPost);
 router.post('/exec-stage/:stage', execStageAnalyze);
+router.get('/exec-kpi/:kpi', execKpiList); // KPI 근거 전체 목록 — /:id 보다 먼저
 
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
@@ -1386,6 +1387,137 @@ ${listTxt || '없음'}
     }
 
     res.json({ success: true, data: { stage, label: STAGE_LABELS[stage], stats, materials, ai } });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+// ── 임원 KPI 근거 — 전체 목록 (카드 클릭 시 lazy-load) ──────────
+async function execKpiList(req, res) {
+  try {
+    const kpi = String(req.params.kpi || '');
+    let items = [];
+
+    if (kpi === 'weighted') {
+      // 계정별 가중 예상매출 (전체)
+      const [rows] = await pool.query(
+        `SELECT agg.customer_name AS name, agg.weighted, agg.active
+           FROM ( SELECT l.customer_name,
+                    COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
+                      THEN l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100 ELSE 0 END),0) AS weighted,
+                    SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active
+                  FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
+                  GROUP BY l.customer_name ) agg
+          WHERE agg.weighted > 0
+          ORDER BY agg.weighted DESC`
+      );
+      items = rows.map(r => ({
+        name: r.name,
+        weighted: Math.round(Number(r.weighted) || 0),
+        active: Number(r.active) || 0,
+      }));
+    } else if (kpi === 'deals') {
+      // 진행 딜 전체 명세
+      const [rows] = await pool.query(
+        `SELECT l.customer_name, l.project_name, l.stage, ps.label AS stage_label,
+                COALESCE(l.expected_amount,0) AS expected_amount,
+                COALESCE(l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100,0) AS weighted
+           FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
+          WHERE l.stage NOT IN ('won','lost','dropped')
+          ORDER BY weighted DESC, l.id DESC`
+      );
+      items = rows.map(r => ({
+        customer_name: r.customer_name,
+        project_name: r.project_name,
+        stage_label: r.stage_label || r.stage,
+        expected_amount: Math.round(Number(r.expected_amount) || 0),
+        weighted: Math.round(Number(r.weighted) || 0),
+      }));
+    } else if (kpi === 'winrate') {
+      // 마감(수주·실주) 딜 전체
+      const [rows] = await pool.query(
+        `SELECT l.customer_name, l.project_name, l.stage, COALESCE(l.expected_amount,0) AS expected_amount
+           FROM leads l
+          WHERE l.stage IN ('won','lost')
+          ORDER BY FIELD(l.stage,'won','lost'), l.expected_amount DESC`
+      );
+      items = rows.map(r => ({
+        customer_name: r.customer_name,
+        project_name: r.project_name,
+        result: r.stage,
+        expected_amount: Math.round(Number(r.expected_amount) || 0),
+      }));
+    } else if (kpi === 'health') {
+      // 파이프라인 보유 계정 전체의 Health (상세뷰와 동일 산식)
+      const [rows] = await pool.query(
+        `SELECT rep.id, agg.customer_name AS name, agg.weighted, agg.active, agg.won
+           FROM ( SELECT l.customer_name,
+                    COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
+                      THEN l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100 ELSE 0 END),0) AS weighted,
+                    SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
+                    SUM(CASE WHEN l.stage='won' THEN 1 ELSE 0 END) AS won
+                  FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
+                  GROUP BY l.customer_name ) agg
+           JOIN (SELECT name, MIN(id) AS id FROM customers GROUP BY name) rep ON rep.name=agg.customer_name
+          WHERE agg.weighted > 0 OR agg.active > 0 OR agg.won > 0
+          ORDER BY agg.weighted DESC
+          LIMIT 80`
+      );
+      items = await Promise.all(
+        rows.map(async a => {
+          const sig = await gatherHealthSignals(a.id, a.name);
+          const { grade, score } = computeHealth(sig);
+          return {
+            name: a.name,
+            grade,
+            score,
+            weighted: Math.round(Number(a.weighted) || 0),
+            active: Number(a.active) || 0,
+            won: Number(a.won) || 0,
+          };
+        })
+      );
+      items.sort((x, y) => y.score - x.score);
+    } else if (kpi === 'quality') {
+      // 미해결 품질 케이스 전체
+      const [rows] = await pool.query(
+        `SELECT c.name AS customer_name, q.title, q.severity, q.type, q.opened_at
+           FROM quality_cases q JOIN customers c ON c.id=q.customer_id
+          WHERE q.status<>'resolved'
+          ORDER BY FIELD(q.severity,'high','medium','low'), q.opened_at DESC`
+      );
+      items = rows.map(r => ({
+        name: r.customer_name,
+        title: r.title,
+        severity: r.severity,
+        type: r.type,
+        opened_at: r.opened_at,
+      }));
+    } else if (kpi === 'capa') {
+      // CAPA 부족 계정 전체
+      const [rows] = await pool.query(
+        `SELECT df.customer_id, c.name,
+                COALESCE(SUM(df.customer_forecast),0) AS demand,
+                COALESCE(SUM(df.production_capacity),0) AS capacity
+           FROM demand_forecasts df JOIN customers c ON c.id=df.customer_id
+          WHERE df.month IN (?)
+          GROUP BY df.customer_id, c.name
+         HAVING SUM(df.production_capacity) > 0
+            AND SUM(df.production_capacity) < SUM(df.customer_forecast)
+          ORDER BY (SUM(df.customer_forecast) - SUM(df.production_capacity)) DESC`,
+        [FORECAST_MONTHS]
+      );
+      items = rows.map(r => ({
+        name: r.name,
+        demand: Math.round(Number(r.demand) || 0),
+        capacity: Math.round(Number(r.capacity) || 0),
+        gap: Math.round((Number(r.demand) || 0) - (Number(r.capacity) || 0)),
+      }));
+    } else {
+      return res.status(400).json({ success: false, error: '알 수 없는 KPI' });
+    }
+
+    res.json({ success: true, data: { kpi, total: items.length, items } });
   } catch (err) {
     handleError(res, err);
   }

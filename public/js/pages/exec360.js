@@ -319,106 +319,178 @@ const Exec360Page = {
     }
   },
 
-  // KPI 카드 클릭 → 근거 요약 모달 (클라이언트 데이터, 즉시 표시)
-  _openKpiModal(kpi) {
+  // KPI 카드 클릭 → 근거 모달 (헤더는 즉시, 전체 목록은 API lazy-load)
+  async _openKpiModal(kpi) {
     if (typeof Modal === 'undefined' || !this._data) return;
-    const d = this._data;
-    const k = d.kpis;
+    const k = this._data.kpis;
     const won = v => this._won(v);
-    const note = '<div class="ex-kpi-note">※ 상위 계정(Top 8) 및 주요 항목 기준 요약입니다. 전체 명세는 영업딜·품질·생산예측 메뉴에서 확인하세요.</div>';
-    const tbl = (head, rows, empty) =>
-      `<div class="ex-kpi-scroll"><table class="data-table" style="font-size:12.5px"><thead><tr>${head}</tr></thead><tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:20px">${empty}</td></tr>`}</tbody></table></div>`;
-    let title;
-    let body;
+    const wv = k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%';
+    // 카드별 헤더(타이틀/대표값/계산식) — 카운트는 전사 집계라 즉시 표시
+    const META = {
+      weighted: {
+        title: '가중 예상매출 — 근거',
+        lead: `${won(k.weighted_expected)}<span>진행 딜 가중합</span>`,
+        formula: '계산식: Σ (딜 예상금액 × 단계별 수주확률) — 수주/실주/중단 딜은 제외',
+      },
+      deals: {
+        title: '진행 딜 — 근거',
+        lead: `${k.active_deals}건<span>활성 파이프라인</span>`,
+        formula: '기준: 영업 단계가 수주·실주·중단이 아닌 모든 딜',
+      },
+      winrate: {
+        title: '마감 승률 — 근거',
+        lead: `${wv}<span>마감(종결) 딜 기준</span>`,
+        formula:
+          '계산식: 수주 ÷ (수주 + 실주). 진행 중인 딜은 분모에서 제외하므로, 마감 실주가 0이면 100%로 표시됩니다.' +
+          `<div class="ex-stage-stats" style="margin-top:8px;border:0;padding:0"><span>수주 <b style="color:#17A85A">${k.won_deals ?? '-'}</b></span><span>실주 <b style="color:var(--oci-red)">${k.lost_deals ?? '-'}</b></span><span>진행 <b>${k.active_deals}</b></span></div>`,
+      },
+      health: {
+        title: '평균 Health — 근거',
+        lead: `${k.avg_health}<span>계정 평균 등급</span>`,
+        formula: '기준: 수주·진행·계약 가점, 연체·품질·CAPA 감점으로 산출한 계정 Health(상세뷰와 동일 산식)',
+      },
+      quality: {
+        title: '품질 오픈 (VOC/NCR) — 근거',
+        lead: `<span style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건</span><span>미해결 VOC/NCR</span>`,
+        formula: "기준: 상태가 '해결(resolved)'이 아닌 품질 케이스",
+      },
+      capa: {
+        title: 'CAPA 부족 계정 — 근거',
+        lead: `<span style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</span><span>생산 < 수요</span>`,
+        formula: '기준: 향후 분기 고객 수요 합계 > 생산 가능량 합계인 계정',
+      },
+    };
+    const m = META[kpi];
+    if (!m) return;
+
+    Modal.open({
+      title: m.title,
+      width: 660,
+      body:
+        `<div class="ex-kpi-lead">${m.lead}</div>` +
+        `<div class="ex-kpi-formula">${m.formula}</div>` +
+        `<div id="ex-kpi-list" style="padding:28px;text-align:center;color:var(--text-3)">전체 내역 불러오는 중…</div>`,
+    });
+    try {
+      const r = await API.get(`/customer360/exec-kpi/${kpi}`);
+      const items = (r.data && r.data.items) || [];
+      const total = Number.isFinite(r.data && r.data.total) ? r.data.total : items.length;
+      const box = document.querySelector('#ex-kpi-list');
+      if (box) box.outerHTML = `<div id="ex-kpi-list">${this._kpiListHtml(kpi, items, total)}</div>`;
+    } catch (e) {
+      const box = document.querySelector('#ex-kpi-list');
+      if (box) box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--oci-red)">불러오기 실패: ${esc(e.message || e)}</div>`;
+    }
+  },
+
+  // KPI 전체 목록 → 테이블 HTML (전체 건수 풋터 포함)
+  _kpiListHtml(kpi, items, total) {
+    const won = v => this._won(v);
+    const scroll = (head, rows, empty, colspan) =>
+      `<div class="ex-kpi-scroll"><table class="data-table" style="font-size:12.5px"><thead><tr>${head}</tr></thead><tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:var(--text-3);padding:20px">${empty}</td></tr>`}</tbody></table></div>`;
+    const foot = (label, n) => `<div class="ex-kpi-note">전체 ${n}${label}</div>`;
 
     if (kpi === 'weighted') {
-      title = '가중 예상매출 — 근거';
-      const rows = (d.top_accounts || [])
-        .filter(a => a.weighted > 0)
+      const rows = items
         .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td class="text-right">${won(a.weighted)}</td><td class="text-right">${a.active}</td></tr>`)
         .join('');
-      body =
-        `<div class="ex-kpi-lead">${won(k.weighted_expected)}<span>진행 딜 가중합</span></div>` +
-        `<div class="ex-kpi-formula">계산식: Σ (딜 예상금액 × 단계별 수주확률) — 수주/실주/중단 딜은 제외</div>` +
+      return (
         `<div class="ex-stage-th">계정별 가중매출</div>` +
-        tbl('<th>고객사</th><th class="text-right">가중매출</th><th class="text-right">진행딜</th>', rows, '진행 딜 없음') +
-        note;
-    } else if (kpi === 'deals') {
-      title = '진행 딜 — 근거';
-      const rows = (d.top_accounts || [])
-        .filter(a => a.active > 0)
-        .sort((a, b) => b.active - a.active)
-        .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td class="text-right">${a.active}</td><td class="text-right">${won(a.weighted)}</td></tr>`)
+        scroll('<th>고객사</th><th class="text-right">가중매출</th><th class="text-right">진행딜</th>', rows, '진행 딜 없음', 3) +
+        foot('개 계정', total)
+      );
+    }
+    if (kpi === 'deals') {
+      const rows = items
+        .map(
+          d =>
+            `<tr><td><strong>${esc(d.project_name || '-')}</strong></td><td>${esc(d.customer_name)}</td><td>${esc(d.stage_label)}</td><td class="text-right">${won(d.expected_amount)}</td><td class="text-right">${won(d.weighted)}</td></tr>`
+        )
         .join('');
-      const stageBars = (d.stage_distribution || [])
-        .map(s => `<span class="ex-kpi-grade">${esc(s.label)} <b style="color:var(--text-1)">${s.count}</b></span>`)
+      return (
+        `<div class="ex-stage-th">진행 딜 명세</div>` +
+        scroll(
+          '<th>딜명</th><th>고객사</th><th>단계</th><th class="text-right">예상금액</th><th class="text-right">가중</th>',
+          rows,
+          '진행 딜 없음',
+          5
+        ) +
+        foot('건', total)
+      );
+    }
+    if (kpi === 'winrate') {
+      const rows = items
+        .map(
+          d =>
+            `<tr><td><strong>${esc(d.project_name || '-')}</strong></td><td>${esc(d.customer_name)}</td><td><span class="pill ${d.result === 'won' ? 'p-w' : 'p-d'}" style="${d.result === 'won' ? 'background:rgba(23,168,90,.12);color:#17A85A' : ''}">${d.result === 'won' ? '수주' : '실주'}</span></td><td class="text-right">${won(d.expected_amount)}</td></tr>`
+        )
         .join('');
-      body =
-        `<div class="ex-kpi-lead">${k.active_deals}건<span>활성 파이프라인</span></div>` +
-        `<div class="ex-kpi-formula">기준: 영업 단계가 수주·실주·중단이 아닌 모든 딜</div>` +
-        `<div class="ex-stage-th">공정 단계 분포</div><div class="ex-kpi-grades">${stageBars}</div>` +
-        `<div class="ex-stage-th">계정별 진행딜</div>` +
-        tbl('<th>고객사</th><th class="text-right">진행딜</th><th class="text-right">가중매출</th>', rows, '진행 딜 없음') +
-        note;
-    } else if (kpi === 'winrate') {
-      title = '마감 승률 — 근거';
-      const wv = k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%';
-      body =
-        `<div class="ex-kpi-lead">${wv}<span>마감(종결) 딜 기준</span></div>` +
-        `<div class="ex-kpi-formula">계산식: 수주 ÷ (수주 + 실주). 진행 중인 딜은 분모에서 제외하므로, 마감 실주가 0이면 100%로 표시됩니다.</div>` +
-        `<div class="ex-stage-stats">` +
-        `<span>수주 <b style="color:#17A85A">${k.won_deals ?? '-'}</b></span>` +
-        `<span>실주 <b style="color:var(--oci-red)">${k.lost_deals ?? '-'}</b></span>` +
-        `<span>진행 <b>${k.active_deals}</b></span>` +
-        `</div>` +
-        `<div style="font-size:12.5px;color:var(--text-2);line-height:1.6">전체 딜 대비 수주율(진행딜 포함)이 아니라, <b>종결된 딜의 질</b>을 보는 업계표준 지표입니다.</div>`;
-    } else if (kpi === 'health') {
-      title = '평균 Health — 근거';
+      return (
+        `<div class="ex-stage-th">마감 딜 (수주·실주)</div>` +
+        scroll('<th>딜명</th><th>고객사</th><th>결과</th><th class="text-right">예상금액</th>', rows, '마감된 딜 없음', 4) +
+        foot('건 마감', total)
+      );
+    }
+    if (kpi === 'health') {
       const order = ['A+', 'A', 'B+', 'B', 'C', 'D'];
       const cnt = {};
-      (d.top_accounts || []).forEach(a => {
-        cnt[a.health_grade] = (cnt[a.health_grade] || 0) + 1;
+      items.forEach(a => {
+        cnt[a.grade] = (cnt[a.grade] || 0) + 1;
       });
       const grades = order
         .filter(g => cnt[g])
         .map(g => `<span class="ex-kpi-grade"><span class="gr" style="background:${this._gradeColor(g)}">${g}</span> ${cnt[g]}곳</span>`)
         .join('');
-      const rows = (d.top_accounts || [])
-        .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td><span class="gr" style="background:${this._gradeColor(a.health_grade)};width:24px;height:24px;font-size:11px">${a.health_grade}</span></td><td class="text-right">${won(a.weighted)}</td></tr>`)
+      const rows = items
+        .map(
+          a =>
+            `<tr><td><strong>${esc(a.name)}</strong></td><td><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="text-right">${won(a.weighted)}</td><td class="text-right">${a.active}</td><td class="text-right">${a.won}</td></tr>`
+        )
         .join('');
-      body =
-        `<div class="ex-kpi-lead">${k.avg_health}<span>Top 계정 평균 등급</span></div>` +
-        `<div class="ex-kpi-formula">기준: 수주·진행·계약 가점, 연체·품질·CAPA 감점으로 산출한 계정 Health(상세뷰와 동일 산식)의 평균</div>` +
+      return (
         `<div class="ex-stage-th">등급 분포</div><div class="ex-kpi-grades">${grades || '<span style="color:var(--text-3);font-size:12px">데이터 없음</span>'}</div>` +
         `<div class="ex-stage-th">계정별 등급</div>` +
-        tbl('<th>고객사</th><th>Health</th><th class="text-right">가중매출</th>', rows, '계정 없음') +
-        note;
-    } else if (kpi === 'quality') {
-      title = '품질 오픈 (VOC/NCR) — 근거';
-      const rows = (d.risks?.quality || [])
-        .map(q => `<tr><td><strong>${esc(q.name)}</strong></td><td>${esc(q.title)}</td><td>${esc(q.type || '-')}</td><td><span class="pill ${q.severity === 'high' ? 'p-d' : 'p-w'}">${esc(q.severity)}</span></td></tr>`)
-        .join('');
-      body =
-        `<div class="ex-kpi-lead" style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건<span>미해결 VOC/NCR</span></div>` +
-        `<div class="ex-kpi-formula">기준: 상태가 '해결(resolved)'이 아닌 품질 케이스</div>` +
-        `<div class="ex-stage-th">미해결 목록</div>` +
-        tbl('<th>고객사</th><th>제목</th><th>유형</th><th>심각도</th>', rows, '미해결 품질 이슈 없음') +
-        note;
-    } else if (kpi === 'capa') {
-      title = 'CAPA 부족 계정 — 근거';
-      const rows = (d.risks?.capa_short || [])
-        .map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="text-right" style="color:var(--oci-red)">${Math.round(x.gap).toLocaleString('ko-KR')}</td></tr>`)
-        .join('');
-      body =
-        `<div class="ex-kpi-lead" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳<span>생산 < 수요</span></div>` +
-        `<div class="ex-kpi-formula">기준: 향후 분기 고객 수요 합계 > 생산 가능량 합계인 계정</div>` +
-        `<div class="ex-stage-th">계정별 부족량</div>` +
-        tbl('<th>고객사</th><th class="text-right">부족량</th>', rows, 'CAPA 부족 계정 없음') +
-        note;
-    } else {
-      return;
+        scroll(
+          '<th>고객사</th><th>Health</th><th class="text-right">가중매출</th><th class="text-right">진행딜</th><th class="text-right">수주</th>',
+          rows,
+          '계정 없음',
+          5
+        ) +
+        foot('개 계정', total)
+      );
     }
-    Modal.open({ title, width: 640, body });
+    if (kpi === 'quality') {
+      const rows = items
+        .map(
+          q =>
+            `<tr><td><strong>${esc(q.name)}</strong></td><td>${esc(q.title)}</td><td>${esc(q.type || '-')}</td><td><span class="pill ${q.severity === 'high' ? 'p-d' : 'p-w'}">${esc(q.severity)}</span></td></tr>`
+        )
+        .join('');
+      return (
+        `<div class="ex-stage-th">미해결 목록</div>` +
+        scroll('<th>고객사</th><th>제목</th><th>유형</th><th>심각도</th>', rows, '미해결 품질 이슈 없음', 4) +
+        foot('건', total)
+      );
+    }
+    if (kpi === 'capa') {
+      const rows = items
+        .map(
+          x =>
+            `<tr><td><strong>${esc(x.name)}</strong></td><td class="text-right">${Number(x.demand).toLocaleString('ko-KR')}</td><td class="text-right">${Number(x.capacity).toLocaleString('ko-KR')}</td><td class="text-right" style="color:var(--oci-red);font-weight:700">${Number(x.gap).toLocaleString('ko-KR')}</td></tr>`
+        )
+        .join('');
+      return (
+        `<div class="ex-stage-th">계정별 수요·생산·부족량</div>` +
+        scroll(
+          '<th>고객사</th><th class="text-right">분기수요</th><th class="text-right">생산가능</th><th class="text-right">부족량</th>',
+          rows,
+          'CAPA 부족 계정 없음',
+          4
+        ) +
+        foot('곳', total)
+      );
+    }
+    return '';
   },
 
   // ── 임원 AI 브리핑 (전사 요약) ──────────────────────────────
