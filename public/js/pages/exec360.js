@@ -47,17 +47,20 @@ const Exec360Page = {
         .ex-brief-box-h{font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:4px}
         .ex-brief-box .ex-brief-ul{margin:0;font-size:12.5px}
         .ex-brief-empty{font-size:12.5px;color:var(--text-3);padding:8px 0}
-        /* 공정 라이프사이클 — 스트림(퍼널) 그래픽 */
-        .ex-fn-wrap{margin-bottom:8px}
-        .ex-fn{display:block;width:100%;height:auto;overflow:visible}
-        .ex-fn-col{cursor:pointer}
-        .ex-fn-col:hover circle{r:8}
-        .ex-fn-col:hover .ex-fn-label{fill:var(--oci-red)}
-        .ex-fn-count{font-size:20px;font-weight:700;fill:var(--text-1)}
-        .ex-fn-max{font-size:10px;font-weight:700;fill:var(--oci-red)}
-        .ex-fn-label{font-size:13px;font-weight:600;fill:var(--text-1)}
-        .ex-fn-label.ex-fn-zero{fill:var(--text-3)}
-        .ex-fn-pct{font-size:12px;font-weight:700;fill:var(--text-3)}
+        /* 공정 라이프사이클 — 스트림(퍼널): SVG 영역 + HTML 오버레이 (해상도 독립) */
+        .ex-fn-wrap{position:relative;height:150px;margin:14px 0 6px}
+        .ex-fn-area{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+        .ex-fn-col{position:absolute;top:0;height:100%;width:96px;transform:translateX(-50%);cursor:pointer;overflow:visible}
+        .ex-fn-node{position:absolute;left:0;right:0;transform:translateY(-100%);display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none}
+        .ex-fn-count{font-size:20px;font-weight:700;color:var(--text-1);line-height:1;font-variant-numeric:tabular-nums}
+        .ex-fn-max{font-size:10px;font-weight:700;color:var(--oci-red);background:var(--oci-red-light);border-radius:5px;padding:0 5px;line-height:1.5}
+        .ex-fn-dot{width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 3px var(--surface);transition:transform .12s}
+        .ex-fn-lab{position:absolute;left:0;right:0;top:calc(100% + 8px);display:flex;flex-direction:column;align-items:center;gap:1px}
+        .ex-fn-label{font-size:13px;font-weight:600;color:var(--text-1);white-space:nowrap}
+        .ex-fn-label.ex-fn-zero{color:var(--text-3)}
+        .ex-fn-pct{font-size:12px;font-weight:700;color:var(--text-3)}
+        .ex-fn-col:hover .ex-fn-label{color:var(--oci-red)}
+        .ex-fn-col:hover .ex-fn-dot{transform:scale(1.3)}
         /* 단계 AI 진단 모달 */
         .ex-stage-stats{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-2);padding:2px 0 12px;border-bottom:1px solid var(--border);margin-bottom:12px}
         .ex-stage-stats b{font-weight:700;color:var(--text-1)}
@@ -161,51 +164,52 @@ const Exec360Page = {
   },
 
   // ── 공정 라이프사이클 — 스트림(퍼널) 그래픽 + 단계 클릭 ──────
+  //   SVG 는 '영역(그라데이션)'만, 숫자·점·라벨은 HTML 오버레이 → 어떤 해상도에서도
+  //   글자 크기/밸런스 일정 (SVG 폭 비례 확대 문제 제거)
   _renderStageFunnel(dist, total) {
     const N = dist.length;
     if (!N) return '';
     const max = Math.max(1, ...dist.map(s => s.count));
-    const W = 1080;
-    const baseY = 120;
-    const minH = 8;
-    const maxH = 104;
-    const colW = W / N;
-    const cx = i => colW * i + colW / 2;
-    const ty = c => baseY - (minH + (c / max) * (maxH - minH));
+    // 좌표는 0~100 정규화 — viewBox(0 0 100 100, preserveAspectRatio none)로 가로 stretch
+    const BASE = 88; // baseline y(%)
+    const PEAK = 16; // 최댓값 top y(%)
+    const xPct = i => ((i + 0.5) / N) * 100;
+    const topPct = c => BASE - (c / max) * (BASE - PEAK);
     const pts = dist.map((s, i) => ({
       ...s,
-      x: cx(i),
-      y: ty(s.count),
+      x: xPct(i),
+      top: topPct(s.count),
       color: this._STAGE_COLOR[s.stage] || '#2357E8',
       pct: Math.round((s.count / total) * 100),
+      isMax: max > 0 && s.count === max,
     }));
-    const maxIdx = pts.findIndex(p => p.count === max);
-    // 채움 영역 (스트림) — 중심점 직선 연결, baseline 으로 닫음
-    let area = `M ${pts[0].x.toFixed(1)} ${baseY}`;
-    pts.forEach(p => (area += ` L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`));
-    area += ` L ${pts[N - 1].x.toFixed(1)} ${baseY} Z`;
+    let area = `M ${pts[0].x.toFixed(2)} ${BASE}`;
+    pts.forEach(p => (area += ` L ${p.x.toFixed(2)} ${p.top.toFixed(2)}`));
+    area += ` L ${pts[N - 1].x.toFixed(2)} ${BASE} Z`;
+    const svg = `<svg class="ex-fn-area" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="exFnGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="rgba(35,87,232,0.20)"/><stop offset="1" stop-color="rgba(35,87,232,0.015)"/>
+        </linearGradient></defs>
+        <line x1="0" y1="${BASE}" x2="100" y2="${BASE}" stroke="var(--border)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        <path d="${area}" fill="url(#exFnGrad)" stroke="#2357E8" stroke-width="1.5" stroke-opacity="0.45" vector-effect="non-scaling-stroke"/>
+      </svg>`;
     const cols = pts
       .map(
-        (p, i) => `
-      <g class="ex-fn-col" data-stage="${p.stage}" data-label="${esc(p.label)}">
-        <rect x="${(colW * i).toFixed(1)}" y="0" width="${colW.toFixed(1)}" height="${baseY + 44}" fill="transparent"/>
-        <line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.x.toFixed(1)}" y2="${baseY}" stroke="${p.color}" stroke-width="2.5" opacity="0.4"/>
-        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${i === maxIdx ? 7 : 5}" fill="${p.color}"/>
-        <text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" text-anchor="middle" class="ex-fn-count">${p.count}</text>
-        ${i === maxIdx ? `<text x="${p.x.toFixed(1)}" y="${(p.y - 26).toFixed(1)}" text-anchor="middle" class="ex-fn-max">최다</text>` : ''}
-        <text x="${p.x.toFixed(1)}" y="${baseY + 20}" text-anchor="middle" class="ex-fn-label${p.count === 0 ? ' ex-fn-zero' : ''}">${esc(p.label)}</text>
-        <text x="${p.x.toFixed(1)}" y="${baseY + 36}" text-anchor="middle" class="ex-fn-pct">${p.pct}%</text>
-      </g>`
+        p => `
+      <div class="ex-fn-col" data-stage="${p.stage}" data-label="${esc(p.label)}" style="left:${p.x.toFixed(2)}%">
+        <div class="ex-fn-node" style="top:${p.top.toFixed(2)}%">
+          ${p.isMax ? '<span class="ex-fn-max">최다</span>' : ''}
+          <span class="ex-fn-count">${p.count}</span>
+          <span class="ex-fn-dot" style="background:${p.color}"></span>
+        </div>
+        <div class="ex-fn-lab">
+          <span class="ex-fn-label${p.count === 0 ? ' ex-fn-zero' : ''}">${esc(p.label)}</span>
+          <span class="ex-fn-pct">${p.pct}%</span>
+        </div>
+      </div>`
       )
       .join('');
-    return `<div class="ex-fn-wrap"><svg class="ex-fn" viewBox="0 0 ${W} ${baseY + 44}" width="100%" role="img" aria-label="공정 라이프사이클 단계 분포">
-      <defs><linearGradient id="exFnGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="rgba(35,87,232,0.18)"/><stop offset="1" stop-color="rgba(35,87,232,0.02)"/>
-      </linearGradient></defs>
-      <line x1="0" y1="${baseY}" x2="${W}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>
-      <path d="${area}" fill="url(#exFnGrad)" stroke="#2357E8" stroke-width="1.5" stroke-opacity="0.5"/>
-      ${cols}
-    </svg></div>`;
+    return `<div class="ex-fn-wrap" role="img" aria-label="공정 라이프사이클 단계 분포">${svg}${cols}</div>`;
   },
 
   async _openStageModal(stage, label) {
