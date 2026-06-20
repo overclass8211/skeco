@@ -76,9 +76,9 @@ const Customer360Page = {
         .c360-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
         .c360-tab{padding:9px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;margin-bottom:-1px}
         .c360-tab.active{color:var(--oci-red);border-bottom-color:var(--oci-red)}
-        .c360-sec{margin-bottom:28px}
-        .c360-sec:last-child{margin-bottom:0}
-        .c360-sec-h{font-size:13px;font-weight:700;color:var(--text-1);margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+        .c360-group{margin-bottom:28px}
+        .c360-group:last-child{margin-bottom:0}
+        .c360-group-h{font-size:13px;font-weight:700;color:var(--text-1);margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
         .c360-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:18px}
         .c360-kpi{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--surface)}
         .c360-kpi .h{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);margin-bottom:4px}
@@ -279,7 +279,7 @@ const Customer360Page = {
     const el = document.getElementById('c360-tab-body');
     if (!el) return;
     const sec = (title, html) =>
-      `<section class="c360-sec"><h3 class="c360-sec-h">${esc(title)}</h3>${html}</section>`;
+      `<section class="c360-group"><h3 class="c360-group-h">${esc(title)}</h3>${html}</section>`;
     const m = {
       // ① 현황 — 라이프사이클 + 수요·생산·수주 + 리스크 (한눈에)
       lifecycle: () => this._tabLifecycle(),
@@ -406,14 +406,15 @@ const Customer360Page = {
       ? lc.actions.map(a => `<div class="c360-act"><span class="ai">${this._svg('bulb', 16)}</span><span>${esc(a.text)}</span></div>`).join('')
       : '<div class="c360-empty" style="padding:24px">추천 액션 없음</div>';
 
+    // 랜딩 대시보드: KPI → 프로세스 흐름(수요·생산·수주) → 소재 라이프사이클 → 품질 → 액션
     return `
       ${kpis}
+      <div class="c360-sec">수요 → 생산 → 수주 (3개월)</div>
+      ${flow}
       <div class="c360-sec">소재별 라이프사이클
         <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 소재 추가</button>
       </div>
       ${board}
-      <div class="c360-sec">수요 → 생산 → 수주 (3개월)</div>
-      ${flow}
       <div class="c360-sec">품질 이슈</div>
       ${quality}
       <div class="c360-sec">AI 추천 다음 액션</div>
