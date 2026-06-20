@@ -56,8 +56,8 @@ const ForecastPage = {
       </div>
 
       <div class="fcst-tabs" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px">
-        <button class="fcst-tab active" data-tab="trend" style="padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;border-bottom:2px solid var(--oci-red);margin-bottom:-2px;color:var(--oci-red)">📈 예측 추이</button>
-        <button class="fcst-tab" data-tab="prod" style="padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">🏭 생산예측 (마케팅)</button>
+        <button class="fcst-tab active" data-tab="trend" style="padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;border-bottom:2px solid var(--oci-red);margin-bottom:-2px;color:var(--oci-red)">예측 추이</button>
+        <button class="fcst-tab" data-tab="prod" style="padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-3)">생산예측 (마케팅)</button>
       </div>
 
       <div id="fcst-tab-trend">
@@ -88,7 +88,7 @@ const ForecastPage = {
         <button class="btn btn-primary btn-sm" id="fcst-search">조회</button>
       </div>
 
-      <div id="fcst-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+      <div id="fcst-kpis" style="margin-bottom:16px"></div>
 
       <div class="card" style="margin-bottom:16px">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
@@ -229,7 +229,7 @@ const ForecastPage = {
     const BIZ = ['식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스'];
     const months = Array.from({ length: 12 }, (_, i) => `${this.filters.year}-${String(i + 1).padStart(2, '0')}`);
     Modal.open({
-      title: '🏭 생산예측 추가',
+      title: '생산예측 추가',
       width: 460,
       body: `<div style="padding:4px">
         <div class="form-row"><label class="form-label">고객사 *</label><input class="form-input" id="pf-cust" placeholder="예: 삼성전자"></div>
@@ -379,21 +379,22 @@ const ForecastPage = {
 
   _renderKpis() {
     const s = this._data?.summary || {};
-    const el = document.getElementById('fcst-kpis');
-    const tile = (label, val, sub, color, unit = '백만') =>
-      `<div style="flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">${label}</div>
-        <div style="font-size:20px;font-weight:800;color:${color || 'var(--text-1)'}">${this._mil(val)}<span style="font-size:11px;font-weight:600;color:var(--text-3)"> ${unit}</span></div>
-        <div style="font-size:11px;color:var(--text-2);margin-top:3px;min-height:14px">${sub || ''}</div>
-      </div>`;
-    const yoy = s.yoy_pct === null || s.yoy_pct === undefined
-      ? '전년 비교 데이터 없음'
-      : `전년比 <span style="color:${s.yoy_pct >= 0 ? '#16a34a' : '#dc2626'}">${s.yoy_pct >= 0 ? '▲' : '▼'} ${Math.abs(s.yoy_pct)}%</span>`;
-    el.innerHTML =
-      tile(`기준월 예상매출 (${this._data?.base_month || ''})`, s.base_expected, `Weighted ${this._mil(s.base_weighted)} 백만`, 'var(--oci-red)') +
-      tile('연간 예상매출', s.year_expected, yoy) +
-      tile('연간 Weighted FCST', s.year_weighted, `확정 ${this._mil(s.year_committed)} 백만`, '#F58220') +
-      tile('파이프라인 딜', s.deal_count, '진행+수주 건수', '#1664E5', '건');
+    if (!document.getElementById('fcst-kpis')) return;
+    const mil = v => `${this._mil(v)} 백만`;
+    const yoyHtml =
+      s.yoy_pct === null || s.yoy_pct === undefined
+        ? '전년 비교 데이터 없음'
+        : `전년比 <span style="color:${s.yoy_pct >= 0 ? '#16a34a' : '#dc2626'};font-weight:700">${s.yoy_pct >= 0 ? '▲' : '▼'} ${Math.abs(s.yoy_pct)}%</span>`;
+    // 공통 KpiBar 로 통일 (다른 화면과 동일 톤)
+    KpiBar.render({
+      containerSel: '#fcst-kpis',
+      cards: [
+        { icon: 'money', label: `기준월 예상매출 (${this._data?.base_month || ''})`, valueText: mil(s.base_expected), color: '#E63329', sub: `Weighted ${mil(s.base_weighted)}` },
+        { icon: 'trophy', label: '연간 예상매출', valueText: mil(s.year_expected), color: '#1664E5', subHtml: yoyHtml },
+        { icon: 'target', label: '연간 Weighted FCST', valueText: mil(s.year_weighted), color: '#F58220', sub: `확정 ${mil(s.year_committed)}` },
+        { icon: 'clipboard', label: '파이프라인 딜', valueText: `${Number(s.deal_count) || 0} 건`, color: '#16A34A', sub: '진행+수주 건수' },
+      ],
+    });
   },
 
   _renderChart() {

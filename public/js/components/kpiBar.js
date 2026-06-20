@@ -94,7 +94,7 @@ const KpiBar = (() => {
           <span class="kpi-label">${esc(card.label)}</span>
         </div>
         <div class="kpi-card-value">${esc(card.valueText !== undefined && card.valueText !== null ? card.valueText : _fmtValue(card.value))}</div>
-        ${card.sub ? `<div class="kpi-card-sub">${esc(card.sub)}</div>` : ''}
+        ${card.subHtml ? `<div class="kpi-card-sub">${card.subHtml}</div>` : card.sub ? `<div class="kpi-card-sub">${esc(card.sub)}</div>` : ''}
       </div>
     </div>`;
   }
