@@ -72,6 +72,8 @@ const Customer360Page = {
         .c360-risk.high{background:rgba(230,51,41,.1);color:var(--oci-red)}
         .c360-risk.medium{background:rgba(245,156,0,.12);color:#b45309}
         .c360-risk.low{background:var(--surface-2);color:var(--text-2)}
+        .c360-risk-link{cursor:pointer;transition:filter .12s}
+        .c360-risk-link:hover{filter:brightness(0.94);text-decoration:underline}
         .c360-narr{background:var(--oci-red-light,rgba(230,51,41,.06));border-radius:8px;padding:10px 14px;font-size:13px;color:var(--text-1);margin-bottom:16px;line-height:1.6;display:flex;gap:8px;align-items:flex-start}
         .c360-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
         .c360-tab{padding:9px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -246,7 +248,12 @@ const Customer360Page = {
         <div class="c360-risks">
           ${
             h.risks.length
-              ? h.risks.map(r => `<span class="c360-risk ${r.level}">${esc(r.label)}</span>`).join('')
+              ? h.risks
+                  .map(r => {
+                    const tab = this._riskTab(r.label);
+                    return `<span class="c360-risk ${r.level}${tab ? ' c360-risk-link' : ''}"${tab ? ` data-risktab="${tab}" title="클릭 시 해당 탭으로 이동"` : ''}>${esc(r.label)}</span>`;
+                  })
+                  .join('')
               : '<span class="c360-risk low">리스크 없음</span>'
           }
         </div>
@@ -272,7 +279,25 @@ const Customer360Page = {
         this._renderTab();
       })
     );
+    // 리스크 칩 클릭 → 관련 탭으로 이동 (실행형 경보)
+    body.querySelectorAll('.c360-risk[data-risktab]').forEach(el =>
+      el.addEventListener('click', () => {
+        const tab = el.dataset.risktab;
+        this._tab = tab;
+        body.querySelectorAll('.c360-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        this._renderTab();
+      })
+    );
     this._renderTab();
+  },
+
+  // 리스크 라벨 → 이동할 탭 매핑 (실행형 경보)
+  _riskTab(label) {
+    const s = String(label || '');
+    if (/CAPA/i.test(s)) return 'lifecycle';
+    if (/품질/.test(s)) return 'qualification';
+    if (/수금|연체|매출|계약/.test(s)) return 'commercial';
+    return null;
   },
 
   _renderTab() {
