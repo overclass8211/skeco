@@ -2,7 +2,7 @@
 // =============================================================
 // Exec360Page — 임원 360 요약 (전사 대시보드)
 //
-// 전사 KPI + 소재 라이프사이클 단계 분포 + Top 계정 + 리스크 요약.
+// 전사 KPI + 공정 라이프사이클 단계 분포 + Top 계정 + 리스크 요약.
 // Top 계정 행 클릭 → 고객·제품 360뷰로 드릴다운.
 // 데이터: GET /api/customer360/exec-summary (집계, 무스키마변경)
 // RBAC: executive+
@@ -37,7 +37,11 @@ const Exec360Page = {
         .ex-ftop{height:4px;border-radius:3px;background:var(--c,#2357E8);margin-bottom:9px}
         .ex-fcount{font-size:24px;font-weight:700;color:var(--text-1);line-height:1.1;font-variant-numeric:tabular-nums}
         .ex-flabel{font-size:12.5px;color:var(--text-1);margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .ex-fpct{font-size:11.5px;color:var(--text-3);margin-top:2px}
+        .ex-fpct{font-size:13px;color:var(--text-1);font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums}
+        .ex-fpct .u{font-size:11px;font-weight:600;color:var(--text-3)}
+        .ex-fbar{height:5px;border-radius:3px;background:var(--surface-2);margin-top:7px;overflow:hidden}
+        .ex-fbar > i{display:block;height:100%;border-radius:3px;background:var(--c,#2357E8)}
+        .ex-fstep.ex-fzero{opacity:.5}
         .ex-farrow{display:flex;align-items:center;color:var(--text-3);padding:0 5px;flex-shrink:0}
         .ex-fmax-chip{position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;color:#fff;background:var(--c,#2357E8);border-radius:5px;padding:1px 5px}
         .ex-risk{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
@@ -88,19 +92,21 @@ const Exec360Page = {
         const color = this._STAGE_COLOR[s.stage] || '#2357E8';
         const isMax = maxStage > 0 && s.count === maxStage;
         const pct = Math.round((s.count / stageTotal) * 100);
+        const zero = s.count === 0 ? ' ex-fzero' : '';
         const st = isMax ? `--c:${color};border-color:${color};background:${color}0d` : `--c:${color}`;
-        const step = `<div class="ex-fstep${isMax ? ' ex-fmax' : ''}" style="${st}">
+        const step = `<div class="ex-fstep${isMax ? ' ex-fmax' : ''}${zero}" style="${st}">
           ${isMax ? '<span class="ex-fmax-chip">최다</span>' : ''}
           <div class="ex-ftop"></div>
           <div class="ex-fcount">${s.count}</div>
           <div class="ex-flabel" title="${esc(s.label)}">${esc(s.label)}</div>
-          <div class="ex-fpct">${pct}%</div>
+          <div class="ex-fpct">${pct}<span class="u">%</span></div>
+          <div class="ex-fbar" title="비중 ${pct}%"><i style="width:${pct}%"></i></div>
         </div>`;
         const arrow = i < d.stage_distribution.length - 1 ? '<span class="ex-farrow">→</span>' : '';
         return step + arrow;
       })
       .join('');
-    const stage = `<div class="ex-sec">소재 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">발굴 → 납품 · 총 ${stageTotal}개 소재</span></div>
+    const stage = `<div class="ex-sec">공정 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">발굴 → 납품 · 총 ${stageTotal}개 소재</span></div>
       <div class="ex-flow">${stageSteps}</div>`;
 
     const accounts = `<div class="ex-sec">Top 계정 (가중 예상매출)</div>
