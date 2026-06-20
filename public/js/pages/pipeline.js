@@ -38,7 +38,7 @@ const PipelinePage = {
           <button class="btn btn-ghost btn-sm" id="pipe-export-btn"
             data-feature="data.excel_exp"
             title="현재 필터 결과를 엑셀 파일로 다운로드">
-            📤 엑셀 다운로드
+            엑셀 다운로드
           </button>
           <button class="btn btn-primary" id="pipe-add-lead-btn">+ 영업딜 추가</button>
         </div>
@@ -60,32 +60,16 @@ const PipelinePage = {
         <span class="pipe-date-hint" id="pipe-date-hint"></span>
       </div>
 
-      <div class="card mb-3">
-        <div class="card-body" style="padding:12px 16px">
-          <div class="flex gap-4" style="align-items:center">
-            <div>
-              <div class="fs-11 text-muted">파이프라인 총액</div>
-              <div style="font-size:20px;font-weight:700" class="mono" id="pipe-total">₩0억</div>
-            </div>
-            <div class="flex-1">
-              <div class="flex gap-2 fs-11 text-muted">
-                <span>💡 칸반 카드를 드래그하여 단계를 변경할 수 있습니다</span>
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="fs-11 text-muted">진행 건수</div>
-              <div style="font-size:20px;font-weight:700" id="pipe-active-count">0</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- KPI (공통 KpiBar 로 통일) -->
+      <div id="pipe-kpis"></div>
+      <div style="font-size:11px;color:var(--text-3);margin:-4px 0 12px">칸반 카드를 드래그하여 단계를 변경할 수 있습니다</div>
 
       <!-- 파이프라인 단계별 헬스체크 (스트림 시각화 + AI 코칭) -->
       <div class="card mb-3 pipe-funnel-card">
         <div class="card-body" style="padding:18px 22px 20px">
           <div class="pipe-funnel-header">
             <div>
-              <div class="pipe-funnel-title">📊 파이프라인 헬스체크</div>
+              <div class="pipe-funnel-title">파이프라인 헬스체크</div>
               <div class="pipe-funnel-subtitle">단계 클릭 시 AI가 진단·코칭합니다</div>
             </div>
             <div class="pipe-funnel-legend">
@@ -228,9 +212,14 @@ const PipelinePage = {
               : 0;
         return sum + krw;
       }, 0);
-    // 환산 합계는 원 단위이므로 Fmt.krw 사용
-    document.getElementById('pipe-total').textContent = Fmt.krw(totalAmount);
-    document.getElementById('pipe-active-count').textContent = activeCount;
+    // 환산 합계는 원 단위이므로 Fmt.krw 사용 — 공통 KpiBar 로 렌더
+    KpiBar.render({
+      containerSel: '#pipe-kpis',
+      cards: [
+        { icon: 'money', label: '파이프라인 총액', valueText: Fmt.krw(totalAmount), color: '#7C4DFF', sub: '활성 딜 합계' },
+        { icon: 'target', label: '진행 건수', valueText: `${activeCount}건`, color: '#1664E5', sub: '활성 파이프라인' },
+      ],
+    });
 
     // 파이프라인 헬스체크 (깔대기 시각화)
     this.renderFunnel(grouped);
