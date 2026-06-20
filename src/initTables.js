@@ -114,7 +114,7 @@ async function initTables() {
 
     await pool.query(`CREATE TABLE IF NOT EXISTS system_settings (
       setting_key   VARCHAR(50) PRIMARY KEY,
-      setting_value VARCHAR(255),
+      setting_value TEXT,
       updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
@@ -123,6 +123,20 @@ async function initTables() {
         ('idle_timeout_min', '30'),
         ('default_monthly_token_limit', '500000')`
     );
+
+    // 자가 마이그레이션: setting_value VARCHAR(255) → TEXT (임원 AI 브리핑 등 긴 JSON 캐시)
+    try {
+      const [[col]] = await pool.query(
+        `SELECT DATA_TYPE dt FROM information_schema.columns
+          WHERE table_schema=DATABASE() AND table_name='system_settings' AND column_name='setting_value'`
+      );
+      if (col && String(col.dt).toLowerCase() === 'varchar') {
+        await pool.query(`ALTER TABLE system_settings MODIFY setting_value TEXT`);
+        console.log('[system_settings:migration] setting_value VARCHAR → TEXT 확장 완료');
+      }
+    } catch (e) {
+      console.warn('[system_settings:migration] setting_value 확장 skip:', e.message);
+    }
 
     try {
       await pool.query(`ALTER TABLE team_members ADD COLUMN monthly_token_limit INT NULL`);

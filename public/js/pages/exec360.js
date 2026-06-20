@@ -32,6 +32,21 @@ const Exec360Page = {
         .ex-kpi .s{font-size:11.5px;color:var(--text-3);margin-top:2px}
         .ex-sec{font-size:14px;font-weight:700;color:var(--text-1);margin:22px 0 12px}
         /* 단계 분포 — 가로 흐름(발굴→납품) + 비중 + 병목(최다) 강조 */
+        /* AI 임원 브리핑 */
+        .ex-brief{border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(124,77,255,.05),rgba(22,100,229,.04));padding:16px 18px;margin-bottom:18px}
+        .ex-brief-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+        .ex-brief-t{font-size:13px;font-weight:700;color:var(--text-1)}
+        .ex-brief-when{font-size:11px;color:var(--text-3)}
+        .ex-brief-stale{font-size:10px;font-weight:700;color:#b45309;background:rgba(245,156,0,.14);border-radius:6px;padding:2px 7px}
+        .ex-brief-hl{font-size:15px;font-weight:700;color:var(--text-1);line-height:1.5;margin-bottom:10px}
+        .ex-brief-ul{margin:0 0 10px;padding-left:18px;line-height:1.7;font-size:13px;color:var(--text-2)}
+        .ex-brief-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+        .ex-brief-box{border-radius:8px;padding:10px 12px}
+        .ex-brief-box.act{background:rgba(23,168,90,.08);border-left:3px solid #17A85A}
+        .ex-brief-box.risk{background:rgba(230,51,41,.07);border-left:3px solid var(--oci-red)}
+        .ex-brief-box-h{font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:4px}
+        .ex-brief-box .ex-brief-ul{margin:0;font-size:12.5px}
+        .ex-brief-empty{font-size:12.5px;color:var(--text-3);padding:8px 0}
         .ex-flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 6px;margin-bottom:6px}
         .ex-fstep{flex:1;min-width:92px;border:1px solid var(--border);border-radius:10px;padding:12px 10px 11px;text-align:center;position:relative;background:var(--surface)}
         .ex-ftop{height:4px;border-radius:3px;background:var(--c,#2357E8);margin-bottom:9px}
@@ -139,7 +154,7 @@ const Exec360Page = {
       </div>`;
 
     const body = document.getElementById('ex-body');
-    body.innerHTML = kpis + stage + accounts + risks;
+    body.innerHTML = `<div id="ex-brief"></div>` + kpis + stage + accounts + risks;
     body.querySelectorAll('tr[data-acct]').forEach(tr =>
       tr.addEventListener('click', () => {
         const id = Number(tr.dataset.acct);
@@ -151,5 +166,80 @@ const Exec360Page = {
         location.hash = '#customer360';
       })
     );
+    this._loadBrief();
+  },
+
+  // ── 임원 AI 브리핑 (전사 요약) ──────────────────────────────
+  _fmtWhen(ts) {
+    const d = new Date(ts);
+    if (isNaN(d)) return String(ts).slice(0, 16).replace('T', ' ');
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  },
+  _fmtAgo(ts) {
+    const d = new Date(ts);
+    if (isNaN(d)) return '';
+    const diff = Date.now() - d.getTime();
+    const day = Math.floor(diff / 86400000);
+    if (day <= 0) {
+      const hr = Math.floor(diff / 3600000);
+      return hr <= 0 ? '방금' : `${hr}시간 전`;
+    }
+    return `${day}일 전`;
+  },
+  async _loadBrief() {
+    try {
+      const r = await API.get('/customer360/exec-brief');
+      this._brief = r.data || null;
+    } catch (_) {
+      this._brief = null;
+    }
+    this._renderBrief();
+  },
+  _renderBrief() {
+    const el = document.getElementById('ex-brief');
+    if (!el) return;
+    const b = this._brief;
+    const when = b && b.generated_at ? this._fmtWhen(b.generated_at) : null;
+    const ago = b && b.generated_at ? this._fmtAgo(b.generated_at) : null;
+    const days =
+      b && b.generated_at
+        ? Math.floor((Date.now() - new Date(b.generated_at).getTime()) / 86400000)
+        : null;
+    const stale = days !== null && days >= 7; // 전사 브리핑은 1주 경과 시 갱신 권장
+    const list = (arr, cls) =>
+      Array.isArray(arr) && arr.length
+        ? `<ul class="ex-brief-ul ${cls}">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`
+        : '';
+    const header = `<div class="ex-brief-head">
+        <span class="ex-brief-t">AI 임원 브리핑</span>
+        ${when ? `<span class="ex-brief-when">생성 시점 · ${esc(when)}${ago ? ` (${esc(ago)})` : ''}</span>` : '<span class="ex-brief-when">아직 생성 안 됨</span>'}
+        ${stale ? '<span class="ex-brief-stale">갱신 권장</span>' : ''}
+        <button class="btn btn-sm ${b ? 'btn-ghost' : 'btn-primary'}" id="ex-brief-gen" style="margin-left:auto">${b ? '다시 생성' : 'AI 임원 브리핑 생성'}</button>
+      </div>`;
+    el.innerHTML = `<div class="ex-brief">${header}${
+      b
+        ? `${b.headline ? `<div class="ex-brief-hl">${esc(b.headline)}</div>` : ''}
+           ${list(b.key_points, 'kp')}
+           <div class="ex-brief-cols">
+             ${b.recommended_actions && b.recommended_actions.length ? `<div class="ex-brief-box act"><div class="ex-brief-box-h">권고 액션</div>${list(b.recommended_actions, '')}</div>` : ''}
+             ${b.top_risks && b.top_risks.length ? `<div class="ex-brief-box risk"><div class="ex-brief-box-h">주요 리스크</div>${list(b.top_risks, '')}</div>` : ''}
+           </div>`
+        : '<div class="ex-brief-empty">전사 KPI·리스크를 바탕으로 임원용 요약을 생성합니다. 위 버튼을 누르세요.</div>'
+    }</div>`;
+    document.getElementById('ex-brief-gen')?.addEventListener('click', () => this._generateBrief());
+  },
+  async _generateBrief() {
+    const el = document.getElementById('ex-brief');
+    if (el)
+      el.innerHTML = `<div class="ex-brief"><div class="ex-brief-empty">AI가 전사 데이터를 분석 중…</div></div>`;
+    try {
+      const r = await API.post('/customer360/exec-brief', {});
+      this._brief = r.data;
+      if (typeof Toast !== 'undefined') Toast.success?.('임원 브리핑 생성 완료');
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error?.('생성 실패: ' + (e.message || e));
+    }
+    this._renderBrief();
   },
 };

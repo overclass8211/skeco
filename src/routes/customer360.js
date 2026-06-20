@@ -19,6 +19,7 @@ const { validateId } = require('../middleware/validate');
 const { requireLevel } = require('../middleware/rbac');
 const { getUserId } = require('../middleware/auth');
 const { getRoleInfo } = require('../services/authService');
+const { genAI, MODEL_FAST, SAFETY_SETTINGS } = require('../services/gemini');
 
 // 요청자 권한 레벨 (테스트/비인증 컨텍스트는 풀접근으로 간주)
 function userLevel(req) {
@@ -83,6 +84,9 @@ router.get('/customers', async (req, res) => {
 
 // 임원 360 요약(전사) — /:id 보다 먼저 등록 (정적 경로 우선)
 router.get('/exec-summary', execSummary);
+// 임원 AI 브리핑 — 캐시 조회(GET) / 생성(POST). /:id 보다 먼저 등록
+router.get('/exec-brief', execBriefGet);
+router.post('/exec-brief', execBriefPost);
 
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
@@ -1001,54 +1005,53 @@ async function gatherHealthSignals(customerId, customerName) {
     capaShort: lifecycle.demand_flow.gap > 0,
   };
 }
-async function execSummary(req, res) {
-  try {
-    const [[wAgg], [dealAgg], stageRows, [qAgg], capaRows, acctRows, qTop, evalRows] =
-      await Promise.all([
-        // 전사 가중 예상매출 (진행 딜)
-        pool
-          .query(
-            `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100),0) AS weighted
+async function buildExecSummaryData() {
+  const [[wAgg], [dealAgg], stageRows, [qAgg], capaRows, acctRows, qTop, evalRows] =
+    await Promise.all([
+      // 전사 가중 예상매출 (진행 딜)
+      pool
+        .query(
+          `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100),0) AS weighted
              FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
             WHERE l.stage NOT IN ('won','lost','dropped')`
-          )
-          .then(r => r[0]),
-        // 진행 딜 수 + 수주/실주 (수주율)
-        pool
-          .query(
-            `SELECT
+        )
+        .then(r => r[0]),
+      // 진행 딜 수 + 수주/실주 (수주율)
+      pool
+        .query(
+          `SELECT
              SUM(CASE WHEN stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
              SUM(CASE WHEN stage='won' THEN 1 ELSE 0 END) AS won,
              SUM(CASE WHEN stage='lost' THEN 1 ELSE 0 END) AS lost
              FROM leads`
-          )
-          .then(r => r[0]),
-        // 소재 라이프사이클 단계 분포
-        pool
-          .query(
-            `SELECT lifecycle_stage AS s, COUNT(*) AS n FROM customer_materials WHERE status<>'closed' GROUP BY lifecycle_stage`
-          )
-          .then(r => r[0]),
-        // 품질 오픈
-        pool
-          .query(`SELECT COUNT(*) AS n FROM quality_cases WHERE status<>'resolved'`)
-          .then(r => r[0]),
-        // 고객별 분기 수요 vs 생산가능 (CAPA 부족 판정)
-        pool
-          .query(
-            `SELECT customer_id,
+        )
+        .then(r => r[0]),
+      // 소재 라이프사이클 단계 분포
+      pool
+        .query(
+          `SELECT lifecycle_stage AS s, COUNT(*) AS n FROM customer_materials WHERE status<>'closed' GROUP BY lifecycle_stage`
+        )
+        .then(r => r[0]),
+      // 품질 오픈
+      pool
+        .query(`SELECT COUNT(*) AS n FROM quality_cases WHERE status<>'resolved'`)
+        .then(r => r[0]),
+      // 고객별 분기 수요 vs 생산가능 (CAPA 부족 판정)
+      pool
+        .query(
+          `SELECT customer_id,
                   COALESCE(SUM(customer_forecast),0) AS demand,
                   COALESCE(SUM(production_capacity),0) AS capacity
              FROM demand_forecasts
             WHERE month IN (?)
             GROUP BY customer_id`,
-            [FORECAST_MONTHS]
-          )
-          .then(r => r[0]),
-        // Top 계정 (가중 예상매출) — 회사명 단위 집계 후 대표 고객 id 매핑(동일사명 중복행 배수집계 방지)
-        pool
-          .query(
-            `SELECT rep.id, agg.customer_name AS name, agg.weighted, agg.active, agg.won
+          [FORECAST_MONTHS]
+        )
+        .then(r => r[0]),
+      // Top 계정 (가중 예상매출) — 회사명 단위 집계 후 대표 고객 id 매핑(동일사명 중복행 배수집계 방지)
+      pool
+        .query(
+          `SELECT rep.id, agg.customer_name AS name, agg.weighted, agg.active, agg.won
                FROM (
                  SELECT l.customer_name,
                         COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
@@ -1062,125 +1065,238 @@ async function execSummary(req, res) {
               WHERE agg.weighted > 0 OR agg.active > 0
               ORDER BY agg.weighted DESC
               LIMIT 8`
-          )
-          .then(r => r[0]),
-        // 품질 오픈 Top
-        pool
-          .query(
-            `SELECT q.customer_id, c.name AS customer_name, q.title, q.severity, q.type
+        )
+        .then(r => r[0]),
+      // 품질 오픈 Top
+      pool
+        .query(
+          `SELECT q.customer_id, c.name AS customer_name, q.title, q.severity, q.type
              FROM quality_cases q JOIN customers c ON c.id=q.customer_id
             WHERE q.status<>'resolved'
             ORDER BY FIELD(q.severity,'high','medium','low'), q.opened_at DESC LIMIT 6`
-          )
-          .then(r => r[0]),
-        // 평가 지연(평가/샘플 단계 소재)
-        pool
-          .query(
-            `SELECT c.name AS customer_name, m.material_name
+        )
+        .then(r => r[0]),
+      // 평가 지연(평가/샘플 단계 소재)
+      pool
+        .query(
+          `SELECT c.name AS customer_name, m.material_name
              FROM customer_materials m JOIN customers c ON c.id=m.customer_id
             WHERE m.lifecycle_stage IN ('evaluation','sample') AND m.status<>'closed'
             ORDER BY m.updated_at ASC LIMIT 6`
-          )
-          .then(r => r[0]),
-      ]);
+        )
+        .then(r => r[0]),
+    ]);
 
-    // CAPA 부족 고객 set
-    const capaShortIds = new Set();
-    const capaShortList = [];
-    for (const r of capaRows) {
-      const demand = Number(r.demand) || 0;
-      const capacity = Number(r.capacity) || 0;
-      if (capacity > 0 && capacity < demand) {
-        capaShortIds.add(r.customer_id);
-        capaShortList.push({ customer_id: r.customer_id, gap: Math.round(demand - capacity) });
+  // CAPA 부족 고객 set
+  const capaShortIds = new Set();
+  const capaShortList = [];
+  for (const r of capaRows) {
+    const demand = Number(r.demand) || 0;
+    const capacity = Number(r.capacity) || 0;
+    if (capacity > 0 && capacity < demand) {
+      capaShortIds.add(r.customer_id);
+      capaShortList.push({ customer_id: r.customer_id, gap: Math.round(demand - capacity) });
+    }
+  }
+  // capaShort 고객명 매핑
+  const capIds = capaShortList.map(x => x.customer_id).filter(Boolean);
+  let capNames = [];
+  if (capIds.length) {
+    [capNames] = await pool.query('SELECT id, name FROM customers WHERE id IN (?)', [capIds]);
+  }
+  const nameById = new Map(capNames.map(c => [c.id, c.name]));
+
+  const won = Number(dealAgg.won) || 0;
+  const lost = Number(dealAgg.lost) || 0;
+  const winRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null;
+
+  // Top 계정 Health — 상세뷰와 동일한 신호·산식으로 계산해 등급 일치 보장
+  const topAccounts = await Promise.all(
+    acctRows.map(async a => {
+      const sig = await gatherHealthSignals(a.id, a.name);
+      const { grade } = computeHealth(sig);
+      const risks = [];
+      if (sig.capaShort) risks.push({ level: 'medium', label: 'CAPA 부족' });
+      if (sig.openQuality > 0) risks.push({ level: 'high', label: `품질 ${sig.openQuality}` });
+      return {
+        id: a.id,
+        name: a.name,
+        weighted: Math.round(Number(a.weighted) || 0),
+        active: Number(a.active) || 0,
+        won: Number(a.won) || 0,
+        health_grade: grade,
+        risks,
+      };
+    })
+  );
+  // 평균 Health (Top 계정 기준 근사)
+  const avgScore = topAccounts.length
+    ? Math.round(
+        topAccounts.reduce((s, a) => {
+          const g = a.health_grade;
+          return (
+            s +
+            (g === 'A+'
+              ? 95
+              : g === 'A'
+                ? 85
+                : g === 'B+'
+                  ? 75
+                  : g === 'B'
+                    ? 65
+                    : g === 'C'
+                      ? 50
+                      : 35)
+          );
+        }, 0) / topAccounts.length
+      )
+    : 0;
+
+  return {
+    kpis: {
+      weighted_expected: Math.round(Number(wAgg.weighted) || 0),
+      active_deals: Number(dealAgg.active) || 0,
+      win_rate: winRate,
+      avg_health: healthGrade(avgScore),
+      open_quality: Number(qAgg.n) || 0,
+      capa_short_accounts: capaShortIds.size,
+    },
+    stage_distribution: STAGE_ORDER.map(k => ({
+      stage: k,
+      label: STAGE_LABELS[k],
+      count: Number((stageRows.find(s => s.s === k) || {}).n) || 0,
+    })),
+    top_accounts: topAccounts,
+    risks: {
+      capa_short: capaShortList.map(x => ({
+        name: nameById.get(x.customer_id) || '-',
+        gap: x.gap,
+      })),
+      quality: qTop.map(q => ({
+        name: q.customer_name,
+        title: q.title,
+        severity: q.severity,
+        type: q.type,
+      })),
+      eval_delay: evalRows.map(e => ({ name: e.customer_name, material: e.material_name })),
+    },
+  };
+}
+
+async function execSummary(req, res) {
+  try {
+    const data = await buildExecSummaryData();
+    res.json({ success: true, data });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+// ── 임원 AI 브리핑 (전사 요약) — system_settings 에 최신 1건 캐시 ──
+const EXEC_BRIEF_KEY = 'exec_brief_latest';
+
+async function execBriefGet(req, res) {
+  try {
+    const [[row]] = await pool.query(
+      'SELECT setting_value FROM system_settings WHERE setting_key=?',
+      [EXEC_BRIEF_KEY]
+    );
+    let brief = null;
+    if (row && row.setting_value) {
+      try {
+        brief = JSON.parse(row.setting_value);
+      } catch (_) {
+        brief = null;
       }
     }
-    // capaShort 고객명 매핑
-    const capIds = capaShortList.map(x => x.customer_id).filter(Boolean);
-    let capNames = [];
-    if (capIds.length) {
-      [capNames] = await pool.query('SELECT id, name FROM customers WHERE id IN (?)', [capIds]);
-    }
-    const nameById = new Map(capNames.map(c => [c.id, c.name]));
+    res.json({ success: true, data: brief });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
 
-    const won = Number(dealAgg.won) || 0;
-    const lost = Number(dealAgg.lost) || 0;
-    const winRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null;
+async function execBriefPost(req, res) {
+  try {
+    const d = await buildExecSummaryData();
+    const won = n => '₩' + (Math.round(Number(n) || 0) / 1_0000_0000).toFixed(1) + '억';
+    const top = (d.top_accounts || [])
+      .slice(0, 6)
+      .map(
+        a =>
+          `${a.name}(Health ${a.health_grade}, 가중 ${won(a.weighted)}, 진행 ${a.active}, 리스크 ${(a.risks || []).map(r => r.label).join('/') || '없음'})`
+      )
+      .join('\n');
+    const stages = (d.stage_distribution || []).map(s => `${s.label} ${s.count}`).join(' · ');
+    const capa = (d.risks?.capa_short || [])
+      .slice(0, 6)
+      .map(x => `${x.name} 부족 ${Math.round(x.gap).toLocaleString('ko-KR')}`)
+      .join(', ');
+    const qual = (d.risks?.quality || [])
+      .slice(0, 6)
+      .map(q => `${q.name}·${q.title}(${q.severity})`)
+      .join(', ');
 
-    // Top 계정 Health — 상세뷰와 동일한 신호·산식으로 계산해 등급 일치 보장
-    const topAccounts = await Promise.all(
-      acctRows.map(async a => {
-        const sig = await gatherHealthSignals(a.id, a.name);
-        const { grade } = computeHealth(sig);
-        const risks = [];
-        if (sig.capaShort) risks.push({ level: 'medium', label: 'CAPA 부족' });
-        if (sig.openQuality > 0) risks.push({ level: 'high', label: `품질 ${sig.openQuality}` });
-        return {
-          id: a.id,
-          name: a.name,
-          weighted: Math.round(Number(a.weighted) || 0),
-          active: Number(a.active) || 0,
-          won: Number(a.won) || 0,
-          health_grade: grade,
-          risks,
-        };
-      })
-    );
-    // 평균 Health (Top 계정 기준 근사)
-    const avgScore = topAccounts.length
-      ? Math.round(
-          topAccounts.reduce((s, a) => {
-            const g = a.health_grade;
-            return (
-              s +
-              (g === 'A+'
-                ? 95
-                : g === 'A'
-                  ? 85
-                  : g === 'B+'
-                    ? 75
-                    : g === 'B'
-                      ? 65
-                      : g === 'C'
-                        ? 50
-                        : 35)
-            );
-          }, 0) / topAccounts.length
-        )
-      : 0;
+    const prompt = `당신은 SK에코플랜트 머티리얼즈(반도체·디스플레이 소재) 영업 임원 보좌역입니다.
+아래 '전사 집계 수치'만 근거로 임원용 요약 브리핑을 작성하세요. 수치를 지어내지 말고 주어진 값만 사용합니다.
 
-    res.json({
-      success: true,
-      data: {
-        kpis: {
-          weighted_expected: Math.round(Number(wAgg.weighted) || 0),
-          active_deals: Number(dealAgg.active) || 0,
-          win_rate: winRate,
-          avg_health: healthGrade(avgScore),
-          open_quality: Number(qAgg.n) || 0,
-          capa_short_accounts: capaShortIds.size,
-        },
-        stage_distribution: STAGE_ORDER.map(k => ({
-          stage: k,
-          label: STAGE_LABELS[k],
-          count: Number((stageRows.find(s => s.s === k) || {}).n) || 0,
-        })),
-        top_accounts: topAccounts,
-        risks: {
-          capa_short: capaShortList.map(x => ({
-            name: nameById.get(x.customer_id) || '-',
-            gap: x.gap,
-          })),
-          quality: qTop.map(q => ({
-            name: q.customer_name,
-            title: q.title,
-            severity: q.severity,
-            type: q.type,
-          })),
-          eval_delay: evalRows.map(e => ({ name: e.customer_name, material: e.material_name })),
-        },
+[전사 KPI]
+- 가중 예상매출: ${won(d.kpis.weighted_expected)} / 진행 딜: ${d.kpis.active_deals}건 / 수주율: ${d.kpis.win_rate ?? '-'}%
+- 평균 Health: ${d.kpis.avg_health} / 품질 오픈: ${d.kpis.open_quality}건 / CAPA 부족 계정: ${d.kpis.capa_short_accounts}곳
+[공정 라이프사이클 분포] ${stages}
+[Top 계정]
+${top || '없음'}
+[리스크 — CAPA 부족] ${capa || '없음'}
+[리스크 — 품질 오픈] ${qual || '없음'}
+
+다음 JSON 형식으로만 응답하세요 (마크다운/설명 없이 JSON만):
+{
+  "headline": "전사 한 줄 요약 (50자 이내)",
+  "key_points": ["핵심 포인트 3~5개 (각 40자 이내)"],
+  "top_risks": ["가장 시급한 리스크 2~3개 (계정/사유 포함)"],
+  "recommended_actions": ["임원 관점 권고 액션 2~3개 (구체적으로)"]
+}`;
+
+    const model = genAI.getGenerativeModel({
+      model: MODEL_FAST,
+      safetySettings: SAFETY_SETTINGS,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+        maxOutputTokens: 900,
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
+    const r = await model.generateContent(prompt);
+    const txt = r.response.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(txt);
+    } catch {
+      return res
+        .status(502)
+        .json({ success: false, error: 'AI 응답 파싱 실패', raw: String(txt).slice(0, 300) });
+    }
+    const brief = {
+      headline: parsed.headline || '',
+      key_points: Array.isArray(parsed.key_points) ? parsed.key_points : [],
+      top_risks: Array.isArray(parsed.top_risks) ? parsed.top_risks : [],
+      recommended_actions: Array.isArray(parsed.recommended_actions)
+        ? parsed.recommended_actions
+        : [],
+      generated_at: new Date().toISOString(),
+      generated_by: getUserId(req) || null,
+    };
+    // 캐시 저장 — best-effort (컬럼 길이 등으로 실패해도 생성 결과는 반환)
+    try {
+      await pool.query(
+        `INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`,
+        [EXEC_BRIEF_KEY, JSON.stringify(brief)]
+      );
+    } catch (e) {
+      console.warn('[exec-brief] 캐시 저장 실패(무시):', e.message);
+    }
+    res.json({ success: true, data: brief });
   } catch (err) {
     handleError(res, err);
   }

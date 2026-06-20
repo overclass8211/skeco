@@ -810,7 +810,7 @@ router.post('/:id/brief', validateId, async (req, res) => {
     const wonCnt = deals.filter(d => d.stage === 'won').length;
     const openCnt = deals.filter(d => !['won', 'lost', 'dropped'].includes(d.stage)).length;
 
-    const prompt = `당신은 OCI 영업팀 보조입니다. 다음 고객사를 매우 간결한 핵심 브리핑으로 정리하세요.
+    const prompt = `당신은 SK에코플랜트 머티리얼즈 영업팀 보조입니다. 다음 고객사를 매우 간결한 핵심 브리핑으로 정리하세요.
 
 [고객사] ${customer.name} | ${customer.region} ${customer.country || ''} | ${customer.industry || '미분류'}
 [담당자] ${customer.contact_person || '미등록'} (${customer.phone || ''})
