@@ -105,7 +105,7 @@ a { text-decoration: none; color: inherit; }
   gap: 8px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
-  height: 64px;          /* topbar(56px) 와 균형 — 적정 크기로 조정 */
+  height: var(--topbar-h); /* topbar 와 동일 높이 — 하단 구분선 일직선 정렬 */
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.12s;
@@ -113,7 +113,7 @@ a { text-decoration: none; color: inherit; }
 }
 .sidebar-logo:hover { background: var(--surface-2); }
 .logo-img {
-  height: 40px;          /* 사이드바 헤더(64px) 안에서 적정 비율 */
+  height: 36px;          /* 사이드바 헤더(56px=topbar) 안에서 적정 비율 */
   width: auto;
   max-width: 140px;      /* 사이드바 220px 폭 기준 ("CRM AI" 텍스트와 균형) */
   object-fit: contain;
