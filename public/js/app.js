@@ -1359,7 +1359,7 @@ const App = {
 
           <form id="ld-edit-form" class="form-grid" style="gap:10px">
             <div class="form-row">
-              <label class="form-label">프로젝트명</label>
+              <label class="form-label">딜명</label>
               <input class="form-input" name="project_name" value="${esc(l.project_name || '')}">
             </div>
             <div class="form-row-2">
@@ -1543,10 +1543,11 @@ const App = {
           <button class="btn btn-ghost btn-sm" id="ld-back">‹ 목록</button>
           <div class="ld-page-title"><span class="ttl-text">${esc(l.customer_name)} · ${esc(l.project_name)}</span></div>
           <div class="ld-page-actions">
+            <span id="ld-save-status" style="font-size:12px;color:var(--text-3);align-self:center;white-space:nowrap;margin-right:2px;transition:opacity .2s"></span>
             <button class="ai-gen-btn" id="ld-ai" data-feature="ai.lead_summary">AI 요약</button>
             <button class="btn btn-ghost btn-sm" id="ld-email">이메일</button>
             <button class="btn btn-ghost btn-sm" id="ld-edit">상세 편집</button>
-            <button class="btn btn-primary btn-sm" id="ld-save">저장</button>
+            <button class="btn btn-primary btn-sm" id="ld-save" title="전체 저장 (자동저장 외 수동 백업)">저장</button>
           </div>
         </div>
         <div class="ld-page-body">${_ldBody}</div>`;
@@ -1683,6 +1684,8 @@ const App = {
       this._wireLeadSplitGutter();
       // Phase 3: 예상 이익금 라이브 계산 (예상매출 × 이익률)
       this._wireLeadProfitCalc(l);
+      // Phase A: 노션식 필드별 자동저장 (blur/debounce + 상태 표시)
+      this._wireLeadAutosave(l);
       // v7.0.0 R3: 댓글은 _loadTimeline 에서 7번째 소스로 통합 로드 — 별도 호출 불필요
       // 📊 v6.0.0 Phase A: 통합 타임라인 lazy load (활동/회의/견적/제안/계약/지원 통합)
       this._loadTimeline(l.id, l.customer_name);
@@ -1803,6 +1806,98 @@ const App = {
     } catch (_) {
       if (btn) btn.disabled = false; // 실패 시 재시도 가능 (성공 시 모달 재렌더)
     }
+  },
+
+  // ── Phase A: 영업딜 상세 필드별 자동저장 (노션식) ──────────────
+  //   blur 또는 입력 멈춤(debounce)에 해당 필드만 PATCH. 상태 칩으로 피드백,
+  //   검증 실패 시 보류, 저장 실패 시 직전값 롤백, Esc 로 되돌리기.
+  _wireLeadAutosave(l) {
+    const form = document.getElementById('ld-edit-form');
+    if (!form) return;
+    const statusEl = document.getElementById('ld-save-status');
+    let hideT = null;
+    const setStatus = (state, msg) => {
+      if (!statusEl) return;
+      clearTimeout(hideT);
+      statusEl.style.opacity = '1';
+      if (state === 'saving') {
+        statusEl.style.color = 'var(--text-3)';
+        statusEl.textContent = '저장 중…';
+      } else if (state === 'saved') {
+        statusEl.style.color = '#17A85A';
+        statusEl.textContent = '✓ 저장됨';
+        hideT = setTimeout(() => (statusEl.style.opacity = '0'), 1800);
+      } else if (state === 'error') {
+        statusEl.style.color = 'var(--oci-red)';
+        statusEl.textContent = msg || '저장 실패 — 다시 시도하세요';
+      }
+    };
+    const num = v => {
+      const s = (v || '').trim();
+      if (s === '') return null;
+      const n = parseFloat(s);
+      return isNaN(n) ? NaN : n;
+    };
+    const last = {};
+    const fields = [...form.querySelectorAll('[name]')];
+    fields.forEach(el => (last[el.name] = el.value));
+
+    const saveField = async el => {
+      const name = el.name;
+      const raw = el.value;
+      if (raw === last[name]) return; // 변경 없음
+      // 검증
+      if (name === 'project_name' && raw.trim() === '') {
+        setStatus('error', '딜명은 비울 수 없습니다');
+        return;
+      }
+      let val;
+      if (['capacity_mw', 'expected_amount', 'profit_rate'].includes(name)) {
+        val = num(raw);
+        if (Number.isNaN(val)) {
+          setStatus('error', '숫자 형식으로 입력하세요');
+          return;
+        }
+      } else {
+        val = raw.trim() === '' ? null : raw.trim();
+      }
+      setStatus('saving');
+      try {
+        await API.leads.update(l.id, { [name]: val });
+        last[name] = raw;
+        // 헤더 예상매출 동기화
+        if (name === 'expected_amount') {
+          l.expected_amount = val;
+          const hdr = document.getElementById('ld-meta-amount');
+          if (hdr) hdr.textContent = Fmt.amount(val, l.currency);
+        }
+        if (name === 'profit_rate') l.profit_rate = val;
+        setStatus('saved');
+        if (typeof App._syncAfterLeadChange === 'function') App._syncAfterLeadChange();
+      } catch (_) {
+        el.value = last[name]; // 롤백
+        setStatus('error');
+      }
+    };
+
+    fields.forEach(el => {
+      el.addEventListener('blur', () => saveField(el));
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          el.value = last[el.name];
+          if (statusEl) statusEl.style.opacity = '0';
+          el.blur();
+        }
+      });
+      // 텍스트/메모는 입력 멈춤(debounce) 시에도 저장
+      if (el.tagName === 'TEXTAREA' || el.type === 'text') {
+        el.addEventListener('input', () => {
+          clearTimeout(el._saveT);
+          el._saveT = setTimeout(() => saveField(el), 800);
+        });
+      }
+    });
   },
 
   // ── v6.0.0: 영업리드 댓글 (계약 모듈 패턴 통일) ──────────
