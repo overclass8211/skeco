@@ -381,51 +381,8 @@ const LeadsPage = {
       return;
     }
 
-    // v6.0.0: 단계 진척률 (5개 모듈 통일 — StageProgress 컴포넌트)
-    // 정상 흐름: lead → review → proposal → bidding → negotiation → won (6단계)
-    // 종료: lost (실주), dropped (중단)
-    const LEAD_STAGES = [
-      { key: 'lead', label: '발굴/니즈파악', color: '#6b7280' },
-      { key: 'review', label: '샘플 평가', color: '#3b82f6' },
-      { key: 'proposal', label: 'Spec-in/승인', color: '#8b5cf6' },
-      { key: 'bidding', label: '가격 협의', color: '#0891b2' },
-      { key: 'negotiation', label: '공급계약', color: '#f59e0b' },
-      { key: 'won', label: '양산/정기수주', color: '#16a34a' },
-    ];
-    const LEAD_TERMINAL_LOST = { key: 'lost', label: '실주', color: '#dc2626' };
-    const LEAD_TERMINAL_DROPPED = { key: 'dropped', label: '중단', color: '#9ca3af' };
-
-    const stageBadge = stage => {
-      if (typeof StageProgress === 'undefined') {
-        // fallback — 컴포넌트 없으면 기존 badge
-        const map = {
-          lead: 'gray',
-          review: 'gray',
-          proposal: 'blue',
-          bidding: 'amber',
-          negotiation: 'green',
-          won: 'green',
-          lost: 'gray',
-          dropped: 'red',
-        };
-        return `<span class="badge badge-${map[stage]}">${STAGES[stage].label}</span>`;
-      }
-      let terminal = null;
-      let cur = stage;
-      if (stage === 'lost') {
-        terminal = LEAD_TERMINAL_LOST;
-        cur = 'lost';
-      } else if (stage === 'dropped') {
-        terminal = LEAD_TERMINAL_DROPPED;
-        cur = 'dropped';
-      }
-      return StageProgress.render({
-        stages: LEAD_STAGES,
-        current: cur,
-        size: 'sm',
-        terminal,
-      });
-    };
+    // 단계 표시 — 단조로운 단일 진행도 도넛 아이콘 (클릭 시 드롭다운으로 변경)
+    const stageBadge = stage => this._stageDonut(stage, 18);
 
     const html = `
       <table class="data-table">
@@ -471,7 +428,7 @@ const LeadsPage = {
               <td class="text-right mono">${Fmt.amount(l.expected_amount, l.currency)}</td>
               <td data-stop-propagation="1">
                 <span class="lead-stage-trigger" data-lead-id="${l.id}" data-stage="${esc(l.stage)}"
-                      style="cursor:pointer;display:inline-flex;align-items:center;gap:4px" title="클릭하여 단계 변경">
+                      style="cursor:pointer;display:inline-flex;align-items:center;gap:4px" title="${esc(this._stageLabel(l.stage))} · 클릭하여 단계 변경">
                   ${stageBadge(l.stage)}
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3)"><path d="m6 9 6 6 6-6"/></svg>
                 </span>
@@ -531,6 +488,44 @@ const LeadsPage = {
     });
   },
 
+  // ── 단계 진행도 도넛 아이콘 (단조로운 단일 써클) ─────────────
+  //   정상 단계는 진행 비율(0→1)만큼 링이 채워지고, 종료 단계는 꽉 찬 링.
+  _STAGE_ORDER: ['lead', 'review', 'proposal', 'bidding', 'negotiation', 'won'],
+  _STAGE_COLOR: {
+    lead: '#9ca3af',
+    review: '#3b82f6',
+    proposal: '#06b6d4',
+    bidding: '#8b5cf6',
+    negotiation: '#f59e0b',
+    won: '#16a34a',
+    lost: '#dc2626',
+    dropped: '#9ca3af',
+  },
+  _stageLabel(stageKey) {
+    return (typeof STAGES !== 'undefined' && STAGES[stageKey] && STAGES[stageKey].label) || stageKey || '';
+  },
+  _stageDonut(stageKey, size = 18) {
+    const stroke = Math.max(2, Math.round(size / 6));
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    const cx = size / 2;
+    const color = this._STAGE_COLOR[stageKey] || '#9ca3af';
+    const idx = this._STAGE_ORDER.indexOf(stageKey);
+    let frac = idx >= 0 ? idx / (this._STAGE_ORDER.length - 1) : 1; // 정상=진행률, 종료=꽉참
+    frac = Math.max(0.1, Math.min(1, frac)); // 최소 가시성
+    const dash = `${(frac * c).toFixed(2)} ${c.toFixed(2)}`;
+    const k = size / 18;
+    const check =
+      stageKey === 'won'
+        ? `<path d="M${(5.6 * k).toFixed(1)} ${(9.4 * k).toFixed(1)} L${(8.1 * k).toFixed(1)} ${(11.8 * k).toFixed(1)} L${(12.6 * k).toFixed(1)} ${(6.6 * k).toFixed(1)}" fill="none" stroke="${color}" stroke-width="${(stroke * 0.8).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`
+        : '';
+    return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="display:block;flex-shrink:0" aria-hidden="true">
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="#e5e7eb" stroke-width="${stroke}"/>
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${dash}" stroke-linecap="round" transform="rotate(-90 ${cx} ${cx})"/>
+      ${check}
+    </svg>`;
+  },
+
   // ── 인라인 단계 선택 드롭다운 (테이블 단계 셀 클릭) ──────────
   _closeStagePop() {
     document.querySelectorAll('.lead-stage-pop').forEach(el => el.remove());
@@ -545,8 +540,6 @@ const LeadsPage = {
     const entries = Object.entries(STAGES || {})
       .map(([k, v]) => ({ key: k, label: v.label, role: v.role, order: v.sort_order || 0 }))
       .sort((a, b) => a.order - b.order);
-    const dot = role =>
-      role === 'won' ? '#0F7A3F' : role === 'lost' ? '#9CA3AF' : role === 'dropped' ? '#E63329' : '#2357E8';
     const menu = document.createElement('div');
     menu.className = 'lead-stage-pop';
     menu.style.cssText =
@@ -555,7 +548,7 @@ const LeadsPage = {
       .map(
         s => `<button class="lead-stage-opt" data-stage="${s.key}"
           style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:0;background:none;cursor:pointer;text-align:left;border-radius:6px;font-size:13px;color:var(--text-1)">
-          <span style="width:8px;height:8px;border-radius:50%;background:${dot(s.role)};flex-shrink:0"></span>
+          ${this._stageDonut(s.key, 16)}
           <span style="flex:1">${esc(s.label)}</span>
           ${s.key === current ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--oci-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
         </button>`
@@ -596,27 +589,8 @@ const LeadsPage = {
   _renderCardList(leads) {
     const wrap = document.getElementById('leads-table-wrap');
     if (!wrap) return;
-    const stageBadge = stage => {
-      if (typeof StageProgress === 'undefined') return esc(STAGES[stage]?.label || stage);
-      const STAGES_ARR = [
-        { key: 'lead', label: '발굴/니즈파악', color: '#6b7280' },
-        { key: 'review', label: '샘플 평가', color: '#3b82f6' },
-        { key: 'proposal', label: 'Spec-in/승인', color: '#8b5cf6' },
-        { key: 'bidding', label: '가격 협의', color: '#0891b2' },
-        { key: 'negotiation', label: '공급계약', color: '#f59e0b' },
-        { key: 'won', label: '양산/정기수주', color: '#16a34a' },
-      ];
-      let terminal = null;
-      let cur = stage;
-      if (stage === 'lost') {
-        terminal = { key: 'lost', label: '실주', color: '#dc2626' };
-        cur = 'lost';
-      } else if (stage === 'dropped') {
-        terminal = { key: 'dropped', label: '중단', color: '#9ca3af' };
-        cur = 'dropped';
-      }
-      return StageProgress.render({ stages: STAGES_ARR, current: cur, size: 'sm', terminal });
-    };
+    const stageBadge = stage =>
+      `<span style="display:inline-flex;align-items:center;gap:6px">${this._stageDonut(stage, 16)}<span>${esc(this._stageLabel(stage))}</span></span>`;
     const fmtAmt = amt => {
       if (!amt) return '-';
       const n = Number(amt);
