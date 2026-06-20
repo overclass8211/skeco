@@ -343,16 +343,10 @@ const Customer360Page = {
   },
 
   _ribbon(stageIndex) {
-    return `<div class="lc-track">
-      ${this._STAGES.map(([, label], i) => {
-        const cls = i < stageIndex ? 'lc-done' : i === stageIndex ? 'lc-now' : '';
-        const inner = i < stageIndex ? this._svg('check', 11) : '';
-        return `<div class="lc-step ${cls}">
-          ${i > 0 ? '<div class="lc-line"></div>' : ''}
-          <div class="lc-dot">${inner}</div>${label}
-        </div>`;
-      }).join('')}
-    </div>`;
+    // 공통 라벨형 스테퍼 (시인성 강화 — 트랙 채움/현재 강조)
+    const stages = this._STAGES.map(([key, label]) => ({ key, label }));
+    const current = (this._STAGES[stageIndex] || this._STAGES[0])[0];
+    return StageProgress.renderStepper({ stages, current });
   },
 
   _tabLifecycle() {

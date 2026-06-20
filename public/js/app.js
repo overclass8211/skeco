@@ -1262,6 +1262,13 @@ const App = {
         })
         .join('');
 
+      // 영업 단계 스테퍼 (우측 패널 상단) — 종료단계(lost/dropped)는 별도 표기
+      const DEAL_STAGE_ORDER = ['lead', 'review', 'proposal', 'bidding', 'negotiation', 'won'];
+      const _dealStages = DEAL_STAGE_ORDER.map(k => ({ key: k, label: STAGES[k]?.label || k }));
+      const _dealStepper =
+        StageProgress.renderStepper({ stages: _dealStages, current: l.stage, clickable: true }) ||
+        `<span style="font-size:12px;color:var(--text-3)">${esc(STAGES[l.stage]?.label || l.stage)} · 종료 단계</span>`;
+
       const _ldBody = `
           <div class="ld-modal-grid">
           <div class="ld-modal-left">
@@ -1416,6 +1423,13 @@ const App = {
 
           <!-- v6.0.0 Phase C+: 우측 컬럼 — 통합 타임라인 + 검토 코멘트 -->
           <div class="ld-modal-right">
+            <!-- 영업 단계 스테퍼 (우측 패널 최상단) — 클릭 시 단계 전환 -->
+            <div class="card mb-3" id="ld-stage-card" style="flex-shrink:0">
+              <div style="padding:12px 16px 10px">
+                <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-bottom:6px">영업 단계</div>
+                ${_dealStepper}
+              </div>
+            </div>
             <!-- F2: 연결된 고객지원(A/S) 티켓 (support_tickets.lead_id) -->
             <div class="card mb-3" id="ld-support-card">
               <div class="card-body" id="ld-linked-support" style="max-height:34vh;overflow-y:auto">
@@ -1656,6 +1670,11 @@ const App = {
           '#ld-add-support': () => this._openSupportForm(l.id),
           // v6.0.0 Phase C: 단계 변경 퀵 액션
           '.ld-stage-quick': e => this._quickStageChange(l.id, e.currentTarget.dataset.next),
+          // 우측 패널 영업 단계 스테퍼 클릭 → 해당 단계로 전환
+          '.ss-step[data-ss-key]': e => {
+            const k = e.currentTarget.dataset.ssKey;
+            if (k && k !== l.stage) this._quickStageChange(l.id, k);
+          },
           // v6.0.0 Phase C: 인라인 활동 퀵 칩
           '.ld-quick-act': e => this._openQuickActForm(e.currentTarget.dataset.quick),
           '#ld-quick-cancel': () => this._closeQuickActForm(),

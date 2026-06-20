@@ -2892,6 +2892,106 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   text-overflow: ellipsis;
 }
 
+/* 라벨형 가로 스테퍼 (StageProgress.renderStepper) — 상세 화면 시인성 강화 */
+.ss-stepper {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  padding: 6px 4px 2px;
+  overflow-x: auto;
+}
+.ss-step {
+  flex: 1 1 0;
+  min-width: 64px;
+  text-align: center;
+  position: relative;
+}
+/* 단계 사이 연결선 — 직전 step 으로부터 (완료 구간은 초록 채움) */
+.ss-step::before {
+  content: '';
+  position: absolute;
+  top: 13px;
+  left: -50%;
+  width: 100%;
+  height: 2.5px;
+  background: var(--border);
+  border-radius: 2px;
+  z-index: 0;
+}
+.ss-step:first-child::before {
+  display: none;
+}
+.ss-step.ss-fill::before {
+  background: #17a85a;
+}
+.ss-dot {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  margin: 0 auto 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  transition: all 0.15s ease;
+}
+.ss-done .ss-dot {
+  background: #17a85a;
+  border-color: #17a85a;
+  color: #fff;
+}
+.ss-now .ss-dot {
+  background: var(--oci-red);
+  border-color: var(--oci-red);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--oci-red-light);
+  transform: scale(1.08);
+}
+.ss-future .ss-dot {
+  background: var(--surface);
+  border-color: var(--border-2, #d1d5db);
+  color: var(--text-3);
+}
+.ss-label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+.ss-done .ss-label {
+  color: var(--text-2);
+}
+.ss-now .ss-label {
+  color: var(--oci-red);
+  font-weight: 700;
+}
+.ss-now-chip {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--oci-red);
+  background: var(--oci-red-light);
+  border-radius: 6px;
+  padding: 0 5px;
+  line-height: 1.5;
+}
+.ss-clickable .ss-step {
+  cursor: pointer;
+}
+.ss-clickable .ss-future:hover .ss-dot {
+  border-color: var(--oci-red);
+  color: var(--oci-red);
+}
+
 /* Skeleton 로딩 상태 */
 .kpi-card-skeleton {
   cursor: default;

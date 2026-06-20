@@ -101,5 +101,38 @@ const StageProgress = (() => {
     </div>`;
   }
 
-  return { render };
+  /**
+   * 라벨형 가로 스테퍼 (상세 화면용 — 시인성 강화)
+   *   - 완료 구간 트랙 채움(초록 실선) / 예정 구간 회색
+   *   - 완료=✓ / 현재=번호+halo 링+"현재" 칩 / 예정=속빈 원
+   * @param {Object} opts
+   * @param {Array<{key,label}>} opts.stages
+   * @param {string} opts.current — 현재 단계 key
+   * @param {boolean} [opts.clickable=false] — step 에 data-ss-key 부여 (단계 전환용)
+   * @returns {string} HTML — current 가 stages 에 없으면 '' (호출부에서 종료상태 별도 처리)
+   */
+  function renderStepper({ stages, current, clickable = false } = {}) {
+    if (!Array.isArray(stages) || stages.length === 0) return '';
+    const curIdx = stages.findIndex(s => s.key === current);
+    if (curIdx < 0) return '';
+    const steps = stages
+      .map((s, i) => {
+        const done = i < curIdx;
+        const now = i === curIdx;
+        const cls = done ? 'ss-done' : now ? 'ss-now' : 'ss-future';
+        const fill = i <= curIdx ? ' ss-fill' : '';
+        const sym = done ? '✓' : String(i + 1);
+        return `<div class="ss-step ${cls}${fill}" ${clickable ? `data-ss-key="${esc(s.key)}"` : ''} title="${esc(s.label)}${now ? ' (현재)' : ''}">
+          <div class="ss-dot" aria-hidden="true">${sym}</div>
+          <div class="ss-label">${esc(s.label)}</div>
+          ${now ? '<div class="ss-now-chip">현재</div>' : ''}
+        </div>`;
+      })
+      .join('');
+    return `<div class="ss-stepper${clickable ? ' ss-clickable' : ''}" role="progressbar"
+      aria-valuemin="1" aria-valuemax="${stages.length}" aria-valuenow="${curIdx + 1}"
+      aria-label="단계: ${esc(stages[curIdx].label)}">${steps}</div>`;
+  }
+
+  return { render, renderStepper };
 })();
