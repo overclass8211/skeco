@@ -1157,7 +1157,9 @@ async function buildExecSummaryData() {
     kpis: {
       weighted_expected: Math.round(Number(wAgg.weighted) || 0),
       active_deals: Number(dealAgg.active) || 0,
-      win_rate: winRate,
+      win_rate: winRate, // 마감 승률 = won/(won+lost)
+      won_deals: won,
+      lost_deals: lost,
       avg_health: healthGrade(avgScore),
       open_quality: Number(qAgg.n) || 0,
       capa_short_accounts: capaShortIds.size,
@@ -1241,7 +1243,7 @@ async function execBriefPost(req, res) {
 아래 '전사 집계 수치'만 근거로 임원용 요약 브리핑을 작성하세요. 수치를 지어내지 말고 주어진 값만 사용합니다.
 
 [전사 KPI]
-- 가중 예상매출: ${won(d.kpis.weighted_expected)} / 진행 딜: ${d.kpis.active_deals}건 / 수주율: ${d.kpis.win_rate ?? '-'}%
+- 가중 예상매출: ${won(d.kpis.weighted_expected)} / 진행 딜: ${d.kpis.active_deals}건 / 마감 승률: ${d.kpis.win_rate ?? '-'}%${d.kpis.lost_deals === 0 ? ' (마감 실주 0)' : ''}
 - 평균 Health: ${d.kpis.avg_health} / 품질 오픈: ${d.kpis.open_quality}건 / CAPA 부족 계정: ${d.kpis.capa_short_accounts}곳
 [공정 라이프사이클 분포] ${stages}
 [Top 계정]

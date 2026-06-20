@@ -48,7 +48,7 @@ const Exec360Page = {
         .ex-brief-box .ex-brief-ul{margin:0;font-size:12.5px}
         .ex-brief-empty{font-size:12.5px;color:var(--text-3);padding:8px 0}
         /* 공정 라이프사이클 — 스트림(퍼널): SVG 영역 + HTML 오버레이 (해상도 독립) */
-        .ex-fn-wrap{position:relative;height:150px;margin:14px 0 6px}
+        .ex-fn-wrap{position:relative;height:150px;margin:42px 0 60px}
         .ex-fn-area{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
         .ex-fn-col{position:absolute;top:0;height:100%;width:96px;transform:translateX(-50%);cursor:pointer;overflow:visible}
         .ex-fn-node{position:absolute;left:0;right:0;transform:translateY(-100%);display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none}
@@ -95,6 +95,16 @@ const Exec360Page = {
     return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   },
 
+  // 마감 승률 부가설명 — 마감 실주 0 / 데이터 부재 맥락을 명확히
+  _winRateSub(k) {
+    const won = k.won_deals;
+    const lost = k.lost_deals;
+    if (won === undefined || lost === undefined) return '수주/(수주+실주)';
+    if (won + lost === 0) return '마감 딜 없음';
+    if (lost === 0) return `마감 실주 0 · 수주 ${won}건`;
+    return `수주 ${won} / 마감 ${won + lost}`;
+  },
+
   _renderBody() {
     const d = this._data;
     const k = d.kpis;
@@ -104,7 +114,7 @@ const Exec360Page = {
     const kpis = `<div class="ex-kpis">
       <div class="ex-kpi"><div class="l">가중 예상매출</div><div class="v">${this._won(k.weighted_expected)}</div><div class="s">진행 딜 가중합</div></div>
       <div class="ex-kpi"><div class="l">진행 딜</div><div class="v">${k.active_deals}건</div><div class="s">활성 파이프라인</div></div>
-      <div class="ex-kpi"><div class="l">수주율</div><div class="v">${k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%'}</div><div class="s">수주/(수주+실주)</div></div>
+      <div class="ex-kpi"><div class="l">마감 승률</div><div class="v">${k.win_rate === null || k.win_rate === undefined ? '-' : k.win_rate + '%'}</div><div class="s">${this._winRateSub(k)}</div></div>
       <div class="ex-kpi"><div class="l">평균 Health</div><div class="v">${k.avg_health}</div><div class="s">Top 계정 기준</div></div>
       <div class="ex-kpi"><div class="l">품질 오픈</div><div class="v" style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건</div><div class="s">VOC/NCR 미해결</div></div>
       <div class="ex-kpi"><div class="l">CAPA 부족 계정</div><div class="v" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</div><div class="s">생산 < 수요</div></div>
