@@ -321,6 +321,10 @@ const Customer360Page = {
     }
     // ④ 관계 = 조직 + 활동
     if (t === 'relationship') this._bindOrg(el);
+    // ⑤ AI 브리핑 — 360 내 직접 생성/재생성
+    if (t === 'brief') {
+      el.querySelector('#c360-brief-gen')?.addEventListener('click', () => this._generateBrief());
+    }
     if (t === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
       el.querySelectorAll('[data-edit-mat]').forEach(b =>
@@ -491,12 +495,22 @@ const Customer360Page = {
 
   _tabBrief() {
     const b = this._data.brief;
+    const when = b && b.generated_at ? this._fmtWhen(b.generated_at) : null;
+    // 헤더: 생성 시점 + 직접 생성/재생성 버튼 (고객사 상세로 가지 않아도 360에서 바로 생성)
+    const header = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700">AI 브리핑</span>
+        ${when ? `<span style="font-size:11px;color:var(--text-3)">생성 시점 · ${esc(when)}</span>` : '<span style="font-size:11px;color:var(--text-3)">아직 생성 안 됨</span>'}
+        <button class="btn btn-sm ${b ? 'btn-ghost' : 'btn-primary'}" id="c360-brief-gen" style="margin-left:auto">${b ? '다시 생성' : 'AI 브리핑 생성'}</button>
+      </div>`;
     if (!b) {
-      return `<div class="c360-empty">생성된 AI 브리핑이 없습니다.<br>
-        <span style="font-size:12px">고객사 상세에서 AI 브리핑을 생성하면 여기에 표시됩니다.</span></div>`;
+      return (
+        header +
+        `<div class="c360-empty">아직 생성된 AI 브리핑이 없습니다.<br>
+        <span style="font-size:12px">위 “AI 브리핑 생성”을 누르면 현재 고객 데이터로 즉시 분석합니다.</span></div>`
+      );
     }
     const kp = Array.isArray(b.key_points) ? b.key_points : [];
-    return `<div class="c360-brief">
+    return `${header}<div class="c360-brief">
       ${b.headline ? `<div class="c360-brief-head">${esc(b.headline)}</div>` : ''}
       ${
         kp.length
@@ -509,6 +523,29 @@ const Customer360Page = {
         ${b.risk ? `<div style="flex:1;min-width:200px;background:rgba(230,51,41,.08);border-left:3px solid var(--oci-red);padding:10px 12px;border-radius:6px"><div style="font-size:11px;color:var(--text-3);margin-bottom:4px">리스크</div><div style="font-size:13px;font-weight:600">${esc(b.risk)}</div></div>` : ''}
       </div>
     </div>`;
+  },
+
+  // AI 브리핑 직접 생성 (360 내에서) — POST /customers/:id/brief
+  async _generateBrief() {
+    const host = document.getElementById('c360-tab-body');
+    if (host)
+      host.innerHTML = `<div class="loading" style="padding:40px;text-align:center;color:var(--text-3)">AI가 고객 데이터를 분석 중…</div>`;
+    try {
+      const r = await API.post(`/customers/${this._custId}/brief`, {});
+      this._data.brief = r.data;
+      if (typeof Toast !== 'undefined') Toast.success?.('AI 브리핑 생성 완료');
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error?.('생성 실패: ' + (e.message || e));
+    }
+    this._renderTab();
+  },
+
+  // 생성 시점 포맷 (YYYY-MM-DD HH:mm)
+  _fmtWhen(ts) {
+    const d = new Date(ts);
+    if (isNaN(d)) return String(ts).slice(0, 16).replace('T', ' ');
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   },
 
   // ── 포캐스트 탭 (고객/내부 분리 + 버전관리) ──────────────────
