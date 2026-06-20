@@ -183,15 +183,41 @@ const Exec360Page = {
       pct: Math.round((s.count / total) * 100),
       isMax: max > 0 && s.count === max,
     }));
-    let area = `M ${pts[0].x.toFixed(2)} ${BASE}`;
-    pts.forEach(p => (area += ` L ${p.x.toFixed(2)} ${p.top.toFixed(2)}`));
-    area += ` L ${pts[N - 1].x.toFixed(2)} ${BASE} Z`;
+    // 유선형 곡선 (Catmull-Rom → cubic bezier) — 상단 곡선만
+    const topCurve = (() => {
+      let d = `M ${pts[0].x.toFixed(2)} ${pts[0].top.toFixed(2)}`;
+      for (let i = 0; i < N - 1; i++) {
+        const p0 = pts[i - 1] || pts[i];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[i + 2] || pts[i + 1];
+        const c1x = p1.x + (p2.x - p0.x) / 6;
+        const c1y = p1.top + (p2.top - p0.top) / 6;
+        const c2x = p2.x - (p3.x - p1.x) / 6;
+        const c2y = p2.top - (p3.top - p1.top) / 6;
+        d += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.top.toFixed(2)}`;
+      }
+      return d;
+    })();
+    const fillPath = `${topCurve} L ${pts[N - 1].x.toFixed(2)} ${BASE} L ${pts[0].x.toFixed(2)} ${BASE} Z`;
+    // 단계 색을 잇는 가로 다색 그라데이션 (보합 스펙트럼)
+    const stops = pts
+      .map(
+        (p, i) =>
+          `<stop offset="${N === 1 ? 0 : ((i / (N - 1)) * 100).toFixed(1)}%" stop-color="${p.color}"/>`
+      )
+      .join('');
     const svg = `<svg class="ex-fn-area" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <defs><linearGradient id="exFnGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="rgba(35,87,232,0.20)"/><stop offset="1" stop-color="rgba(35,87,232,0.015)"/>
-        </linearGradient></defs>
+        <defs>
+          <linearGradient id="exFnFlow" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient>
+          <linearGradient id="exFnFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="0.55"/>
+          </linearGradient>
+        </defs>
         <line x1="0" y1="${BASE}" x2="100" y2="${BASE}" stroke="var(--border)" stroke-width="1" vector-effect="non-scaling-stroke"/>
-        <path d="${area}" fill="url(#exFnGrad)" stroke="#2357E8" stroke-width="1.5" stroke-opacity="0.45" vector-effect="non-scaling-stroke"/>
+        <path d="${fillPath}" fill="url(#exFnFlow)" fill-opacity="0.22"/>
+        <path d="${fillPath}" fill="url(#exFnFade)"/>
+        <path d="${topCurve}" fill="none" stroke="url(#exFnFlow)" stroke-width="2.5" stroke-opacity="0.95" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
       </svg>`;
     const cols = pts
       .map(
