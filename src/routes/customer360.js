@@ -337,27 +337,7 @@ router.get('/:id', validateId, async (req, res) => {
     const openSupport = Number(supportAgg.open_cnt) || 0;
     const contractAmt = Number(contractAgg.amt) || 0;
 
-    // 간이 Account Health (0~100)
-    let score = 60;
-    score += Math.min(20, wonCount * 7); // 수주 실적
-    score += Math.min(10, activeCount * 2); // 진행 파이프라인
-    if (contractAmt > 0) score += 8; // 계약 보유
-    score -= overdue * 8; // 연체 수금
-    score -= openSupport * 5; // 미해결 지원
-    score = Math.max(0, Math.min(100, score));
-    const grade =
-      score >= 90
-        ? 'A+'
-        : score >= 80
-          ? 'A'
-          : score >= 70
-            ? 'B+'
-            : score >= 60
-              ? 'B'
-              : score >= 45
-                ? 'C'
-                : 'D';
-
+    // Account Health 는 라이프사이클(품질·CAPA)까지 반영하므로 아래 lifecycle 계산 후 산출
     const risks = [];
     if (overdue > 0) risks.push({ level: 'high', label: `연체 수금 ${overdue}건` });
     if (openSupport > 0) risks.push({ level: 'medium', label: `미해결 지원 ${openSupport}건` });
@@ -372,6 +352,17 @@ router.get('/:id', validateId, async (req, res) => {
     }
     const openQ = lifecycle.quality.filter(q => q.status !== 'resolved').length;
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
+
+    // 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
+    const { score, grade } = computeHealth({
+      won: wonCount,
+      active: activeCount,
+      contractAmt,
+      overdue,
+      openSupport,
+      openQuality: openQ,
+      capaShort: lifecycle.demand_flow.gap > 0,
+    });
 
     // ── 예상매출 월/분기/연 분해 (demand_forecasts 기준) ──
     const [brkRows] = await pool.query(
@@ -951,6 +942,65 @@ function healthGrade(score) {
             ? 'C'
             : 'D';
 }
+
+// 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
+//   60 기준 + 수주/진행 가점, 계약 보유 가점, 연체/지원/품질/CAPA 감점
+function computeHealth(sig) {
+  let s = 60;
+  s += Math.min(20, (Number(sig.won) || 0) * 7); // 수주 실적
+  s += Math.min(10, (Number(sig.active) || 0) * 2); // 진행 파이프라인
+  if ((Number(sig.contractAmt) || 0) > 0) s += 8; // 계약 보유
+  s -= (Number(sig.overdue) || 0) * 8; // 연체 수금
+  s -= (Number(sig.openSupport) || 0) * 5; // 미해결 지원
+  s -= (Number(sig.openQuality) || 0) * 5; // 미해결 품질
+  if (sig.capaShort) s -= 8; // CAPA 부족
+  s = Math.max(0, Math.min(100, s));
+  return { score: s, grade: healthGrade(s) };
+}
+
+// 임원뷰 Top 계정용 — 상세뷰와 '동일한' 신호를 수집해 동일 산식 적용
+async function gatherHealthSignals(customerId, customerName) {
+  const byCust = '(customer_id = ? OR (customer_id IS NULL AND customer_name = ?))';
+  const p = [customerId, customerName];
+  const [[leadAgg], [contractAgg], [payAgg], [supportAgg], lifecycle] = await Promise.all([
+    pool
+      .query(
+        `SELECT SUM(CASE WHEN ps.role='won' THEN 1 ELSE 0 END) AS won,
+                SUM(CASE WHEN COALESCE(ps.role,'') NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active
+           FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
+          WHERE l.customer_name = ?`,
+        [customerName]
+      )
+      .then(r => r[0]),
+    pool
+      .query(`SELECT COALESCE(SUM(contract_amount),0) AS amt FROM contracts WHERE ${byCust}`, p)
+      .then(r => r[0]),
+    pool
+      .query(
+        `SELECT SUM(CASE WHEN due_date < CURDATE() AND recognized_at IS NULL THEN 1 ELSE 0 END) AS overdue_cnt
+           FROM payment_schedules WHERE ${byCust}`,
+        p
+      )
+      .then(r => r[0]),
+    pool
+      .query(
+        `SELECT SUM(CASE WHEN resolved_at IS NULL AND closed_at IS NULL THEN 1 ELSE 0 END) AS open_cnt
+           FROM support_tickets WHERE customer_id = ?`,
+        [customerId]
+      )
+      .then(r => r[0]),
+    buildLifecycle(customerId),
+  ]);
+  return {
+    won: Number(leadAgg.won) || 0,
+    active: Number(leadAgg.active) || 0,
+    contractAmt: Number(contractAgg.amt) || 0,
+    overdue: Number(payAgg.overdue_cnt) || 0,
+    openSupport: Number(supportAgg.open_cnt) || 0,
+    openQuality: lifecycle.quality.filter(q => q.status !== 'resolved').length,
+    capaShort: lifecycle.demand_flow.gap > 0,
+  };
+}
 async function execSummary(req, res) {
   try {
     const [[wAgg], [dealAgg], stageRows, [qAgg], capaRows, acctRows, qTop, evalRows] =
@@ -1034,10 +1084,6 @@ async function execSummary(req, res) {
           .then(r => r[0]),
       ]);
 
-    // 오픈 품질 보유 고객 set (Top 계정 리스크 표기용)
-    const qByCust = new Map();
-    for (const q of qTop) qByCust.set(q.customer_id, (qByCust.get(q.customer_id) || 0) + 1);
-
     // CAPA 부족 고객 set
     const capaShortIds = new Set();
     const capaShortList = [];
@@ -1061,28 +1107,25 @@ async function execSummary(req, res) {
     const lost = Number(dealAgg.lost) || 0;
     const winRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null;
 
-    const topAccounts = acctRows.map(a => {
-      const openQ = qByCust.get(a.id) || 0;
-      let score =
-        60 +
-        Math.min(20, (Number(a.won) || 0) * 7) +
-        Math.min(10, (Number(a.active) || 0) * 2) -
-        openQ * 5;
-      if (capaShortIds.has(a.id)) score -= 8;
-      score = Math.max(0, Math.min(100, score));
-      const risks = [];
-      if (capaShortIds.has(a.id)) risks.push({ level: 'medium', label: 'CAPA 부족' });
-      if (openQ > 0) risks.push({ level: 'high', label: `품질 ${openQ}` });
-      return {
-        id: a.id,
-        name: a.name,
-        weighted: Math.round(Number(a.weighted) || 0),
-        active: Number(a.active) || 0,
-        won: Number(a.won) || 0,
-        health_grade: healthGrade(score),
-        risks,
-      };
-    });
+    // Top 계정 Health — 상세뷰와 동일한 신호·산식으로 계산해 등급 일치 보장
+    const topAccounts = await Promise.all(
+      acctRows.map(async a => {
+        const sig = await gatherHealthSignals(a.id, a.name);
+        const { grade } = computeHealth(sig);
+        const risks = [];
+        if (sig.capaShort) risks.push({ level: 'medium', label: 'CAPA 부족' });
+        if (sig.openQuality > 0) risks.push({ level: 'high', label: `품질 ${sig.openQuality}` });
+        return {
+          id: a.id,
+          name: a.name,
+          weighted: Math.round(Number(a.weighted) || 0),
+          active: Number(a.active) || 0,
+          won: Number(a.won) || 0,
+          health_grade: grade,
+          risks,
+        };
+      })
+    );
     // 평균 Health (Top 계정 기준 근사)
     const avgScore = topAccounts.length
       ? Math.round(

@@ -236,6 +236,20 @@ describe('Customer360 (MVP) API', () => {
     expect(res.body.success).toBe(true);
   });
 
+  it('exec-summary Top 계정 Health 등급이 상세뷰 등급과 일치 (회귀 방지)', async () => {
+    // 🐛 임원360뷰와 고객·제품360뷰의 Health 등급 불일치 버그 회귀 방지
+    //   원인: 두 화면이 서로 다른 점수 산식 사용 → computeHealth 단일화로 통일
+    const ex = await api().get('/api/customer360/exec-summary').set('X-User-Id', '1');
+    expect(ex.status).toBe(200);
+    const top = ex.body.data.top_accounts;
+    expect(Array.isArray(top)).toBe(true);
+    for (const a of top) {
+      const d = await api().get(`/api/customer360/${a.id}`).set('X-User-Id', '1');
+      expect(d.status).toBe(200);
+      expect(a.health_grade).toBe(d.body.data.header.health_grade);
+    }
+  });
+
   it('POST /:id/forecast/sync-capa — 생산예측 → CAPA 반영', async () => {
     // 소재명과 동일 product_name 의 생산예측 1건 (forecast_qty 333)
     const [pf] = await pool.query(
