@@ -26,17 +26,20 @@ const Exec360Page = {
         .ex-bar2 h2{font-size:18px;font-weight:700;margin:0}
         .ex-sub{font-size:12px;color:var(--text-3)}
         .ex-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
-        .ex-kpi{border:1px solid var(--border);border-radius:10px;padding:13px 15px;background:var(--surface)}
-        .ex-kpi .l{font-size:12px;color:var(--text-2)}
-        .ex-kpi .v{font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
-        .ex-kpi .s{font-size:11px;color:var(--text-3);margin-top:1px}
-        .ex-sec{font-size:13px;font-weight:700;margin:18px 0 10px}
-        .ex-stage{display:flex;align-items:flex-end;gap:10px;height:120px;border-bottom:1px solid var(--border);padding-bottom:2px}
-        .ex-scol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}
-        .ex-scol .bar{width:64%;border-radius:6px 6px 0 0;min-height:3px}
-        .ex-scol .n{font-size:13px;font-weight:700}
-        .ex-slab{display:flex;gap:10px;margin:6px 0 18px}
-        .ex-slab span{flex:1;text-align:center;font-size:11px;color:var(--text-2)}
+        .ex-kpi{border:1px solid var(--border);border-radius:10px;padding:15px 16px;background:var(--surface)}
+        .ex-kpi .l{font-size:12.5px;color:var(--text-2);font-weight:600}
+        .ex-kpi .v{font-size:28px;font-weight:700;margin-top:5px;color:var(--text-1);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+        .ex-kpi .s{font-size:11.5px;color:var(--text-3);margin-top:2px}
+        .ex-sec{font-size:14px;font-weight:700;color:var(--text-1);margin:22px 0 12px}
+        /* 단계 분포 — 가로 흐름(발굴→납품) + 비중 + 병목(최다) 강조 */
+        .ex-flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 6px;margin-bottom:6px}
+        .ex-fstep{flex:1;min-width:92px;border:1px solid var(--border);border-radius:10px;padding:12px 10px 11px;text-align:center;position:relative;background:var(--surface)}
+        .ex-ftop{height:4px;border-radius:3px;background:var(--c,#2357E8);margin-bottom:9px}
+        .ex-fcount{font-size:24px;font-weight:700;color:var(--text-1);line-height:1.1;font-variant-numeric:tabular-nums}
+        .ex-flabel{font-size:12.5px;color:var(--text-1);margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ex-fpct{font-size:11.5px;color:var(--text-3);margin-top:2px}
+        .ex-farrow{display:flex;align-items:center;color:var(--text-3);padding:0 5px;flex-shrink:0}
+        .ex-fmax-chip{position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;color:#fff;background:var(--c,#2357E8);border-radius:5px;padding:1px 5px}
         .ex-risk{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
         .ex-rcard{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface)}
         .ex-rcard .h{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px;margin-bottom:8px;font-weight:600}
@@ -79,13 +82,26 @@ const Exec360Page = {
       <div class="ex-kpi"><div class="l">CAPA 부족 계정</div><div class="v" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</div><div class="s">생산 < 수요</div></div>
     </div>`;
 
-    const stage = `<div class="ex-sec">소재 라이프사이클 단계 분포</div>
-      <div class="ex-stage">
-        ${d.stage_distribution
-          .map(s => `<div class="ex-scol"><span class="n">${s.count}</span><div class="bar" style="height:${Math.round((s.count / maxStage) * 100)}%;background:${this._STAGE_COLOR[s.stage] || '#2357E8'}"></div></div>`)
-          .join('')}
-      </div>
-      <div class="ex-slab">${d.stage_distribution.map(s => `<span>${esc(s.label)}</span>`).join('')}</div>`;
+    const stageTotal = d.stage_distribution.reduce((a, s) => a + s.count, 0) || 1;
+    const stageSteps = d.stage_distribution
+      .map((s, i) => {
+        const color = this._STAGE_COLOR[s.stage] || '#2357E8';
+        const isMax = maxStage > 0 && s.count === maxStage;
+        const pct = Math.round((s.count / stageTotal) * 100);
+        const st = isMax ? `--c:${color};border-color:${color};background:${color}0d` : `--c:${color}`;
+        const step = `<div class="ex-fstep${isMax ? ' ex-fmax' : ''}" style="${st}">
+          ${isMax ? '<span class="ex-fmax-chip">최다</span>' : ''}
+          <div class="ex-ftop"></div>
+          <div class="ex-fcount">${s.count}</div>
+          <div class="ex-flabel" title="${esc(s.label)}">${esc(s.label)}</div>
+          <div class="ex-fpct">${pct}%</div>
+        </div>`;
+        const arrow = i < d.stage_distribution.length - 1 ? '<span class="ex-farrow">→</span>' : '';
+        return step + arrow;
+      })
+      .join('');
+    const stage = `<div class="ex-sec">소재 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">발굴 → 납품 · 총 ${stageTotal}개 소재</span></div>
+      <div class="ex-flow">${stageSteps}</div>`;
 
     const accounts = `<div class="ex-sec">Top 계정 (가중 예상매출)</div>
       <table class="data-table" style="font-size:13px">
