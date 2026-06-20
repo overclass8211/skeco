@@ -1267,11 +1267,7 @@ const App = {
         ? esc(l.notes)
         : '<span style="color:var(--text-4);font-size:11px">클릭하여 메모 추가</span>';
 
-      Modal.open({
-        title: `${esc(l.customer_name)} · ${esc(l.project_name)}`,
-        width: 1440,
-        wide: true,
-        body: `
+      const _ldBody = `
           <div class="ld-modal-grid">
           <div class="ld-modal-left">
           <div class="detail-header ld-sticky-meta">
@@ -1415,6 +1411,9 @@ const App = {
 
           </div><!-- /ld-modal-left -->
 
+          <!-- 드래그 거터 (좌우 폭 조절) — 고객사 상세뷰와 동일 -->
+          <div class="ld-page-gutter" id="ld-split-gutter" role="separator" aria-orientation="vertical" title="드래그하여 폭 조절"></div>
+
           <!-- v6.0.0 Phase C+: 우측 컬럼 — 통합 타임라인 + 검토 코멘트 -->
           <div class="ld-modal-right">
             <!-- F2: 연결된 고객지원(A/S) 티켓 (support_tickets.lead_id) -->
@@ -1516,14 +1515,42 @@ const App = {
             </div>
           </div><!-- /ld-modal-right -->
           </div><!-- /ld-modal-grid -->
-        `,
-        footer: `
-          <button class="ai-gen-btn" id="ld-ai" data-feature="ai.lead_summary">AI 요약</button>
-          <button class="btn btn-ghost" id="ld-email">이메일</button>
-          <button class="btn btn-ghost" id="ld-close">닫기</button>
-          <button class="btn btn-primary" id="ld-edit">편집</button>
-        `,
-        bind: {
+        `;
+
+      // ── Phase 2: 풀페이지 분할 렌더 (고객사 상세뷰와 동일 형태) ──
+      const _ldContent = document.getElementById('content');
+      if (!_ldContent) return;
+      _ldContent.innerHTML = `
+        <style>
+          .ld-page-head{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px}
+          .ld-page-title{font-size:16px;font-weight:700;flex:1;min-width:0;overflow:hidden}
+          .ld-page-title .ttl-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+          .ld-page-actions{display:flex;gap:8px;flex-shrink:0}
+          .ld-page-body{height:calc(100vh - var(--topbar-h) - 96px);min-height:460px;overflow:hidden}
+          .ld-page-body .ld-modal-grid{height:100%;display:grid;grid-template-columns:var(--ld-left,34%) 11px 1fr;gap:0;align-items:stretch;overflow:hidden}
+          .ld-page-body .ld-modal-left{overflow-y:auto;padding-right:14px}
+          .ld-page-body .ld-modal-right{padding-left:14px}
+          .ld-page-gutter{cursor:col-resize;position:relative}
+          .ld-page-gutter::before{content:'';position:absolute;left:4px;top:0;bottom:0;width:2px;background:var(--border);transition:background .12s}
+          .ld-page-gutter:hover::before,.ld-page-gutter.dragging::before{background:var(--oci-red)}
+          @media (max-width:1280px){
+            .ld-page-body{height:auto;overflow:visible}
+            .ld-page-body .ld-modal-grid{grid-template-columns:1fr;height:auto;overflow:visible}
+            .ld-page-gutter{display:none}
+          }
+        </style>
+        <div class="ld-page-head">
+          <button class="btn btn-ghost btn-sm" id="ld-back">‹ 목록</button>
+          <div class="ld-page-title"><span class="ttl-text">${esc(l.customer_name)} · ${esc(l.project_name)}</span></div>
+          <div class="ld-page-actions">
+            <button class="ai-gen-btn" id="ld-ai" data-feature="ai.lead_summary">AI 요약</button>
+            <button class="btn btn-ghost btn-sm" id="ld-email">이메일</button>
+            <button class="btn btn-primary btn-sm" id="ld-edit">편집</button>
+          </div>
+        </div>
+        <div class="ld-page-body">${_ldBody}</div>`;
+
+      const _bind = {
           // 푸터 버튼
           '#ld-add-act': () => App.openActivityForm(l.id, l.customer_name),
           '#ld-ai': () => {
@@ -1643,8 +1670,15 @@ const App = {
             }
             if (badge) badge.style.display = 'none';
           },
-        },
-      });
+      };
+      // bind 맵 → 이벤트 연결 (Modal.bind 와 동일한 CSP-safe 방식)
+      for (const [sel, fn] of Object.entries(_bind)) {
+        _ldContent.querySelectorAll(sel).forEach(el => el.addEventListener('click', fn));
+      }
+      // 목록 복귀 (헤더 ‹ 목록)
+      document.getElementById('ld-back')?.addEventListener('click', () => App.navigate('leads'));
+      // 드래그 거터로 좌우 폭 조절
+      this._wireLeadSplitGutter();
       // v7.0.0 R3: 댓글은 _loadTimeline 에서 7번째 소스로 통합 로드 — 별도 호출 불필요
       // v7.0.0 R2: 인라인 편집 이벤트 설정
       this._setupLeadInlineEdit(l);
@@ -1679,14 +1713,45 @@ const App = {
     }
   },
 
+  // ── Phase 2: 영업딜 상세 좌우 분할 드래그 거터 ──────────────
+  _wireLeadSplitGutter() {
+    const grid = document.querySelector('.ld-page-body .ld-modal-grid');
+    const gutter = document.getElementById('ld-split-gutter');
+    if (!grid || !gutter) return;
+    let dragging = false;
+    const onMove = e => {
+      if (!dragging) return;
+      const rect = grid.getBoundingClientRect();
+      let pct = ((e.clientX - rect.left) / rect.width) * 100;
+      pct = Math.max(24, Math.min(58, pct));
+      grid.style.setProperty('--ld-left', pct + '%');
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      gutter.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    gutter.addEventListener('mousedown', e => {
+      dragging = true;
+      gutter.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  },
+
   // ── v6.0.0: 영업리드 댓글 (계약 모듈 패턴 통일) ──────────
   // 타입 매핑 — 라이트한 일관성: 색상은 계약 모듈과 통일 (회색/주황/녹색/빨강)
   _leadCommentTypeMeta(type) {
     const MAP = {
-      general: { label: '💭 의견', color: '#6b7280' },
-      coach: { label: '🧭 코칭', color: '#16a34a' },
-      question: { label: '❓ 질문', color: '#0891b2' },
-      urgent: { label: '🚨 긴급', color: '#dc2626' },
+      general: { label: '의견', color: '#6b7280' },
+      coach: { label: '코칭', color: '#16a34a' },
+      question: { label: '질문', color: '#0891b2' },
+      urgent: { label: '긴급', color: '#dc2626' },
     };
     return MAP[type] || MAP.general;
   },
