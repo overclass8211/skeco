@@ -20,7 +20,7 @@ beforeAll(async () => {
   // SLA 초과 케이스: high(기한 7일) + 30일 전 발생 → 미해결이면 확실히 초과
   const [oc] = await pool.query(
     `INSERT INTO quality_cases (case_no, customer_id, type, severity, status, title, opened_at)
-     VALUES (?, ?, 'NCR', 'high', 'open', '__QINBOX_OVERDUE__', DATE_SUB(CURDATE(), INTERVAL 30 DAY))`,
+     VALUES (?, ?, 'NCR', 'high', 'received', '__QINBOX_OVERDUE__', DATE_SUB(CURDATE(), INTERVAL 30 DAY))`,
     [`Q-T${Date.now().toString().slice(-7)}`, custId]
   );
   overdueCaseId = oc.insertId;
@@ -36,6 +36,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await pool.query("DELETE FROM quality_documents WHERE note = '__QDOC__'");
+  // 하위(이력/첨부) 정리 후 케이스 삭제
+  const [tc] = await pool.query("SELECT id FROM quality_cases WHERE title LIKE '\\_\\_QINBOX%'");
+  for (const r of tc) {
+    await pool.query('DELETE FROM quality_history WHERE case_id=?', [r.id]);
+    await pool.query('DELETE FROM quality_files WHERE case_id=?', [r.id]);
+  }
   await pool.query("DELETE FROM quality_cases WHERE title LIKE '\\_\\_QINBOX%'");
   if (custId) await pool.query('DELETE FROM customers WHERE id=?', [custId]);
 });
@@ -118,11 +124,70 @@ describe('전사 품질관리 (Quality Inbox) API', () => {
     expect(expiring.body.data.find(d => d.doc_no === '__QDOC_EXPIRED__')).toBeFalsy();
   });
 
-  it('PUT /quality/cases/:id — 완료 처리 시 resolved_at 자동 기록', async () => {
+  it('POST — 기본 상태 received + priority/channel/created_by + 이력 기록', async () => {
+    const ok = await api()
+      .post('/api/quality/cases')
+      .set('X-User-Id', '7')
+      .send({
+        customer_id: custId,
+        type: 'NCR',
+        severity: 'medium',
+        priority: 'urgent',
+        channel: 'audit',
+        title: '__QINBOX_WF__ 워크플로우',
+      });
+    expect(ok.status).toBe(200);
+    const wfId = ok.body.data.id;
+    const [[row]] = await pool.query(
+      'SELECT status, priority, channel, created_by FROM quality_cases WHERE id=?',
+      [wfId]
+    );
+    expect(row.status).toBe('received'); // 기본 시작 상태(A/S 동일)
+    expect(row.priority).toBe('urgent');
+    expect(row.channel).toBe('audit');
+    expect(row.created_by).toBe(7); // 접수자 = 현재 사용자
+    // 접수 이력 기록
+    const hist = await api().get(`/api/quality/cases/${wfId}/history`).set('X-User-Id', '1');
+    expect(hist.body.data.find(h => h.field === 'created')).toBeTruthy();
+  });
+
+  it('PATCH /cases/:id/transfer — 이관(담당 변경) + 사유 이력', async () => {
+    const tr = await api()
+      .patch(`/api/quality/cases/${overdueCaseId}/transfer`)
+      .set('X-User-Id', '1')
+      .send({ owner_id: 3, note: '생산팀 원인분석 이관' });
+    expect(tr.status).toBe(200);
+    const [[row]] = await pool.query('SELECT owner_id FROM quality_cases WHERE id=?', [overdueCaseId]);
+    expect(row.owner_id).toBe(3);
+    const hist = await api().get(`/api/quality/cases/${overdueCaseId}/history`).set('X-User-Id', '1');
+    const ev = hist.body.data.find(h => h.field === 'owner_id' && h.note === '생산팀 원인분석 이관');
+    expect(ev).toBeTruthy();
+    expect(String(ev.to_value)).toBe('3');
+  });
+
+  it('PUT — 드롭(dropped) 종결 시 closed_at 기록 + 미해결 집계 제외', async () => {
+    const res = await api()
+      .put(`/api/quality/cases/${overdueCaseId}`)
+      .set('X-User-Id', '1')
+      .send({ status: 'dropped' });
+    expect(res.status).toBe(200);
+    const [[row]] = await pool.query('SELECT status, closed_at FROM quality_cases WHERE id=?', [
+      overdueCaseId,
+    ]);
+    expect(row.status).toBe('dropped');
+    expect(row.closed_at).toBeTruthy();
+    // dropped 는 미해결 목록에서 제외
+    const list = await api().get('/api/quality/cases?status=unresolved').set('X-User-Id', '1');
+    expect(list.body.data.find(r => r.id === overdueCaseId)).toBeFalsy();
+  });
+
+  it('PUT /quality/cases/:id — 완료 처리 시 resolved_at 자동 기록 + 상태 이력', async () => {
     const res = await api().put(`/api/quality/cases/${caseId}`).set('X-User-Id', '1').send({ status: 'resolved' });
     expect(res.status).toBe(200);
     const [[row]] = await pool.query('SELECT status, resolved_at FROM quality_cases WHERE id=?', [caseId]);
     expect(row.status).toBe('resolved');
     expect(row.resolved_at).toBeTruthy();
+    const hist = await api().get(`/api/quality/cases/${caseId}/history`).set('X-User-Id', '1');
+    expect(hist.body.data.find(h => h.field === 'status' && h.to_value === 'resolved')).toBeTruthy();
   });
 });

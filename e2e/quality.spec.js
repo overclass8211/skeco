@@ -20,9 +20,11 @@ const CASES = {
     {
       id: 1, case_no: 'Q-TEST-1', customer_id: 1, customer_name: 'E2E품질고객',
       customer_material_id: null, material_name: null, type: 'NCR', severity: 'high',
-      status: 'open', title: '순도 편차 NCR', opened_at: '2026-06-01', resolved_at: null,
-      owner_id: null, owner_name: null, age_days: 11,
-      due_date: '2026-06-08', days_left: -13, overdue: 1,
+      status: 'in_progress', priority: 'urgent', channel: 'audit',
+      title: '순도 편차 NCR', opened_at: '2026-06-01', resolved_at: null,
+      owner_id: null, owner_name: null, created_by: 7, created_by_name: '김접수',
+      resolution: '1차 회신 완료', notes: null, due_date_set: null,
+      age_days: 11, due_date: '2026-06-08', days_left: -13, overdue: 1,
     },
   ],
 };
@@ -46,6 +48,13 @@ const CUSTOMERS = { success: true, data: [{ id: 1, name: 'E2E품질고객' }] };
 
 test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
+  // AI 사용량 위젯 등 init AI 호출 → 환경(토큰 한도) 토스트 방지 (결정적)
+  await page.route('**/api/ai/**', r =>
+    r.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { total: 0, prompt: 0, completion: 0, calls: 0 } }),
+    })
+  );
   await page.route('**/api/customer360/customers', r =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMERS) })
   );
@@ -57,6 +66,19 @@ test.beforeEach(async ({ page }) => {
   );
   await page.route('**/api/quality/cases**', r =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CASES) })
+  );
+  // 상세 모달의 첨부·이력 (cases** 보다 뒤에 등록 → 우선 매칭)
+  await page.route('**/api/quality/cases/*/files', r =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })
+  );
+  await page.route('**/api/quality/cases/*/history', r =>
+    r.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: [{ id: 1, field: 'created', from_value: null, to_value: 'Q-TEST-1', note: '접수', changed_by_name: '김접수', changed_at: '2026-06-01 09:00' }],
+      }),
+    })
   );
 });
 
@@ -76,10 +98,25 @@ test('전사 품질관리 — KPI + 목록 + 상세 모달', async ({ page }) =>
   await expect(page.locator('#ql-list thead')).toContainText('SLA');
   await expect(page.locator('#ql-list tbody tr').first()).toContainText('초과');
 
-  // 행 클릭 → 상세 모달 (편집 필드)
+  // 행 클릭 → 상세 모달 (워크플로우 필드 + 이관 + 처리내용 + 이력)
   await page.locator('#ql-list tbody tr').first().click();
   await expect(page.locator('#modal-overlay')).toContainText('품질 케이스');
   await expect(page.locator('#qd-status')).toBeVisible();
+  // 상태 옵션 = A/S 동일 워크플로우 (접수→…→드롭)
+  await expect(page.locator('#qd-status')).toContainText('접수');
+  await expect(page.locator('#qd-status')).toContainText('조치완료');
+  // 처리우선순위·접수처리내용·이관 버튼
+  await expect(page.locator('#qd-prio')).toBeVisible();
+  await expect(page.locator('#qd-resolution')).toHaveValue('1차 회신 완료');
+  await expect(page.locator('#qd-transfer')).toBeVisible();
+  // 접수자 표시
+  await expect(page.locator('#modal-overlay')).toContainText('김접수');
+  // 처리 이력 타임라인 로드
+  await expect(page.locator('#qd-history')).toContainText('접수', { timeout: 5000 });
+  // 이관 모달 진입
+  await page.locator('#qd-transfer').click();
+  await expect(page.locator('#modal-overlay')).toContainText('이관 (담당 변경)');
+  await expect(page.locator('#qt-owner')).toBeVisible();
 });
 
 test('전사 품질관리 — 문서 만료 뷰 전환 + 만료 상태 표시', async ({ page }) => {

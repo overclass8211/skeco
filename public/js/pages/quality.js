@@ -20,7 +20,20 @@ const QualityPage = {
   _TYPES: ['VOC', 'NCR', 'Audit', 'PCN', 'CoA'],
   _DOC_TYPES: ['CoA', 'MSDS', 'CoC', '기타'],
   _SEV: { high: '높음', medium: '보통', low: '낮음' },
-  _ST: { open: '미해결', in_progress: '처리중', resolved: '완료' },
+  // 워크플로우 — 고객지원(A/S) 동일 상태
+  _ST: {
+    received: '접수',
+    registered: '등록',
+    assigned: '할당',
+    in_progress: '처리중',
+    on_hold: '보류',
+    resolved: '조치완료',
+    dropped: '드롭',
+  },
+  _CLOSED: ['resolved', 'dropped'],
+  _PRIO: { urgent: '긴급', high: '높음', normal: '보통', low: '낮음' },
+  _CHAN: { audit: '고객감사', email: '이메일', visit: '방문', phone: '전화', portal: '포털', etc: '기타' },
+  _members: [],
 
   async render() {
     document.getElementById('content').innerHTML = `
@@ -53,9 +66,21 @@ const QualityPage = {
         .ql-sev-high{background:rgba(230,51,41,.1);color:var(--oci-red)}
         .ql-sev-medium{background:rgba(245,156,0,.14);color:#b45309}
         .ql-sev-low{background:var(--surface-2,rgba(0,0,0,.05));color:var(--text-2)}
-        .ql-st-open{background:rgba(230,51,41,.1);color:var(--oci-red)}
+        .ql-st-received{background:rgba(230,51,41,.1);color:var(--oci-red)}
+        .ql-st-registered{background:rgba(35,87,232,.12);color:#2357E8}
+        .ql-st-assigned{background:rgba(35,87,232,.12);color:#2357E8}
         .ql-st-in_progress{background:rgba(245,156,0,.14);color:#b45309}
+        .ql-st-on_hold{background:rgba(120,120,120,.14);color:#666}
         .ql-st-resolved{background:rgba(23,168,90,.12);color:#17A85A}
+        .ql-st-dropped{background:var(--surface-2,rgba(0,0,0,.05));color:var(--text-3)}
+        /* 처리 이력 타임라인 */
+        .ql-hist{list-style:none;margin:0;padding:0;font-size:12px}
+        .ql-hist li{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);color:var(--text-2)}
+        .ql-hist .t{color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+        .ql-files{list-style:none;margin:6px 0 0;padding:0;font-size:12.5px}
+        .ql-files li{display:flex;align-items:center;gap:8px;padding:4px 0}
+        .ql-files a{color:var(--text-1);text-decoration:none}
+        .ql-files a:hover{text-decoration:underline}
         .ql-d-expired{background:rgba(230,51,41,.1);color:var(--oci-red)}
         .ql-d-expiring{background:rgba(245,156,0,.14);color:#b45309}
         .ql-d-valid{background:rgba(23,168,90,.12);color:#17A85A}
@@ -89,6 +114,9 @@ const QualityPage = {
     } catch (_) {
       this._customers = [];
     }
+    // 담당자 목록 (이관·할당 셀렉트) — App.team 우선, 없으면 빈 배열
+    this._members =
+      (typeof App !== 'undefined' && Array.isArray(App.team) && App.team.length && App.team) || [];
     document.getElementById('ql-seg').addEventListener('click', e => {
       const b = e.target.closest('button[data-view]');
       if (b) this._setView(b.dataset.view);
@@ -123,7 +151,7 @@ const QualityPage = {
       const f = this._filter;
       el.innerHTML = `
         <select id="qf-status">
-          ${opt('unresolved', '미해결+처리중', f.status)}${opt('open', '미해결', f.status)}${opt('in_progress', '처리중', f.status)}${opt('resolved', '완료', f.status)}${opt('', '전체', f.status)}
+          ${opt('unresolved', '미해결(전체)', f.status)}${Object.entries(this._ST).map(([k, v]) => opt(k, v, f.status)).join('')}${opt('', '전체', f.status)}
         </select>
         <select id="qf-type">${opt('', '유형 전체', f.type)}${this._TYPES.map(t => opt(t, t, f.type)).join('')}</select>
         <select id="qf-sev">${opt('', '심각도 전체', f.severity)}${Object.entries(this._SEV).map(([k, v]) => opt(k, v, f.severity)).join('')}</select>
@@ -411,34 +439,45 @@ const QualityPage = {
   _openDetail(id) {
     const c = this._cases.find(x => x.id === id);
     if (!c || typeof Modal === 'undefined') return;
-    const sevOpt = Object.entries(this._SEV).map(([k, v]) => `<option value="${k}"${k === c.severity ? ' selected' : ''}>${v}</option>`).join('');
-    const stOpt = Object.entries(this._ST).map(([k, v]) => `<option value="${k}"${k === c.status ? ' selected' : ''}>${v}</option>`).join('');
+    const selOpts = (mapObj, cur) =>
+      Object.entries(mapObj).map(([k, v]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
     const typeOpt = this._TYPES.map(t => `<option value="${t}"${t === c.type ? ' selected' : ''}>${t}</option>`).join('');
     const me = (typeof App !== 'undefined' && App.currentUser && App.currentUser.id) || null;
     const claimBtn = me && c.owner_id !== me ? '<button class="btn btn-ghost" id="qd-claim">내가 담당</button>' : '';
     const slaLine =
-      c.status === 'resolved' || c.due_date === null || c.due_date === undefined
+      this._CLOSED.includes(c.status) || c.due_date === null || c.due_date === undefined
         ? ''
-        : `<div class="ql-fld"><span>SLA 기한</span><input type="text" value="${this._fmtDate(c.due_date)} (${
+        : `<div class="ql-fld"><span>처리기한(SLA)</span><input type="text" value="${this._fmtDate(c.due_date)} (${
             c.days_left < 0 ? '초과 ' + -c.days_left + '일' : 'D-' + c.days_left
           })" disabled></div>`;
     Modal.open({
       title: `${esc(c.case_no)} — 품질 케이스`,
-      width: 560,
+      width: 620,
       body: `
         <div class="ql-form">
           <div class="ql-fld"><span>고객사</span><input type="text" value="${esc(c.customer_name)}" disabled></div>
           <div class="ql-fld"><span>소재</span><input type="text" value="${esc(c.material_name ? c.material_name.split(' · ')[0] : '-')}" disabled></div>
           <div class="ql-fld full"><span>제목</span><input type="text" id="qd-title" value="${esc(c.title)}"></div>
           <div class="ql-fld"><span>유형</span><select id="qd-type">${typeOpt}</select></div>
-          <div class="ql-fld"><span>심각도</span><select id="qd-sev">${sevOpt}</select></div>
-          <div class="ql-fld"><span>상태</span><select id="qd-status">${stOpt}</select></div>
-          <div class="ql-fld"><span>담당</span><input type="text" value="${esc(c.owner_name || '미배정')}" disabled></div>
+          <div class="ql-fld"><span>심각도</span><select id="qd-sev">${selOpts(this._SEV, c.severity)}</select></div>
+          <div class="ql-fld"><span>처리우선순위</span><select id="qd-prio">${selOpts(this._PRIO, c.priority || 'normal')}</select></div>
+          <div class="ql-fld"><span>상태</span><select id="qd-status">${selOpts(this._ST, c.status)}</select></div>
+          <div class="ql-fld"><span>접수경로</span><select id="qd-channel"><option value="">-</option>${selOpts(this._CHAN, c.channel || '')}</select></div>
+          <div class="ql-fld"><span>처리기한 지정</span><input type="date" id="qd-due" value="${esc(c.due_date_set || '')}"></div>
+          <div class="ql-fld"><span>접수자</span><input type="text" value="${esc(c.created_by_name || '-')}" disabled></div>
+          <div class="ql-fld"><span>담당(처리)</span><input type="text" value="${esc(c.owner_name || '미배정')}" disabled></div>
           ${slaLine}
-          ${this._restricted ? '' : `<div class="ql-fld full"><span>비고(원인·분석)</span><textarea id="qd-notes" rows="3">${esc(c.notes || '')}</textarea></div>`}
+          <div class="ql-fld full"><span>접수처리내용</span><textarea id="qd-resolution" rows="3" placeholder="조치 내용·진행 경과">${esc(c.resolution || '')}</textarea></div>
+          ${this._restricted ? '' : `<div class="ql-fld full"><span>비고(원인·분석)</span><textarea id="qd-notes" rows="2">${esc(c.notes || '')}</textarea></div>`}
+          <div class="ql-fld full"><span>첨부 (불량사진·8D·분석리포트)</span>
+            <div id="qd-files"><div class="ql-sub">불러오는 중…</div></div>
+            <input type="file" id="qd-file-input" multiple style="margin-top:6px;font-size:12px">
+          </div>
+          <div class="ql-fld full"><span>처리 이력</span><div id="qd-history"><div class="ql-sub">불러오는 중…</div></div></div>
         </div>
         <div class="ql-actions">
           <button class="btn btn-ghost" id="qd-open360">고객360에서 열기</button>
+          <button class="btn btn-ghost" id="qd-transfer">이관</button>
           ${claimBtn}
           <button class="btn btn-primary" id="qd-save">저장</button>
         </div>`,
@@ -448,6 +487,7 @@ const QualityPage = {
       Modal.close();
       this._gotoCustomer(c.customer_id);
     });
+    ov.querySelector('#qd-transfer').addEventListener('click', () => this._openTransferModal(c));
     const claim = ov.querySelector('#qd-claim');
     if (claim) claim.addEventListener('click', () => this._save(id, { owner_id: me }));
     ov.querySelector('#qd-save').addEventListener('click', () => {
@@ -455,11 +495,131 @@ const QualityPage = {
         title: ov.querySelector('#qd-title').value.trim(),
         type: ov.querySelector('#qd-type').value,
         severity: ov.querySelector('#qd-sev').value,
+        priority: ov.querySelector('#qd-prio').value,
         status: ov.querySelector('#qd-status').value,
+        channel: ov.querySelector('#qd-channel').value || '',
+        due_date: ov.querySelector('#qd-due').value || '',
+        resolution: ov.querySelector('#qd-resolution').value,
       };
       const notesEl = ov.querySelector('#qd-notes');
       if (notesEl) payload.notes = notesEl.value;
       this._save(id, payload);
+    });
+    // 첨부 업로드
+    ov.querySelector('#qd-file-input').addEventListener('change', e => this._uploadQFiles(id, e.target.files));
+    // 첨부·이력 비동기 로드
+    this._loadQFiles(id);
+    this._loadQHistory(id);
+  },
+
+  async _loadQFiles(id) {
+    const host = document.getElementById('qd-files');
+    if (!host) return;
+    try {
+      const r = await API.get(`/quality/cases/${id}/files`);
+      const rows = r.data || [];
+      host.innerHTML = rows.length
+        ? `<ul class="ql-files">${rows
+            .map(
+              f => `<li>📎 <a href="/api/quality/cases/${id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.file_name)}</a>
+                <span class="ql-sub">${f.uploaded_by_name ? esc(f.uploaded_by_name) + ' · ' : ''}${esc(f.created_at || '')}</span>
+                <button class="lc-mini" data-qfile-del="${f.id}" style="color:var(--oci-red);margin-left:auto">삭제</button></li>`
+            )
+            .join('')}</ul>`
+        : '<div class="ql-sub">첨부 없음</div>';
+      host.querySelectorAll('[data-qfile-del]').forEach(b =>
+        b.addEventListener('click', () => this._delQFile(id, Number(b.dataset.qfileDel)))
+      );
+    } catch (_) {
+      host.innerHTML = '<div class="ql-sub">첨부를 불러오지 못했습니다.</div>';
+    }
+  },
+  async _uploadQFiles(id, fileList) {
+    if (!fileList || !fileList.length) return;
+    const fd = new FormData();
+    for (const f of fileList) fd.append('files', f);
+    try {
+      await API._upload(`/quality/cases/${id}/files`, fd);
+      if (typeof Toast !== 'undefined') Toast.success?.('첨부 업로드 완료');
+      this._loadQFiles(id);
+      this._loadQHistory(id);
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error?.('업로드 실패: ' + (e.message || e));
+    }
+  },
+  async _delQFile(id, fileId) {
+    if (!confirm('첨부를 삭제하시겠습니까?')) return;
+    try {
+      await API.del(`/quality/cases/${id}/files/${fileId}`);
+      this._loadQFiles(id);
+    } catch (_) {
+      /* Toast */
+    }
+  },
+  async _loadQHistory(id) {
+    const host = document.getElementById('qd-history');
+    if (!host) return;
+    const fieldLabel = { status: '상태', owner_id: '담당/이관', created: '접수', file: '첨부' };
+    const valLabel = (field, v) => {
+      if (v === null || v === undefined || v === '') return '-';
+      if (field === 'status') return this._ST[v] || v;
+      if (field === 'owner_id') {
+        const m = (this._members || []).find(x => String(x.id) === String(v));
+        return m ? m.name : '#' + v;
+      }
+      return v;
+    };
+    try {
+      const r = await API.get(`/quality/cases/${id}/history`);
+      const rows = r.data || [];
+      host.innerHTML = rows.length
+        ? `<ul class="ql-hist">${rows
+            .map(h => {
+              const who = h.changed_by_name ? esc(h.changed_by_name) : '시스템';
+              const change =
+                h.field === 'created'
+                  ? '접수됨'
+                  : `${fieldLabel[h.field] || h.field}: ${esc(valLabel(h.field, h.from_value))} → <b>${esc(valLabel(h.field, h.to_value))}</b>`;
+              return `<li><span class="t">${esc(h.changed_at || '')}</span><span>${change}${h.note ? ' · ' + esc(h.note) : ''} <span class="ql-sub">(${who})</span></span></li>`;
+            })
+            .join('')}</ul>`
+        : '<div class="ql-sub">이력 없음</div>';
+    } catch (_) {
+      host.innerHTML = '<div class="ql-sub">이력을 불러오지 못했습니다.</div>';
+    }
+  },
+  _openTransferModal(c) {
+    if (typeof Modal === 'undefined') return;
+    const memOpts = ['<option value="">미배정</option>']
+      .concat(
+        (this._members || []).map(
+          m => `<option value="${m.id}"${String(m.id) === String(c.owner_id) ? ' selected' : ''}>${esc(m.name)}</option>`
+        )
+      )
+      .join('');
+    Modal.open({
+      title: `${esc(c.case_no)} — 이관 (담당 변경)`,
+      width: 440,
+      body: `<div class="ql-form">
+          <div class="ql-fld full"><span>현재 담당</span><input type="text" value="${esc(c.owner_name || '미배정')}" disabled></div>
+          <div class="ql-fld full"><span>이관 대상</span><select id="qt-owner">${memOpts}</select></div>
+          <div class="ql-fld full"><span>이관 사유</span><textarea id="qt-note" rows="2" placeholder="예: 생산팀 원인분석 필요"></textarea></div>
+        </div>
+        <div class="ql-actions"><button class="btn btn-ghost" id="qt-cancel">취소</button><button class="btn btn-primary" id="qt-save">이관</button></div>`,
+    });
+    const ov = document.getElementById('modal-overlay');
+    ov.querySelector('#qt-cancel').addEventListener('click', () => Modal.close());
+    ov.querySelector('#qt-save').addEventListener('click', async () => {
+      const owner_id = ov.querySelector('#qt-owner').value || null;
+      const note = ov.querySelector('#qt-note').value || null;
+      try {
+        await API.patch(`/quality/cases/${c.id}/transfer`, { owner_id, note });
+        if (typeof Toast !== 'undefined') Toast.success?.('이관 완료');
+        Modal.close();
+        await this._load();
+      } catch (e) {
+        if (typeof Toast !== 'undefined') Toast.error?.('이관 실패: ' + (e.message || e));
+      }
     });
   },
 
@@ -481,6 +641,8 @@ const QualityPage = {
       .join('');
     const typeOpt = this._TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
     const sevOpt = Object.entries(this._SEV).map(([k, v]) => `<option value="${k}"${k === 'medium' ? ' selected' : ''}>${v}</option>`).join('');
+    const prioOpt = Object.entries(this._PRIO).map(([k, v]) => `<option value="${k}"${k === 'normal' ? ' selected' : ''}>${v}</option>`).join('');
+    const chanOpt = ['<option value="">접수경로 -</option>'].concat(Object.entries(this._CHAN).map(([k, v]) => `<option value="${k}">${v}</option>`)).join('');
     const today = new Date().toISOString().slice(0, 10);
     Modal.open({
       title: '새 품질 케이스',
@@ -490,6 +652,8 @@ const QualityPage = {
           <div class="ql-fld"><span>고객사 *</span><select id="qn-cust">${custOpts}</select></div>
           <div class="ql-fld"><span>유형</span><select id="qn-type">${typeOpt}</select></div>
           <div class="ql-fld"><span>심각도</span><select id="qn-sev">${sevOpt}</select></div>
+          <div class="ql-fld"><span>처리우선순위</span><select id="qn-prio">${prioOpt}</select></div>
+          <div class="ql-fld"><span>접수경로</span><select id="qn-channel">${chanOpt}</select></div>
           <div class="ql-fld"><span>발생일</span><input type="date" id="qn-opened" value="${today}"></div>
           <div class="ql-fld full"><span>제목 *</span><input type="text" id="qn-title" placeholder="예: 식각가스 VOC — 평택 P4 순도 편차"></div>
           <div class="ql-fld full"><span>비고(원인·분석)</span><textarea id="qn-notes" rows="3"></textarea></div>
@@ -511,6 +675,8 @@ const QualityPage = {
           customer_id: Number(customer_id),
           type: ov.querySelector('#qn-type').value,
           severity: ov.querySelector('#qn-sev').value,
+          priority: ov.querySelector('#qn-prio').value,
+          channel: ov.querySelector('#qn-channel').value || null,
           opened_at: ov.querySelector('#qn-opened').value || null,
           title,
           notes: ov.querySelector('#qn-notes').value || null,

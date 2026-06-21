@@ -461,7 +461,9 @@ router.get('/:id', validateId, async (req, res) => {
     if (lifecycle.demand_flow.short_count > 0) {
       risks.unshift({ level: 'high', label: `CAPA 부족 ${lifecycle.demand_flow.short_count}건` });
     }
-    const openQ = lifecycle.quality.filter(q => q.status !== 'resolved').length;
+    const openQ = lifecycle.quality.filter(
+      q => q.status !== 'resolved' && q.status !== 'dropped'
+    ).length;
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
 
     // 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
@@ -698,7 +700,7 @@ async function buildLifecycle(customerId) {
   }
   const [qcs] = await pool.query(
     `SELECT id, case_no, customer_material_id, type, severity, status, title, opened_at
-       FROM quality_cases WHERE customer_id=? ORDER BY FIELD(status,'open','in_progress','resolved'), opened_at DESC`,
+       FROM quality_cases WHERE customer_id=? ORDER BY FIELD(status,'received','registered','assigned','in_progress','on_hold','resolved','dropped'), opened_at DESC`,
     [customerId]
   );
 
@@ -851,7 +853,7 @@ async function buildLifecycle(customerId) {
       nav: 'qualification',
     });
   }
-  const openQuality = quality.find(q => q.status !== 'resolved');
+  const openQuality = quality.find(q => q.status !== 'resolved' && q.status !== 'dropped');
   if (openQuality) {
     actions.push({
       icon: 'shield-check',
@@ -1455,7 +1457,8 @@ async function gatherHealthSignals(customerId, customerName) {
     contractAmt: Number(contractAgg.amt) || 0,
     overdue: Number(payAgg.overdue_cnt) || 0,
     openSupport: Number(supportAgg.open_cnt) || 0,
-    openQuality: lifecycle.quality.filter(q => q.status !== 'resolved').length,
+    openQuality: lifecycle.quality.filter(q => q.status !== 'resolved' && q.status !== 'dropped')
+      .length,
     capaShort: lifecycle.demand_flow.short_count > 0,
     satisfaction: satScore,
   };
@@ -1858,7 +1861,7 @@ async function execStageAnalyze(req, res) {
                     FROM demand_forecasts WHERE month IN (?) GROUP BY customer_material_id) df
                 ON df.customer_material_id = m.id
          LEFT JOIN (SELECT customer_material_id, COUNT(*) openq FROM quality_cases
-                     WHERE status <> 'resolved' GROUP BY customer_material_id) q
+                     WHERE status NOT IN ('resolved','dropped') GROUP BY customer_material_id) q
                 ON q.customer_material_id = m.id
         WHERE m.lifecycle_stage = ? AND m.status <> 'closed'
         ORDER BY expected_order DESC, m.id`,
@@ -2282,7 +2285,7 @@ router.get('/:id/quality', validateId, async (req, res) => {
       `SELECT q.*, m.material_name, t.name AS owner_name FROM quality_cases q
          LEFT JOIN customer_materials m ON m.id = q.customer_material_id
          LEFT JOIN team_members t ON t.id = q.owner_id
-        WHERE q.customer_id=? ORDER BY FIELD(q.status,'open','in_progress','resolved'), q.opened_at DESC, q.id DESC`,
+        WHERE q.customer_id=? ORDER BY FIELD(q.status,'received','registered','assigned','in_progress','on_hold','resolved','dropped'), q.opened_at DESC, q.id DESC`,
       [req.params.id]
     );
     // 권한별 상세 제한: team_lead(2) 미만은 상세 원인/분석(notes) 마스킹

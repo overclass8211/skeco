@@ -874,6 +874,57 @@ async function initTables() {
       INDEX idx_qc_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // 품질 케이스 워크플로우 보강 (고객지원 A/S 패턴 동일화) — 멱등 ADD COLUMN
+    //   resolution(접수처리내용) · created_by(접수자) · priority(처리우선순위) ·
+    //   channel(접수경로) · due_date(처리기한/고객회신) · first_response_at · closed_at
+    for (const col of [
+      'ADD COLUMN resolution TEXT DEFAULT NULL',
+      'ADD COLUMN created_by INT DEFAULT NULL',
+      "ADD COLUMN priority VARCHAR(20) DEFAULT 'normal'",
+      'ADD COLUMN channel VARCHAR(30) DEFAULT NULL',
+      'ADD COLUMN due_date DATE DEFAULT NULL',
+      'ADD COLUMN first_response_at DATETIME DEFAULT NULL',
+      'ADD COLUMN closed_at DATETIME DEFAULT NULL',
+    ]) {
+      try {
+        await pool.query(`ALTER TABLE quality_cases ${col}`);
+      } catch (e) {
+        if (!String(e.message).includes('Duplicate'))
+          console.warn('⚠ quality_cases 컬럼:', e.message);
+      }
+    }
+    // 상태 워크플로우 A/S 동일화: 레거시 'open' → 'received' (1회·멱등)
+    try {
+      await pool.query("UPDATE quality_cases SET status='received' WHERE status='open'");
+    } catch (_) {
+      /* noop */
+    }
+
+    // 품질 첨부 (불량사진/8D/분석리포트/CoA) — support_files 패턴
+    await pool.query(`CREATE TABLE IF NOT EXISTS quality_files (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      case_id     INT          NOT NULL,
+      file_path   VARCHAR(500) NOT NULL,
+      file_name   VARCHAR(255) NOT NULL,
+      file_size   INT          DEFAULT NULL,
+      uploaded_by INT          DEFAULT NULL,
+      created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_qf_case (case_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    // 품질 변경 이력 (상태·담당 이관 감사추적) — support_history 패턴
+    await pool.query(`CREATE TABLE IF NOT EXISTS quality_history (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      case_id     INT          NOT NULL,
+      field       VARCHAR(30)  NOT NULL,   -- status / owner_id(이관) / created 등
+      from_value  VARCHAR(100) DEFAULT NULL,
+      to_value    VARCHAR(100) DEFAULT NULL,
+      note        VARCHAR(300) DEFAULT NULL,
+      changed_by  INT          DEFAULT NULL,
+      changed_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_qh_case (case_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 포캐스트 버전관리 (시점 스냅샷) ────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS forecast_versions (
       id            INT AUTO_INCREMENT PRIMARY KEY,
