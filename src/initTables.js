@@ -938,6 +938,19 @@ async function initTables() {
       INDEX idx_qh_case (case_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // 품질 인앱 알림 (이관·할당 → 담당자 수신) — support_notifications 패턴
+    await pool.query(`CREATE TABLE IF NOT EXISTS quality_notifications (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      user_id     INT          NOT NULL,   -- 수신자 (team_members.id)
+      case_id     INT          NOT NULL,
+      event_type  VARCHAR(30)  NOT NULL,   -- transferred | assigned | reassigned
+      message     VARCHAR(300) NOT NULL,
+      is_read     TINYINT(1)   DEFAULT 0,
+      created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_qn_user (user_id, is_read, created_at),
+      INDEX idx_qn_case (case_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 포캐스트 버전관리 (시점 스냅샷) ────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS forecast_versions (
       id            INT AUTO_INCREMENT PRIMARY KEY,

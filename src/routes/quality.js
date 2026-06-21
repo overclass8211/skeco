@@ -76,6 +76,20 @@ async function addQHistory(caseId, field, from, to, userId, note) {
   }
 }
 
+// 인앱 알림 생성 — 수신자 없음/본인이면 skip, 실패해도 본 작업 무영향
+async function addQNotification(userId, caseId, eventType, message) {
+  const uid = Number(userId);
+  if (!uid) return;
+  try {
+    await pool.query(
+      'INSERT INTO quality_notifications (user_id, case_id, event_type, message) VALUES (?,?,?,?)',
+      [uid, caseId, eventType, String(message || '').slice(0, 300)]
+    );
+  } catch (_) {
+    /* 알림 실패 무시 */
+  }
+}
+
 // ── 전사 목록 (필터·정렬·에이징) ─────────────────────────────
 router.get('/cases', requireLevel(1), async (req, res) => {
   try {
@@ -350,8 +364,19 @@ router.put('/cases/:id', requireLevel(1), async (req, res) => {
     await pool.query(`UPDATE quality_cases SET ${fields.join(', ')} WHERE id=?`, vals);
     // 감사추적 이력
     if (statusChanged) await addQHistory(id, 'status', cur.status, b.status, uid);
-    if (ownerChanged)
-      await addQHistory(id, 'owner_id', cur.owner_id, b.owner_id || null, uid, b.transfer_note);
+    if (ownerChanged) {
+      const to = Number(b.owner_id) || null;
+      await addQHistory(id, 'owner_id', cur.owner_id, to, uid, b.transfer_note);
+      // 인앱 알림 — 새 담당자에게(본인/셀프할당 제외)
+      if (to && to !== uid) {
+        await addQNotification(
+          to,
+          id,
+          cur.owner_id ? 'reassigned' : 'assigned',
+          `${cur.case_no || '품질 케이스'}가 회원님께 ${cur.owner_id ? '재' : ''}할당되었습니다`
+        );
+      }
+    }
     res.json({ success: true });
   } catch (err) {
     handleError(res, err);
@@ -377,6 +402,15 @@ router.patch('/cases/:id/transfer', requireLevel(1), async (req, res) => {
     const note = req.body && req.body.note ? String(req.body.note).slice(0, 300) : null;
     await pool.query('UPDATE quality_cases SET owner_id=? WHERE id=?', [to, id]);
     await addQHistory(id, 'owner_id', cur.owner_id, to, uid, note || '이관');
+    // 인앱 알림 — 새 담당자에게(본인 제외)
+    if (to && to !== uid) {
+      await addQNotification(
+        to,
+        id,
+        cur.owner_id ? 'reassigned' : 'transferred',
+        `${cur.case_no || '품질 케이스'}가 회원님께 이관되었습니다${note ? ' — ' + note : ''}`
+      );
+    }
     res.json({ success: true });
   } catch (err) {
     handleError(res, err);
@@ -526,6 +560,52 @@ router.get('/documents', requireLevel(1), async (req, res) => {
       params
     );
     res.json({ success: true, data: rows, soon_days: DOC_SOON_DAYS });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 인앱 알림 (이관·할당 → 내 알림 조회/읽음) ─────────────────
+router.get('/notifications', requireLevel(1), async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    if (!uid) return res.json({ success: true, data: [], unread: 0 });
+    const [rows] = await pool.query(
+      `SELECT n.id, n.case_id, n.event_type, n.message, n.is_read,
+              DATE_FORMAT(n.created_at, '%Y-%m-%d %H:%i') AS created_at, qc.case_no
+         FROM quality_notifications n
+         LEFT JOIN quality_cases qc ON qc.id = n.case_id
+        WHERE n.user_id=? ORDER BY n.is_read ASC, n.id DESC LIMIT 30`,
+      [uid]
+    );
+    const [[c]] = await pool.query(
+      'SELECT COUNT(*) AS unread FROM quality_notifications WHERE user_id=? AND is_read=0',
+      [uid]
+    );
+    res.json({ success: true, data: rows, unread: Number(c.unread) || 0 });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+router.post('/notifications/:id/read', requireLevel(1), async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    await pool.query('UPDATE quality_notifications SET is_read=1 WHERE id=? AND user_id=?', [
+      Number(req.params.id),
+      uid,
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+router.post('/notifications/read-all', requireLevel(1), async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    await pool.query('UPDATE quality_notifications SET is_read=1 WHERE user_id=? AND is_read=0', [
+      uid,
+    ]);
+    res.json({ success: true });
   } catch (err) {
     handleError(res, err);
   }

@@ -83,6 +83,14 @@ const QualityPage = {
         .ql-files a:hover{text-decoration:underline}
         .ql-8d{border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--surface-2,rgba(0,0,0,.02))}
         .ql-8d>summary{font-size:12.5px;font-weight:700;color:var(--text-1);cursor:pointer}
+        .ql-bell-btn{position:relative}
+        .ql-bell-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--oci-red);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center}
+        .ql-notif{list-style:none;margin:0;padding:0}
+        .ql-notif li{display:flex;gap:8px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+        .ql-notif li.unread{background:rgba(230,51,41,.04)}
+        .ql-notif li:hover{background:var(--surface-2,rgba(0,0,0,.03))}
+        .ql-notif .t{font-size:11px;color:var(--text-3);white-space:nowrap}
+        .ql-notif-dot{width:7px;height:7px;border-radius:50%;background:var(--oci-red);margin-top:5px;flex-shrink:0}
         .ql-d-expired{background:rgba(230,51,41,.1);color:var(--oci-red)}
         .ql-d-expiring{background:rgba(245,156,0,.14);color:#b45309}
         .ql-d-valid{background:rgba(23,168,90,.12);color:#17A85A}
@@ -102,6 +110,7 @@ const QualityPage = {
           <button data-view="cases" class="on">품질 케이스</button>
           <button data-view="docs">문서 만료</button>
         </span>
+        <button class="btn btn-ghost ql-bell-btn" id="ql-bell" title="내 알림 (이관·할당)">🔔<span class="ql-bell-badge" id="ql-bell-badge" hidden></span></button>
         <button class="btn btn-ghost" id="ql-export" title="현재 목록을 엑셀(CSV)로 내려받기">⬇ 엑셀</button>
         <button class="btn btn-primary" id="ql-new">+ 새 품질 케이스</button>
       </div>
@@ -125,8 +134,10 @@ const QualityPage = {
     });
     document.getElementById('ql-new').addEventListener('click', () => this._openForm());
     document.getElementById('ql-export').addEventListener('click', () => this._exportCsv());
+    document.getElementById('ql-bell').addEventListener('click', () => this._openNotifModal());
     this._renderFilters();
     await this._load();
+    this._loadNotifs();
   },
 
   _setView(view) {
@@ -376,6 +387,80 @@ const QualityPage = {
       /* noop */
     }
     location.hash = '#customer360/' + customerId + '/' + (tab || 'qualification');
+  },
+
+  // ── 인앱 알림 (이관·할당) ────────────────────────────────────
+  async _loadNotifs() {
+    try {
+      const r = await API.get('/quality/notifications');
+      this._notifs = r.data || [];
+      this._notifUnread = r.unread || 0;
+    } catch (_) {
+      this._notifs = [];
+      this._notifUnread = 0;
+    }
+    const badge = document.getElementById('ql-bell-badge');
+    if (badge) {
+      if (this._notifUnread > 0) {
+        badge.textContent = this._notifUnread > 99 ? '99+' : String(this._notifUnread);
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    }
+  },
+  _openNotifModal() {
+    if (typeof Modal === 'undefined') return;
+    const rows = this._notifs || [];
+    const body = rows.length
+      ? `<ul class="ql-notif">${rows
+          .map(
+            n => `<li data-nid="${n.id}" data-case="${n.case_id}" data-caseno="${esc(n.case_no || '')}" class="${n.is_read ? '' : 'unread'}">
+              ${n.is_read ? '' : '<span class="ql-notif-dot"></span>'}
+              <div style="flex:1;min-width:0">
+                <div>${esc(n.message)}</div>
+                <div class="t">${esc(n.created_at || '')}</div>
+              </div></li>`
+          )
+          .join('')}</ul>`
+      : '<div class="ql-empty" style="padding:24px">새 알림이 없습니다.</div>';
+    Modal.open({
+      title: '내 알림 — 이관·할당',
+      width: 480,
+      body: `${body}<div class="ql-actions">${rows.some(n => !n.is_read) ? '<button class="btn btn-ghost" id="qn-readall">모두 읽음</button>' : ''}<button class="btn btn-primary" id="qn-close">닫기</button></div>`,
+    });
+    const ov = document.getElementById('modal-overlay');
+    ov.querySelector('#qn-close').addEventListener('click', () => Modal.close());
+    ov.querySelector('#qn-readall')?.addEventListener('click', async () => {
+      try {
+        await API.post('/quality/notifications/read-all', {});
+      } catch (_) {
+        /* noop */
+      }
+      await this._loadNotifs();
+      Modal.close();
+    });
+    ov.querySelectorAll('.ql-notif li[data-nid]').forEach(li =>
+      li.addEventListener('click', () => this._openNotifCase(li.dataset))
+    );
+  },
+  async _openNotifCase(ds) {
+    const nid = Number(ds.nid);
+    const caseId = Number(ds.case);
+    const caseNo = ds.caseno;
+    try {
+      await API.post(`/quality/notifications/${nid}/read`, {});
+    } catch (_) {
+      /* noop */
+    }
+    Modal.close();
+    // 케이스번호로 검색해 확실히 로드 후 상세 열기
+    this._view = 'cases';
+    this._filter = { ...this._filter, status: '', sla: '', priority: '', q: caseNo };
+    this._renderFilters();
+    await this._load();
+    await this._loadNotifs();
+    if (this._cases.find(c => c.id === caseId)) this._openDetail(caseId);
   },
 
   // ── 엑셀(CSV) 내보내기 — UTF-8 BOM 으로 한글 깨짐 방지 ────────

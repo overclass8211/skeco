@@ -41,6 +41,7 @@ afterAll(async () => {
   for (const r of tc) {
     await pool.query('DELETE FROM quality_history WHERE case_id=?', [r.id]);
     await pool.query('DELETE FROM quality_files WHERE case_id=?', [r.id]);
+    await pool.query('DELETE FROM quality_notifications WHERE case_id=?', [r.id]);
   }
   await pool.query("DELETE FROM quality_cases WHERE title LIKE '\\_\\_QINBOX%'");
   if (custId) await pool.query('DELETE FROM customers WHERE id=?', [custId]);
@@ -153,7 +154,7 @@ describe('전사 품질관리 (Quality Inbox) API', () => {
     expect(hist.body.data.find(h => h.field === 'created')).toBeTruthy();
   });
 
-  it('PATCH /cases/:id/transfer — 이관(담당 변경) + 사유 이력', async () => {
+  it('PATCH /cases/:id/transfer — 이관(담당 변경) + 사유 이력 + 수신자 인앱 알림', async () => {
     const tr = await api()
       .patch(`/api/quality/cases/${overdueCaseId}/transfer`)
       .set('X-User-Id', '1')
@@ -165,6 +166,19 @@ describe('전사 품질관리 (Quality Inbox) API', () => {
     const ev = hist.body.data.find(h => h.field === 'owner_id' && h.note === '생산팀 원인분석 이관');
     expect(ev).toBeTruthy();
     expect(String(ev.to_value)).toBe('3');
+    // 수신자(user 3) 에게 인앱 알림 생성
+    const notif = await api().get('/api/quality/notifications').set('X-User-Id', '3');
+    expect(notif.body.unread).toBeGreaterThanOrEqual(1);
+    const mine = notif.body.data.find(n => n.case_id === overdueCaseId);
+    expect(mine).toBeTruthy();
+    expect(mine.message).toContain('이관');
+    // 읽음 처리 → unread 감소
+    await api().post(`/api/quality/notifications/${mine.id}/read`).set('X-User-Id', '3');
+    const after = await api().get('/api/quality/notifications').set('X-User-Id', '3');
+    expect(after.body.data.find(n => n.id === mine.id).is_read).toBe(1);
+    // 이관 actor(본인)에게는 알림 없음
+    const selfNotif = await api().get('/api/quality/notifications').set('X-User-Id', '1');
+    expect(selfNotif.body.data.find(n => n.case_id === overdueCaseId)).toBeFalsy();
   });
 
   it('PUT — 8D/CAPA 도메인 필드 저장/조회 (근본원인·CAPA·불량코드·재발)', async () => {
