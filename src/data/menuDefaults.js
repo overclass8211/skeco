@@ -32,6 +32,7 @@ const DEFAULT_ITEMS = [
   { menu_key: 'payments', section_key: 'sales', display_order: 8, is_system: 0 }, // v8.0.0 SFR-011 수금관리
   { menu_key: 'revenue', section_key: 'sales', display_order: 9, is_system: 0 }, // P2 매출관리
   { menu_key: 'support', section_key: 'cs', display_order: 1, is_system: 0 }, // 고객지원(A/S) P1
+  { menu_key: 'quality', section_key: 'cs', display_order: 2, is_system: 0 }, // 전사 품질관리 (Quality Inbox)
   { menu_key: 'team', section_key: 'analysis', display_order: 1, is_system: 0 },
   { menu_key: 'reports', section_key: 'analysis', display_order: 2, is_system: 0 },
   { menu_key: 'report-builder', section_key: 'analysis', display_order: 3, is_system: 0 },
