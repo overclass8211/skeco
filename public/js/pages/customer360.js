@@ -602,7 +602,8 @@ const Customer360Page = {
       el.querySelectorAll('tr[data-lead-id]').forEach(tr =>
         tr.addEventListener('click', () => {
           const id = Number(tr.dataset.leadId);
-          if (window.App && typeof App.openLeadDetail === 'function') App.openLeadDetail(id);
+          if (typeof App !== 'undefined' && typeof App.openLeadDetail === 'function')
+            App.openLeadDetail(id);
         })
       );
       if (!this._fcData) this._loadForecast();
@@ -647,11 +648,17 @@ const Customer360Page = {
       el.querySelectorAll('.c360-qrow').forEach(tr =>
         tr.addEventListener('click', () => this._gotoQuality())
       );
-      // 소재 카드 본문 → 상거래(영업기회) 탭으로 이동. 편집은 '수정' 버튼으로.
+      // 소재 카드 본문 → 연결 딜 1건이면 해당 딜 직행, 아니면 상거래(영업기회) 탭.
+      // 편집은 '수정' 버튼으로.
       el.querySelectorAll('[data-mat-card]').forEach(card =>
         card.addEventListener('click', e => {
           if (e.target.closest('button')) return; // 수요입력/수정 버튼 제외
-          this._gotoTab('commercial');
+          const pid = card.dataset.primaryLead;
+          if (pid && typeof App !== 'undefined' && typeof App.openLeadDetail === 'function') {
+            App.openLeadDetail(Number(pid));
+          } else {
+            this._gotoTab('commercial');
+          }
         })
       );
       // AI 추천 액션 카드 → 바로가기(상거래/공급자격 탭 또는 품질관리)
@@ -843,7 +850,13 @@ const Customer360Page = {
     const badges = [];
     if (m.capa_short) badges.push(`<span class="pill pill-danger">CAPA 부족</span>`);
     if (m.open_quality) badges.push(`<span class="pill pill-warn">품질 ${m.open_quality}건</span>`);
-    return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" title="영업기회(상거래)로 이동">
+    // 소프트 링크 딜 배지: 1건 → 해당 딜 직행 / 여러건 → 영업기회 탭
+    const dealCount = m.linked_deal_count || 0;
+    const primary = m.primary_lead_id || '';
+    if (dealCount === 1) badges.push(`<span class="pill pill-info" title="연결된 영업딜로 이동">딜 ▶</span>`);
+    else if (dealCount > 1) badges.push(`<span class="pill pill-mut" title="${dealCount}개 영업딜 — 영업기회 탭">딜 ${dealCount}</span>`);
+    const cardTitle = dealCount === 1 ? '연결된 영업딜 상세로 이동' : '영업기회(상거래)로 이동';
+    return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" data-primary-lead="${primary}" title="${cardTitle}">
       <div class="lc-top">
         <span class="lc-name">${esc(m.material_name)}</span>
         <span class="pill ${stagePill}">${esc(m.lifecycle_label)}</span>

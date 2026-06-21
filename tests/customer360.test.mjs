@@ -121,6 +121,12 @@ describe('Customer360 (MVP) API', () => {
     expect(mat).toBeTruthy();
     expect(mat.lifecycle_stage).toBe('specin');
     expect(mat.lifecycle_index).toBe(3); // discovery0 sample1 evaluation2 specin3
+    // 소재↔딜 소프트 링크: 같은 business_type(식각가스) 딜 1건 → primary 지정(직행)
+    expect(mat.linked_deal_count).toBe(1);
+    expect(mat.primary_lead_id).toBe(leadId);
+    expect(Array.isArray(mat.linked_deals)).toBe(true);
+    expect(mat.linked_deals[0]).toMatchObject({ id: leadId, stage: 'proposal' });
+    expect(mat.linked_deals[0].project_name).toBe('__C360MVP_PRJ__');
     // 수요 100 > CAPA 80 → 갭 20
     expect(lc.demand_flow.demand).toBe(100);
     expect(lc.demand_flow.capacity).toBe(80);

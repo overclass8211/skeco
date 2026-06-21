@@ -681,6 +681,31 @@ async function buildLifecycle(customerId) {
     [customerId]
   );
 
+  // 소재↔딜 소프트 링크(무스키마 휴리스틱): 같은 고객 + business_type 매칭으로 진행 딜 추정.
+  // leads 는 customer_name 으로 연결되므로 고객명을 조회해 사업유형별로 그룹핑.
+  const [[cust]] = await pool.query('SELECT name FROM customers WHERE id=?', [customerId]);
+  let openLeads = [];
+  if (cust) {
+    [openLeads] = await pool.query(
+      `SELECT l.id, l.project_name, l.business_type, l.stage,
+              ps.label AS stage_label,
+              COALESCE(l.win_probability, ps.win_probability, 0) AS prob,
+              l.expected_amount
+         FROM leads l
+         LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
+        WHERE l.customer_name = ? AND l.stage NOT IN ('lost','dropped')
+        ORDER BY ps.sort_order ASC, l.expected_amount DESC`,
+      [cust.name]
+    );
+  }
+  const leadsByType = new Map();
+  for (const l of openLeads) {
+    const key = (l.business_type || '').trim();
+    if (!key) continue;
+    if (!leadsByType.has(key)) leadsByType.set(key, []);
+    leadsByType.get(key).push(l);
+  }
+
   const fcByMat = new Map();
   for (const f of fcs) {
     if (!fcByMat.has(f.customer_material_id)) fcByMat.set(f.customer_material_id, []);
@@ -710,6 +735,16 @@ async function buildLifecycle(customerId) {
     totalExpectedOrder += expRev;
     if (m.demand_unit) unitSet.add(m.demand_unit);
     const capaShort = capa > 0 && capa < demand;
+    // 소프트 링크: 같은 사업유형의 진행 딜. 정확히 1건이면 직행용 primary 지정.
+    const linked = m.business_type ? leadsByType.get(m.business_type.trim()) || [] : [];
+    const linkedDeals = linked.map(l => ({
+      id: l.id,
+      project_name: l.project_name,
+      stage: l.stage,
+      stage_label: l.stage_label,
+      prob: Number(l.prob) || 0,
+      expected_amount: Number(l.expected_amount) || 0,
+    }));
     return {
       id: m.id,
       material_name: m.material_name,
@@ -727,6 +762,9 @@ async function buildLifecycle(customerId) {
       quarter_expected_order: Math.round(expRev),
       capa_short: capaShort,
       open_quality: openQByMat.get(m.id) || 0,
+      linked_deals: linkedDeals,
+      linked_deal_count: linkedDeals.length,
+      primary_lead_id: linkedDeals.length === 1 ? linkedDeals[0].id : null,
     };
   });
 
