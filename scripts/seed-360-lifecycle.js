@@ -104,6 +104,102 @@ async function maybeQuality(conn, lead, matId, idx) {
   return true;
 }
 
+// Phase C: 품질 케이스 워크플로우/8D·이관 이력·알림 보강 (멱등 — description NULL 데모만 1회)
+async function enrichQuality(conn, counts) {
+  counts.qEnriched = 0;
+  counts.qHistory = 0;
+  counts.qNotif = 0;
+  const [members] = await conn.query('SELECT id, name FROM team_members ORDER BY id ASC LIMIT 6');
+  if (!members.length) return;
+  const mid = i => members[((i % members.length) + members.length) % members.length].id;
+  const today = new Date('2026-06-21'); // 결정적 기준일 (시드 재현성)
+  const day = off => {
+    const x = new Date(today);
+    x.setDate(x.getDate() + off);
+    return x.toISOString().slice(0, 10);
+  };
+
+  const [cases] = await conn.query(
+    "SELECT id, case_no, type, severity FROM quality_cases WHERE case_no LIKE 'Q-2026-%' AND description IS NULL ORDER BY id ASC"
+  );
+  const STAT = ['in_progress', 'resolved', 'assigned', 'on_hold', 'resolved', 'received', 'in_progress', 'registered', 'dropped'];
+  const PRIO = ['urgent', 'high', 'normal', 'normal', 'low'];
+  const CHAN = ['audit', 'email', 'visit', 'phone', 'portal'];
+  const DUE_OFFSET = [-4, 2, 9, -1, 14, 5, -2, 7]; // 일부 초과(음수)로 SLA 데모 살림
+  const DEFCODE = { VOC: 'VOC-PURITY', NCR: 'NCR-DIMENSION', Audit: 'AUDIT-FINDING', PCN: 'PCN-CHANGE', CoA: 'COA-MISMATCH' };
+
+  for (let i = 0; i < cases.length; i++) {
+    const c = cases[i];
+    const status = STAT[i % STAT.length];
+    const closed = status === 'resolved' || status === 'dropped';
+    const advanced = ['in_progress', 'on_hold', 'resolved', 'dropped'].includes(status);
+    const createdBy = mid(i);
+    const owner = advanced ? mid(i + 1) : null;
+    const desc = `고객 제기: ${c.type} 관련 ${c.severity === 'high' ? '심각' : '일반'} 이슈 — 수율/품질 영향 보고, Lot 추적·회신 요청`;
+    const resolution = advanced ? '1차 회신·봉쇄조치 완료, 원인분석 진행' : null;
+    const root = closed || status === 'in_progress' ? '공정 파라미터 드리프트(MFC/온도) 추정 — 5Why 분석' : null;
+    const correction = closed || status === 'in_progress' ? '해당 Lot 격리·재검사, 고객 대체 출하' : null;
+    const capa = closed ? '주기 교정 표준 신설 + SPC 관리한계 강화' : null;
+    const verif = status === 'resolved' ? '후속 3배치 SPEC 충족 확인' : null;
+    await conn.query(
+      `UPDATE quality_cases SET status=?, priority=?, channel=?, created_by=?, owner_id=?,
+         description=?, resolution=?, root_cause=?, correction=?, preventive_action=?, verification=?,
+         verified_at=?, defect_code=?, lot_no=?, defect_qty=?, defect_unit=?, customer_ref_no=?,
+         is_recurring=?, due_date=?, resolved_at=?, closed_at=?, first_response_at=?
+       WHERE id=?`,
+      [
+        status, PRIO[i % PRIO.length], CHAN[i % CHAN.length], createdBy, owner,
+        desc, resolution, root, correction, capa, verif,
+        status === 'resolved' ? day(-2) : null,
+        DEFCODE[c.type] || 'GEN-001', `L2026-${pad(1000 + i)}`,
+        i % 4 === 0 ? 50 + i * 7 : null, 'ea',
+        i % 3 === 0 ? `CLM-${2026000 + i}` : null, i % 5 === 0 ? 1 : 0,
+        day(DUE_OFFSET[i % DUE_OFFSET.length]),
+        status === 'resolved' ? day(-1) : null,
+        closed ? day(0) : null,
+        advanced ? day(-3) : null,
+        c.id,
+      ]
+    );
+    counts.qEnriched += 1;
+
+    // 이력 (멱등: 케이스에 이력 없을 때만)
+    const [[hc]] = await conn.query('SELECT COUNT(*) AS n FROM quality_history WHERE case_id=?', [c.id]);
+    if (hc.n === 0) {
+      await conn.query(
+        "INSERT INTO quality_history (case_id, field, from_value, to_value, changed_by, note) VALUES (?, 'created', NULL, ?, ?, '접수')",
+        [c.id, c.case_no, createdBy]
+      );
+      counts.qHistory += 1;
+      if (advanced && owner) {
+        await conn.query(
+          "INSERT INTO quality_history (case_id, field, from_value, to_value, changed_by, note) VALUES (?, 'owner_id', NULL, ?, ?, '담당 이관')",
+          [c.id, String(owner), createdBy]
+        );
+        await conn.query(
+          "INSERT INTO quality_history (case_id, field, from_value, to_value, changed_by, note) VALUES (?, 'status', 'received', ?, ?, NULL)",
+          [c.id, status, owner]
+        );
+        counts.qHistory += 2;
+        // 이관 알림 (owner 미읽음) — 일부만
+        if (i % 2 === 0) {
+          const [[nc]] = await conn.query(
+            'SELECT COUNT(*) AS n FROM quality_notifications WHERE case_id=?',
+            [c.id]
+          );
+          if (nc.n === 0) {
+            await conn.query(
+              "INSERT INTO quality_notifications (user_id, case_id, event_type, message) VALUES (?,?, 'transferred', ?)",
+              [owner, c.id, `${c.case_no}가 회원님께 이관되었습니다 — 원인분석 요청`]
+            );
+            counts.qNotif += 1;
+          }
+        }
+      }
+    }
+  }
+}
+
 (async () => {
   let code = 0;
   const conn = await pool.getConnection();
@@ -131,6 +227,9 @@ async function maybeQuality(conn, lead, matId, idx) {
       if (q) counts.quality += 1;
       idx += 1;
     }
+
+    // Phase C: 품질 케이스 워크플로우/8D·이관 이력·알림 보강 (멱등)
+    await enrichQuality(conn, counts);
 
     // 기준 포캐스트 버전 1개 생성 (고객당, 없을 때만 — 멱등)
     counts.versions = 0;
@@ -430,6 +529,7 @@ async function maybeQuality(conn, lead, matId, idx) {
     console.log(`  · 소재(customer_materials): ${counts.materials} 신규`);
     console.log(`  · 수요예측(demand_forecasts): ${counts.forecasts} upsert`);
     console.log(`  · 품질이슈(quality_cases): ${counts.quality}`);
+    console.log(`  · 품질 워크플로우 보강: ${counts.qEnriched} 케이스 / 이력 ${counts.qHistory} / 알림 ${counts.qNotif}`);
     console.log(`  · 기준 포캐스트 버전: ${counts.versions} 신규`);
     console.log(`  · 사업장: ${counts.sites} · 담당자: ${counts.contacts} · 샘플: ${counts.samples} 신규`);
     console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
