@@ -87,7 +87,9 @@ const Customer360Page = {
         .c360-toprow .c360-health-bd2{flex:1 1 360px;margin-bottom:0;max-width:none}
         .c360-head{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px 18px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:12px}
         .c360-grade{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0}
-        .c360-head-main{flex:1;min-width:180px}
+        .c360-avatar{width:48px;height:48px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;letter-spacing:-.02em}
+        .c360-head-main{flex:0 1 auto;min-width:140px}
+        .c360-head-metrics{margin-left:auto}
         .c360-head-name{font-size:18px;font-weight:700}
         .c360-head-sub{font-size:12px;color:var(--text-3);margin-top:2px}
         .c360-head-metrics{display:flex;gap:22px;flex-wrap:wrap}
@@ -372,6 +374,15 @@ const Customer360Page = {
     if (this._custId) await this._select(this._custId);
   },
 
+  // 회사 모노그램 아바타 — 이름 첫 글자 + 회사별 고정 색상(로고 대용)
+  _avatar(name) {
+    const n = (name || '').trim();
+    const initial = /^[A-Za-z]/.test(n) ? n.slice(0, 2).toUpperCase() : n.slice(0, 1) || '·';
+    let hsum = 0;
+    for (let i = 0; i < n.length; i++) hsum = (hsum * 31 + n.charCodeAt(i)) % 360;
+    return `<div class="c360-avatar" style="background:hsl(${hsum} 52% 42%)">${esc(initial)}</div>`;
+  },
+
   _gradeColor(g) {
     if (g === 'A+' || g === 'A') return '#0F7A3F';
     if (g === 'B+' || g === 'B') return '#2357E8';
@@ -451,6 +462,7 @@ const Customer360Page = {
     body.innerHTML = `
       <div class="c360-toprow">
         <div class="c360-head">
+          ${this._avatar(c.name)}
           <div class="c360-head-main">
             <div class="c360-head-name">${esc(c.name)}</div>
             <div class="c360-head-sub">${esc(sub || '-')}</div>
