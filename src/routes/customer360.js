@@ -362,7 +362,8 @@ router.get('/:id', validateId, async (req, res) => {
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
 
     // 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
-    const { score, grade } = computeHealth(
+    const _healthCfgDetail = await getHealthConfig();
+    const { score, grade, subs } = computeHealth(
       {
         won: wonCount,
         active: activeCount,
@@ -372,8 +373,18 @@ router.get('/:id', validateId, async (req, res) => {
         openQuality: openQ,
         capaShort: lifecycle.demand_flow.gap > 0,
       },
-      await getHealthConfig()
+      _healthCfgDetail
     );
+    // 경영진 설명용 — 축별 점수 + 비중/라벨
+    const healthBreakdown = {
+      subs,
+      dims: HEALTH_DIM_KEYS.map(k => ({
+        key: k,
+        label: _healthCfgDetail.dimensions[k].label,
+        weight: _healthCfgDetail.dimensions[k].weight,
+        score: subs[k],
+      })),
+    };
 
     // ── 예상매출 월/분기/연 분해 (demand_forecasts 기준) ──
     const [brkRows] = await pool.query(
@@ -419,6 +430,7 @@ router.get('/:id', validateId, async (req, res) => {
         header: {
           health_score: score,
           health_grade: grade,
+          health_breakdown: healthBreakdown,
           weighted_expected: Math.round(Number(weightedAgg.weighted) || 0),
           won_count: wonCount,
           active_count: activeCount,
@@ -940,42 +952,55 @@ router.get('/forecast/versions/:vid', async (req, res) => {
 });
 
 // ── 임원 360 요약 (전사 집계) ────────────────────────────────
-// Account Health 산식 설정 — 사용자 재정의 가능(system_settings 저장, 없으면 기본값)
+// Account Health 산식 — "4대 건강 축"을 각 0~100점으로 환산 후 비중(%)으로 가중평균.
+//   경영진 설명용: "거래 35% · 회수 25% · 품질 25% · 공급 15% 비중으로 종합한 점수".
+//   각 축 세부 규칙(건당 점수 등)은 고급 설정으로 재정의 가능. system_settings 저장.
 const HEALTH_CFG_KEY = 'health_config';
 const DEFAULT_HEALTH_CONFIG = {
-  base: 60, // 기준점
-  weights: {
-    won: 7, // 수주 건당 가점
-    wonMax: 20, // 수주 가점 상한
-    active: 2, // 진행 딜 건당 가점
-    activeMax: 10, // 진행 가점 상한
-    contract: 8, // 계약 보유 가점
-    overdue: 8, // 연체 수금 건당 감점
-    support: 5, // 미해결 지원(CS) 건당 감점
-    quality: 5, // 미해결 품질(VOC/NCR) 건당 감점
-    capa: 8, // CAPA 부족 감점
+  version: 2,
+  dimensions: {
+    // 거래 성장: 거래를 키우는가 (수주·진행·계약) — 기본 40점에서 활동만큼 가점
+    commercial: {
+      label: '거래 성장',
+      desc: '우리와 거래를 키우는가',
+      base: 40,
+      perWon: 15,
+      perActive: 8,
+      contractBonus: 20,
+      weight: 35,
+    },
+    // 대금 회수: 제때 회수되는가 (연체 없으면 100, 건당 차감)
+    collection: { label: '대금 회수', desc: '대금이 제때 회수되는가', perOverdue: 25, weight: 25 },
+    // 품질·서비스: 문제 없이 공급되는가 (품질·지원 이슈 없으면 100)
+    quality: {
+      label: '품질·서비스',
+      desc: '문제 없이 공급되는가',
+      perQuality: 20,
+      perSupport: 15,
+      weight: 25,
+    },
+    // 공급 역량: 수요를 감당하는가 (CAPA 부족 시 점수 하락)
+    supply: { label: '공급 역량', desc: '수요를 감당할 수 있는가', shortScore: 50, weight: 15 },
   },
   thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 }, // 미만은 D
 };
-const HEALTH_WEIGHT_KEYS = [
-  'won',
-  'wonMax',
-  'active',
-  'activeMax',
-  'contract',
-  'overdue',
-  'support',
-  'quality',
-  'capa',
-];
+const HEALTH_DIM_KEYS = ['commercial', 'collection', 'quality', 'supply'];
 const HEALTH_GRADE_ORDER = ['A+', 'A', 'B+', 'B', 'C'];
 
-// 저장값(부분) + 기본값 병합 — 누락 키 폴백
+// 저장값(부분) + 기본값 병합 — 누락 키 폴백 (구버전 저장값은 기본값으로 대체)
 function mergeHealthConfig(saved) {
   const s = saved && typeof saved === 'object' ? saved : {};
+  const sd = s.dimensions || {};
+  const D = DEFAULT_HEALTH_CONFIG.dimensions;
+  const md = k => ({ ...D[k], ...(sd[k] || {}) });
   return {
-    base: Number.isFinite(s.base) ? s.base : DEFAULT_HEALTH_CONFIG.base,
-    weights: { ...DEFAULT_HEALTH_CONFIG.weights, ...(s.weights || {}) },
+    version: 2,
+    dimensions: {
+      commercial: md('commercial'),
+      collection: md('collection'),
+      quality: md('quality'),
+      supply: md('supply'),
+    },
     thresholds: { ...DEFAULT_HEALTH_CONFIG.thresholds, ...(s.thresholds || {}) },
   };
 }
@@ -999,15 +1024,31 @@ async function getHealthConfig(force) {
   return _healthCfg;
 }
 
-// 입력 검증 — 가중치/기준점 0~100, 임계값 A+>A>B+>B>C 단조감소
+// 입력 검증 — 비중 0~100(합 100), 세부 점수 0~100, 임계값 A+>A>B+>B>C 단조감소
 function validateHealthConfig(input) {
   const cfg = mergeHealthConfig(input);
   const errs = [];
   const ok = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
-  if (!ok(cfg.base)) errs.push('기준점은 0~100 숫자여야 합니다');
-  for (const k of HEALTH_WEIGHT_KEYS) {
-    if (!ok(cfg.weights[k])) errs.push(`가중치 '${k}'는 0~100 숫자여야 합니다`);
-  }
+  const D = cfg.dimensions;
+  HEALTH_DIM_KEYS.forEach(k => {
+    if (!ok(D[k].weight)) errs.push(`'${D[k].label}' 비중은 0~100 숫자여야 합니다`);
+  });
+  const wsum = HEALTH_DIM_KEYS.reduce((s, k) => s + (Number(D[k].weight) || 0), 0);
+  if (!errs.length && Math.round(wsum) !== 100)
+    errs.push(`4대 축 비중 합이 100%가 되어야 합니다 (현재 ${Math.round(wsum)}%)`);
+  const subs = [
+    ['거래 기준점', D.commercial.base],
+    ['수주 점수', D.commercial.perWon],
+    ['진행 점수', D.commercial.perActive],
+    ['계약 보너스', D.commercial.contractBonus],
+    ['연체 감점', D.collection.perOverdue],
+    ['품질 감점', D.quality.perQuality],
+    ['지원 감점', D.quality.perSupport],
+    ['공급부족 점수', D.supply.shortScore],
+  ];
+  subs.forEach(([lab, v]) => {
+    if (!ok(v)) errs.push(`'${lab}'은 0~100 숫자여야 합니다`);
+  });
   const tv = HEALTH_GRADE_ORDER.map(g => cfg.thresholds[g]);
   if (tv.some(v => !ok(v))) {
     errs.push('등급 임계값은 0~100 숫자여야 합니다');
@@ -1037,21 +1078,36 @@ function healthGrade(score, thr) {
             : 'D';
 }
 
-// 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
-//   기준점 + 수주/진행 가점, 계약 보유 가점, 연체/지원/품질/CAPA 감점 (설정값 적용)
+// 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 4대 축 0~100 → 비중 가중평균
+//   subs: 축별 0~100 점수 (경영진 "왜 이 등급?" 설명용 분해)
 function computeHealth(sig, cfg) {
   const c = cfg || DEFAULT_HEALTH_CONFIG;
-  const w = c.weights;
-  let s = Number(c.base) || 0;
-  s += Math.min(w.wonMax, (Number(sig.won) || 0) * w.won); // 수주 실적
-  s += Math.min(w.activeMax, (Number(sig.active) || 0) * w.active); // 진행 파이프라인
-  if ((Number(sig.contractAmt) || 0) > 0) s += w.contract; // 계약 보유
-  s -= (Number(sig.overdue) || 0) * w.overdue; // 연체 수금
-  s -= (Number(sig.openSupport) || 0) * w.support; // 미해결 지원
-  s -= (Number(sig.openQuality) || 0) * w.quality; // 미해결 품질
-  if (sig.capaShort) s -= w.capa; // CAPA 부족
-  s = Math.max(0, Math.min(100, s));
-  return { score: s, grade: healthGrade(s, c.thresholds) };
+  const D = c.dimensions;
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const won = Number(sig.won) || 0;
+  const active = Number(sig.active) || 0;
+  const overdue = Number(sig.overdue) || 0;
+  const oq = Number(sig.openQuality) || 0;
+  const os = Number(sig.openSupport) || 0;
+  const hasContract = (Number(sig.contractAmt) || 0) > 0;
+  const subs = {
+    commercial: Math.round(
+      clamp(
+        D.commercial.base +
+          won * D.commercial.perWon +
+          active * D.commercial.perActive +
+          (hasContract ? D.commercial.contractBonus : 0)
+      )
+    ),
+    collection: Math.round(clamp(100 - overdue * D.collection.perOverdue)),
+    quality: Math.round(clamp(100 - oq * D.quality.perQuality - os * D.quality.perSupport)),
+    supply: sig.capaShort ? Math.round(clamp(D.supply.shortScore)) : 100,
+  };
+  const wsum = HEALTH_DIM_KEYS.reduce((s, k) => s + (Number(D[k].weight) || 0), 0) || 100;
+  const score = Math.round(
+    HEALTH_DIM_KEYS.reduce((s, k) => s + subs[k] * (Number(D[k].weight) || 0), 0) / wsum
+  );
+  return { score, grade: healthGrade(score, c.thresholds), subs };
 }
 
 // 임원뷰 Top 계정용 — 상세뷰와 '동일한' 신호를 수집해 동일 산식 적용
@@ -1488,6 +1544,7 @@ async function execKpiList(req, res) {
   try {
     const kpi = String(req.params.kpi || '');
     let items = [];
+    let execKpiHealthDims = null;
 
     if (kpi === 'weighted') {
       // 계정별 가중 예상매출 (전체)
@@ -1558,11 +1615,12 @@ async function execKpiList(req, res) {
       items = await Promise.all(
         rows.map(async a => {
           const sig = await gatherHealthSignals(a.id, a.name);
-          const { grade, score } = computeHealth(sig, healthCfg);
+          const { grade, score, subs } = computeHealth(sig, healthCfg);
           return {
             name: a.name,
             grade,
             score,
+            subs, // 축별 점수 (거래/회수/품질/공급)
             weighted: Math.round(Number(a.weighted) || 0),
             active: Number(a.active) || 0,
             won: Number(a.won) || 0,
@@ -1570,6 +1628,12 @@ async function execKpiList(req, res) {
         })
       );
       items.sort((x, y) => y.score - x.score);
+      // 축 메타(라벨·비중) 동봉 — 프론트 헤더/툴팁용
+      execKpiHealthDims = HEALTH_DIM_KEYS.map(k => ({
+        key: k,
+        label: healthCfg.dimensions[k].label,
+        weight: healthCfg.dimensions[k].weight,
+      }));
     } else if (kpi === 'quality') {
       // 미해결 품질 케이스 전체
       const [rows] = await pool.query(
@@ -1609,7 +1673,7 @@ async function execKpiList(req, res) {
       return res.status(400).json({ success: false, error: '알 수 없는 KPI' });
     }
 
-    res.json({ success: true, data: { kpi, total: items.length, items } });
+    res.json({ success: true, data: { kpi, total: items.length, items, dims: execKpiHealthDims } });
   } catch (err) {
     handleError(res, err);
   }

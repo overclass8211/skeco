@@ -48,8 +48,13 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route('**/api/customer360/health-config', route => {
     const config = {
-      base: 60,
-      weights: { won: 7, wonMax: 20, active: 2, activeMax: 10, contract: 8, overdue: 8, support: 5, quality: 5, capa: 8 },
+      version: 2,
+      dimensions: {
+        commercial: { label: '거래 성장', desc: '우리와 거래를 키우는가', base: 40, perWon: 15, perActive: 8, contractBonus: 20, weight: 35 },
+        collection: { label: '대금 회수', desc: '대금이 제때 회수되는가', perOverdue: 25, weight: 25 },
+        quality: { label: '품질·서비스', desc: '문제 없이 공급되는가', perQuality: 20, perSupport: 15, weight: 25 },
+        supply: { label: '공급 역량', desc: '수요를 감당할 수 있는가', shortScore: 50, weight: 15 },
+      },
       thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 },
     };
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { config, defaults: config } }) });
@@ -97,12 +102,13 @@ test('임원 360 요약 — 평균 Health 모달의 기준 패널 + 편집 진�
   await page.waitForSelector('#ex-body .ex-kpi[data-kpi="health"]', { timeout: 15000 });
 
   await page.locator('.ex-kpi[data-kpi="health"]').click();
-  // 산식 기준 패널 + 등급 라인 노출
-  await expect(page.locator('#ex-health-cfg')).toContainText('등급 산식 기준');
+  // 4대 건강 축 기준 패널 + 등급 라인 노출
+  await expect(page.locator('#ex-health-cfg')).toContainText('4대 건강 축');
+  await expect(page.locator('#ex-health-cfg')).toContainText('거래 성장');
   await expect(page.locator('#ex-health-cfg')).toContainText('A+ ≥90');
 
-  // admin → '기준 설정' 편집 진입 → 입력 폼 노출
+  // admin → '기준 설정' 편집 진입 → 비중 입력 + 임계값 노출
   await page.locator('#ex-hcfg-edit').click();
-  await expect(page.locator('#ex-health-cfg [data-hf="base"]')).toBeVisible();
+  await expect(page.locator('#ex-health-cfg [data-hf="w_commercial"]')).toBeVisible();
   await expect(page.locator('#ex-health-cfg [data-hf="t_C"]')).toBeVisible();
 });

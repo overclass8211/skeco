@@ -341,49 +341,59 @@ describe('Customer360 (MVP) API', () => {
     expect(res.body).toHaveProperty('detail_restricted');
   });
 
-  // ── Health 기준 설정 (사용자 재정의) ──
-  it('GET /health-config — 현재 기준 + 기본값 구조', async () => {
+  // ── Health 기준 설정 (4대 축 비중 모델 v2) ──
+  const DIMS_100 = {
+    commercial: { weight: 35, base: 40, perWon: 15, perActive: 8, contractBonus: 20 },
+    collection: { weight: 25, perOverdue: 25 },
+    quality: { weight: 25, perQuality: 20, perSupport: 15 },
+    supply: { weight: 15, shortScore: 50 },
+  };
+  const THR = { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 };
+
+  it('GET /health-config — 4대 축 + 기본값 구조(v2)', async () => {
     const res = await api().get('/api/customer360/health-config').set('X-User-Id', '1');
     expect(res.status).toBe(200);
     const d = res.body.data;
-    expect(d.config).toHaveProperty('base');
-    expect(d.config.weights).toHaveProperty('won');
+    expect(d.config.version).toBe(2);
+    expect(d.config.dimensions.commercial).toHaveProperty('weight');
     expect(d.config.thresholds).toHaveProperty('A+');
-    expect(d.defaults.base).toBe(60);
+    // 4대 축 비중 합 100
+    const wsum = ['commercial', 'collection', 'quality', 'supply'].reduce((s, k) => s + d.config.dimensions[k].weight, 0);
+    expect(wsum).toBe(100);
   });
 
   it('PUT /health-config — 잘못된 임계값(단조감소 위반) 400', async () => {
     const res = await api()
       .put('/api/customer360/health-config')
       .set('X-User-Id', '1')
-      .send({ thresholds: { 'A+': 70, A: 80, 'B+': 60, B: 50, C: 40 } });
+      .send({ dimensions: DIMS_100, thresholds: { 'A+': 70, A: 80, 'B+': 60, B: 50, C: 40 } });
     expect(res.status).toBe(400);
   });
 
-  it('PUT /health-config — 범위 밖 가중치 400', async () => {
+  it('PUT /health-config — 비중 합 100 아님 400', async () => {
     const res = await api()
       .put('/api/customer360/health-config')
       .set('X-User-Id', '1')
-      .send({ weights: { capa: -5 } });
+      .send({ dimensions: { ...DIMS_100, commercial: { ...DIMS_100.commercial, weight: 50 } }, thresholds: THR });
     expect(res.status).toBe(400);
   });
 
   it('PUT /health-config — 유효 저장 200 + GET 반영 + 등급 변화', async () => {
-    // 기준점을 크게 올려 등급 상향 → 저장 반영 확인
+    // 임계값을 크게 낮춰 등급 상향 → 저장 반영 확인
     const save = await api()
       .put('/api/customer360/health-config')
       .set('X-User-Id', '1')
-      .send({
-        base: 85,
-        weights: { won: 7, wonMax: 20, active: 2, activeMax: 10, contract: 8, overdue: 8, support: 5, quality: 5, capa: 8 },
-        thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 },
-      });
+      .send({ dimensions: DIMS_100, thresholds: { 'A+': 55, A: 45, 'B+': 35, B: 25, C: 15 } });
     expect(save.status).toBe(200);
-    expect(save.body.data.config.base).toBe(85);
+    expect(save.body.data.config.dimensions.commercial.weight).toBe(35);
     const get = await api().get('/api/customer360/health-config').set('X-User-Id', '1');
-    expect(get.body.data.config.base).toBe(85);
-    // 단일 산식 적용 — 상세뷰 등급이 상향(기준점 85 → 최소 B 이상)
+    expect(get.body.data.config.thresholds['A+']).toBe(55);
+    // 상세뷰 등급 상향 + 축별 분해(health_breakdown) 동봉 확인
     const det = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
     expect(['A+', 'A', 'B+', 'B']).toContain(det.body.data.header.health_grade);
+    const bd = det.body.data.header.health_breakdown;
+    expect(Array.isArray(bd.dims)).toBe(true);
+    expect(bd.dims).toHaveLength(4);
+    expect(bd.subs).toHaveProperty('commercial');
   });
 });

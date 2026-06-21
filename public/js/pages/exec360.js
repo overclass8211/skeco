@@ -57,6 +57,17 @@ const Exec360Page = {
         .ex-hcfg-btn{font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-1);cursor:pointer}
         .ex-hcfg-btn.primary{background:var(--oci-red);border-color:var(--oci-red);color:#fff}
         .ex-hcfg-btn.primary:hover{filter:brightness(1.05)}
+        .ex-hcfg-btn:disabled{cursor:not-allowed}
+        /* 4대 건강 축 카드 */
+        .ex-hdims{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:10px}
+        .ex-hdim{border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--surface)}
+        .ex-hdim-top{display:flex;align-items:baseline;gap:7px;margin-bottom:3px}
+        .ex-hdim-w{font-size:18px;font-weight:800;color:var(--oci-red);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+        .ex-hdim-l{font-size:12.5px;font-weight:700;color:var(--text-1)}
+        .ex-hdim-d{font-size:11px;color:var(--text-3);line-height:1.4}
+        .ex-hcfg-adv{margin:2px 0 10px}
+        .ex-hcfg-adv summary{font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;padding:4px 0}
+        .ex-hcfg-adv[open] summary{margin-bottom:4px}
         .ex-sec{font-size:14px;font-weight:700;color:var(--text-1);margin:22px 0 12px}
         /* 단계 분포 — 가로 흐름(발굴→납품) + 비중 + 병목(최다) 강조 */
         /* AI 임원 브리핑 */
@@ -362,7 +373,7 @@ const Exec360Page = {
       health: {
         title: '평균 Health — 근거',
         lead: `${k.avg_health}<span>계정 평균 등급</span>`,
-        formula: '기준: 수주·진행·계약 가점, 연체·품질·CAPA 감점으로 산출한 계정 Health(상세뷰와 동일 산식)',
+        formula: '4대 건강 축(거래·회수·품질·공급)을 각 0~100점으로 환산해 아래 비중으로 가중평균한 종합 점수입니다. (상세뷰와 동일 산식)',
       },
       quality: {
         title: '품질 오픈 (VOC/NCR) — 근거',
@@ -458,20 +469,25 @@ const Exec360Page = {
         .filter(g => cnt[g])
         .map(g => `<span class="ex-kpi-grade"><span class="gr" style="background:${this._gradeColor(g)}">${g}</span> ${cnt[g]}곳</span>`)
         .join('');
+      const sc = v => {
+        const n = Number.isFinite(v) ? v : 0;
+        const col = n >= 80 ? '#17A85A' : n >= 60 ? 'var(--text-1)' : n >= 40 ? '#b45309' : 'var(--oci-red)';
+        return `<td class="text-right" style="color:${col}">${n}</td>`;
+      };
       const rows = items
-        .map(
-          a =>
-            `<tr><td><strong>${esc(a.name)}</strong></td><td><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="text-right">${won(a.weighted)}</td><td class="text-right">${a.active}</td><td class="text-right">${a.won}</td></tr>`
-        )
+        .map(a => {
+          const s = a.subs || {};
+          return `<tr><td><strong>${esc(a.name)}</strong></td><td><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="text-right"><b>${a.score}</b></td>${sc(s.commercial)}${sc(s.collection)}${sc(s.quality)}${sc(s.supply)}</tr>`;
+        })
         .join('');
       return (
         `<div class="ex-stage-th">등급 분포</div><div class="ex-kpi-grades">${grades || '<span style="color:var(--text-3);font-size:12px">데이터 없음</span>'}</div>` +
-        `<div class="ex-stage-th">계정별 등급</div>` +
+        `<div class="ex-stage-th">계정별 등급 — 축별 점수(0~100)로 "왜 이 등급"이 한눈에</div>` +
         scroll(
-          '<th>고객사</th><th>Health</th><th class="text-right">가중매출</th><th class="text-right">진행딜</th><th class="text-right">수주</th>',
+          '<th>고객사</th><th>Health</th><th class="text-right">종합</th><th class="text-right">거래</th><th class="text-right">회수</th><th class="text-right">품질</th><th class="text-right">공급</th>',
           rows,
           '계정 없음',
-          5
+          7
         ) +
         foot('개 계정', total)
       );
@@ -532,21 +548,14 @@ const Exec360Page = {
     const box = document.getElementById('ex-health-cfg');
     if (!box) return;
     const c = this._healthCfg;
-    const w = c.weights;
+    const D = c.dimensions;
     const t = c.thresholds;
+    const card = k =>
+      `<div class="ex-hdim"><div class="ex-hdim-top"><span class="ex-hdim-w">${D[k].weight}%</span><span class="ex-hdim-l">${esc(D[k].label)}</span></div><div class="ex-hdim-d">${esc(D[k].desc)}</div></div>`;
     box.innerHTML = `<div class="ex-hcfg">
-      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산식 기준</span>${this._canEditHealth() ? '<button class="ex-hcfg-btn" id="ex-hcfg-edit">기준 설정</button>' : ''}</div>
-      <div class="ex-hcfg-grid">
-        <div>기준점 <b>${c.base}</b></div>
-        <div>수주 <b>+${w.won}</b>/건 (최대 +${w.wonMax})</div>
-        <div>진행 딜 <b>+${w.active}</b>/건 (최대 +${w.activeMax})</div>
-        <div>계약 보유 <b>+${w.contract}</b></div>
-        <div>연체 수금 <b>−${w.overdue}</b>/건</div>
-        <div>미해결 지원 <b>−${w.support}</b>/건</div>
-        <div>미해결 품질 <b>−${w.quality}</b>/건</div>
-        <div>CAPA 부족 <b>−${w.capa}</b></div>
-      </div>
-      <div class="ex-hcfg-th">등급: A+ ≥${t['A+']} · A ≥${t.A} · B+ ≥${t['B+']} · B ≥${t.B} · C ≥${t.C} · D 그 미만 (점수 0~100)</div>
+      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산출 기준 — 4대 건강 축 가중평균</span>${this._canEditHealth() ? '<button class="ex-hcfg-btn" id="ex-hcfg-edit">기준 설정</button>' : ''}</div>
+      <div class="ex-hdims">${['commercial', 'collection', 'quality', 'supply'].map(card).join('')}</div>
+      <div class="ex-hcfg-th">각 축을 0~100점으로 환산 후 위 비중으로 가중평균 → 등급: A+ ≥${t['A+']} · A ≥${t.A} · B+ ≥${t['B+']} · B ≥${t.B} · C ≥${t.C} · D 그 미만</div>
     </div>`;
     const editBtn = document.getElementById('ex-hcfg-edit');
     if (editBtn) editBtn.addEventListener('click', () => this._renderHealthEdit());
@@ -555,24 +564,35 @@ const Exec360Page = {
     const box = document.getElementById('ex-health-cfg');
     if (!box) return;
     const c = this._healthCfg;
+    const D = c.dimensions;
+    const t = c.thresholds;
     const num = (id, label, val) =>
       `<label class="ex-hcfg-fld">${label}<input type="number" step="1" min="0" max="100" data-hf="${id}" value="${val}"></label>`;
-    const w = c.weights;
-    const t = c.thresholds;
     box.innerHTML = `<div class="ex-hcfg">
-      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산식 기준 편집</span></div>
+      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산출 기준 편집</span></div>
+      <div class="ex-hcfg-sec">4대 축 비중 (합계 <b id="ex-hw-sum">100</b>%, 100이어야 저장 가능)</div>
       <div class="ex-hcfg-form">
-        <div class="ex-hcfg-sec">기준점 · 가점/감점 가중치</div>
-        ${num('base', '기준점', c.base)}
-        ${num('won', '수주 +/건', w.won)}
-        ${num('wonMax', '수주 가점 상한', w.wonMax)}
-        ${num('active', '진행 +/건', w.active)}
-        ${num('activeMax', '진행 가점 상한', w.activeMax)}
-        ${num('contract', '계약 보유 +', w.contract)}
-        ${num('overdue', '연체 −/건', w.overdue)}
-        ${num('support', '미해결 지원 −/건', w.support)}
-        ${num('quality', '미해결 품질 −/건', w.quality)}
-        ${num('capa', 'CAPA 부족 −', w.capa)}
+        ${num('w_commercial', '거래 성장 비중(%)', D.commercial.weight)}
+        ${num('w_collection', '대금 회수 비중(%)', D.collection.weight)}
+        ${num('w_quality', '품질·서비스 비중(%)', D.quality.weight)}
+        ${num('w_supply', '공급 역량 비중(%)', D.supply.weight)}
+      </div>
+      <details class="ex-hcfg-adv">
+        <summary>세부 규칙 (축별 점수 산출 — 고급)</summary>
+        <div class="ex-hcfg-form">
+          <div class="ex-hcfg-sec">거래 성장 (0~100)</div>
+          ${num('c_base', '기준점', D.commercial.base)}
+          ${num('c_won', '수주 +/건', D.commercial.perWon)}
+          ${num('c_active', '진행 +/건', D.commercial.perActive)}
+          ${num('c_contract', '계약 보유 +', D.commercial.contractBonus)}
+          <div class="ex-hcfg-sec">대금 회수 · 품질 · 공급 (100에서 차감)</div>
+          ${num('col_overdue', '연체 −/건', D.collection.perOverdue)}
+          ${num('q_quality', '미해결 품질 −/건', D.quality.perQuality)}
+          ${num('q_support', '미해결 지원 −/건', D.quality.perSupport)}
+          ${num('s_short', 'CAPA 부족 시 점수', D.supply.shortScore)}
+        </div>
+      </details>
+      <div class="ex-hcfg-form">
         <div class="ex-hcfg-sec">등급 임계값 (A+ &gt; A &gt; B+ &gt; B &gt; C)</div>
         ${num('t_Ap', 'A+ 이상', t['A+'])}
         ${num('t_A', 'A 이상', t.A)}
@@ -587,26 +607,42 @@ const Exec360Page = {
       </div>
     </div>`;
     const get = id => box.querySelector(`[data-hf="${id}"]`);
+    const wKeys = ['w_commercial', 'w_collection', 'w_quality', 'w_supply'];
+    const sumEl = box.querySelector('#ex-hw-sum');
+    const saveBtn = box.querySelector('#ex-hcfg-save');
+    const refreshSum = () => {
+      const s = wKeys.reduce((a, id) => a + (Number(get(id).value) || 0), 0);
+      sumEl.textContent = s;
+      const bad = Math.round(s) !== 100;
+      sumEl.style.color = bad ? 'var(--oci-red)' : '#17A85A';
+      saveBtn.disabled = bad;
+      saveBtn.style.opacity = bad ? '0.5' : '';
+    };
+    wKeys.forEach(id => get(id).addEventListener('input', refreshSum));
     const fill = cfg => {
+      const d = cfg.dimensions;
       const map = {
-        base: cfg.base, won: cfg.weights.won, wonMax: cfg.weights.wonMax, active: cfg.weights.active,
-        activeMax: cfg.weights.activeMax, contract: cfg.weights.contract, overdue: cfg.weights.overdue,
-        support: cfg.weights.support, quality: cfg.weights.quality, capa: cfg.weights.capa,
+        w_commercial: d.commercial.weight, w_collection: d.collection.weight, w_quality: d.quality.weight, w_supply: d.supply.weight,
+        c_base: d.commercial.base, c_won: d.commercial.perWon, c_active: d.commercial.perActive, c_contract: d.commercial.contractBonus,
+        col_overdue: d.collection.perOverdue, q_quality: d.quality.perQuality, q_support: d.quality.perSupport, s_short: d.supply.shortScore,
         t_Ap: cfg.thresholds['A+'], t_A: cfg.thresholds.A, t_Bp: cfg.thresholds['B+'], t_B: cfg.thresholds.B, t_C: cfg.thresholds.C,
       };
       Object.keys(map).forEach(id => { const el = get(id); if (el) el.value = map[id]; });
+      refreshSum();
     };
     box.querySelector('#ex-hcfg-cancel').addEventListener('click', () => this._renderHealthCriteria());
     box.querySelector('#ex-hcfg-reset').addEventListener('click', () => fill(this._healthDefaults));
-    box.querySelector('#ex-hcfg-save').addEventListener('click', () => this._saveHealthCfg(get));
+    saveBtn.addEventListener('click', () => this._saveHealthCfg(get));
+    refreshSum();
   },
   async _saveHealthCfg(get) {
     const n = id => Number(get(id).value);
     const payload = {
-      base: n('base'),
-      weights: {
-        won: n('won'), wonMax: n('wonMax'), active: n('active'), activeMax: n('activeMax'),
-        contract: n('contract'), overdue: n('overdue'), support: n('support'), quality: n('quality'), capa: n('capa'),
+      dimensions: {
+        commercial: { weight: n('w_commercial'), base: n('c_base'), perWon: n('c_won'), perActive: n('c_active'), contractBonus: n('c_contract') },
+        collection: { weight: n('w_collection'), perOverdue: n('col_overdue') },
+        quality: { weight: n('w_quality'), perQuality: n('q_quality'), perSupport: n('q_support') },
+        supply: { weight: n('w_supply'), shortScore: n('s_short') },
       },
       thresholds: { 'A+': n('t_Ap'), A: n('t_A'), 'B+': n('t_Bp'), B: n('t_B'), C: n('t_C') },
     };
