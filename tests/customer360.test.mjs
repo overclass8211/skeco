@@ -66,6 +66,11 @@ describe('Customer360 (MVP) API', () => {
     expect(row).toBeTruthy();
     expect(row).toHaveProperty('open_deals');
     expect(row).toHaveProperty('pipeline_amount');
+    // 고급 필터 facet
+    expect(row).toHaveProperty('health_grade');
+    expect(row).toHaveProperty('has_capa_short');
+    expect(row).toHaveProperty('weighted');
+    expect(Array.isArray(row.business_types)).toBe(true);
   });
 
   it('GET /api/customer360/customers?search= — 검색 필터', async () => {

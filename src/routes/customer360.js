@@ -55,27 +55,111 @@ router.get('/customers', async (req, res) => {
               (SELECT COUNT(*) FROM leads l
                  WHERE l.customer_name = c.name
                    AND l.stage NOT IN ('won','lost','dropped')) AS open_deals,
+              (SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100),0)
+                 FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
+                WHERE l.customer_name = c.name AND l.stage NOT IN ('won','lost','dropped')) AS weighted,
               (SELECT COALESCE(SUM(l.expected_amount),0) FROM leads l
                  WHERE l.customer_name = c.name
-                   AND l.stage NOT IN ('lost','dropped')) AS pipeline_amount
+                   AND l.stage NOT IN ('lost','dropped')) AS pipeline_amount,
+              (SELECT COUNT(*) FROM quality_cases qc WHERE qc.customer_id=c.id AND qc.status<>'resolved') AS open_quality,
+              (SELECT GROUP_CONCAT(DISTINCT m.business_type)
+                 FROM customer_materials m WHERE m.customer_id=c.id AND m.status<>'closed' AND m.business_type IS NOT NULL) AS biz_types
          FROM customers c
          JOIN (SELECT MIN(id) AS id FROM customers GROUP BY name) rep ON rep.id = c.id
          ${where}
-         ORDER BY pipeline_amount DESC, c.name ASC
+         ORDER BY weighted DESC, c.name ASC
          LIMIT 500`,
       params
     );
+
+    // ── Health 등급 facet — set-based 신호 집계(계정당 N쿼리 폭발 방지) ──
+    const ids = rows.map(r => r.id);
+    const names = rows.map(r => r.name);
+    let leadAggMap = new Map(),
+      contractMap = new Map(),
+      payMap = new Map(),
+      supportMap = new Map(),
+      capaMap = new Map();
+    if (ids.length) {
+      const [leadA, contractA, payA, supportA, capaA] = await Promise.all([
+        pool
+          .query(
+            `SELECT customer_name AS name,
+                    SUM(stage='won') AS won,
+                    SUM(stage NOT IN ('won','lost','dropped')) AS active
+               FROM leads WHERE customer_name IN (?) GROUP BY customer_name`,
+            [names]
+          )
+          .then(r => r[0]),
+        pool
+          .query(
+            'SELECT customer_id, COALESCE(SUM(contract_amount),0) AS amt FROM contracts WHERE customer_id IN (?) GROUP BY customer_id',
+            [ids]
+          )
+          .then(r => r[0]),
+        pool
+          .query(
+            'SELECT customer_id, SUM(due_date < CURDATE() AND recognized_at IS NULL) AS overdue FROM payment_schedules WHERE customer_id IN (?) GROUP BY customer_id',
+            [ids]
+          )
+          .then(r => r[0]),
+        pool
+          .query(
+            'SELECT customer_id, SUM(resolved_at IS NULL AND closed_at IS NULL) AS open_cnt FROM support_tickets WHERE customer_id IN (?) GROUP BY customer_id',
+            [ids]
+          )
+          .then(r => r[0]),
+        pool
+          .query(
+            `SELECT customer_id, COALESCE(SUM(customer_forecast),0) AS demand, COALESCE(SUM(production_capacity),0) AS capacity
+               FROM demand_forecasts WHERE customer_id IN (?) AND month IN (?) GROUP BY customer_id`,
+            [ids, FLOW_MONTHS]
+          )
+          .then(r => r[0]),
+      ]);
+      leadAggMap = new Map(leadA.map(r => [r.name, r]));
+      contractMap = new Map(contractA.map(r => [r.customer_id, r]));
+      payMap = new Map(payA.map(r => [r.customer_id, r]));
+      supportMap = new Map(supportA.map(r => [r.customer_id, r]));
+      capaMap = new Map(capaA.map(r => [r.customer_id, r]));
+    }
+    const healthCfg = await getHealthConfig();
+
     res.json({
       success: true,
-      data: rows.map(r => ({
-        id: r.id,
-        name: r.name,
-        industry: r.industry || null,
-        region: r.region || null,
-        country: r.country || null,
-        open_deals: Number(r.open_deals) || 0,
-        pipeline_amount: Number(r.pipeline_amount) || 0,
-      })),
+      data: rows.map(r => {
+        const la = leadAggMap.get(r.name) || {};
+        const cp = capaMap.get(r.id) || {};
+        const capacity = Number(cp.capacity) || 0;
+        const demand = Number(cp.demand) || 0;
+        const hasCapaShort = capacity > 0 && capacity < demand;
+        const { grade } = computeHealth(
+          {
+            won: Number(la.won) || 0,
+            active: Number(la.active) || 0,
+            contractAmt: Number((contractMap.get(r.id) || {}).amt) || 0,
+            overdue: Number((payMap.get(r.id) || {}).overdue) || 0,
+            openSupport: Number((supportMap.get(r.id) || {}).open_cnt) || 0,
+            openQuality: Number(r.open_quality) || 0,
+            capaShort: hasCapaShort,
+          },
+          healthCfg
+        );
+        return {
+          id: r.id,
+          name: r.name,
+          industry: r.industry || null,
+          region: r.region || null,
+          country: r.country || null,
+          open_deals: Number(r.open_deals) || 0,
+          weighted: Math.round(Number(r.weighted) || 0),
+          pipeline_amount: Number(r.pipeline_amount) || 0,
+          open_quality: Number(r.open_quality) || 0,
+          has_capa_short: hasCapaShort,
+          business_types: r.biz_types ? r.biz_types.split(',').filter(Boolean) : [],
+          health_grade: grade,
+        };
+      }),
     });
   } catch (err) {
     handleError(res, err);

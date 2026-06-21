@@ -60,6 +60,26 @@ const Customer360Page = {
         .c360-cb-item{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
         .c360-cb-name{font-size:13px;font-weight:600;color:var(--text-1)}
         .c360-cb-meta{font-size:11px;color:var(--text-3);white-space:nowrap}
+        /* 초광폭 모니터에서 시야 분산 방지 — 본문 폭 제한 */
+        #c360-body{max-width:1480px}
+        /* 고급 필터 */
+        .c360-fbtn{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+        .c360-fbtn.on,.c360-fbtn:hover{border-color:var(--oci-red);color:var(--oci-red)}
+        .c360-filter{max-width:1480px;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px 16px;margin-bottom:12px}
+        .c360-frow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+        .c360-flab{font-size:12px;font-weight:700;color:var(--text-2);width:62px;flex-shrink:0}
+        .c360-frow select{height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:13px;background:var(--surface);color:var(--text-1)}
+        .c360-chips{display:flex;flex-wrap:wrap;gap:6px}
+        .c360-chip{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;transition:all .12s}
+        .c360-chip.on{background:var(--oci-red);border-color:var(--oci-red);color:#fff;font-weight:600}
+        .c360-fresults{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;max-height:46vh;overflow:auto}
+        .c360-fcount{font-size:11.5px;color:var(--text-3);margin-bottom:6px}
+        .c360-fitem{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:7px;cursor:pointer}
+        .c360-fitem:hover{background:var(--surface-2,rgba(0,0,0,.03))}
+        .c360-fitem .gr{width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+        .c360-fi-name{font-size:13px;font-weight:600;color:var(--text-1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .c360-fi-meta{font-size:11.5px;color:var(--text-3);white-space:nowrap}
+        .c360-fi-risk{display:flex;gap:4px;flex-shrink:0}
         .c360-empty{padding:60px 20px;text-align:center;color:var(--text-3)}
         .c360-head{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px 18px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:12px}
         .c360-grade{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0}
@@ -86,23 +106,23 @@ const Customer360Page = {
         .c360-hb-track{height:6px;border-radius:4px;background:var(--surface-2,rgba(0,0,0,.06));overflow:hidden}
         .c360-hb-track span{display:block;height:100%;border-radius:4px}
         .c360-hb-w{font-size:10.5px;color:var(--text-3);margin-top:3px}
-        /* Health 카드 v2 — 종합 도넛 + 컴팩트 4축 */
-        .c360-health-bd2{display:flex;gap:20px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:12px;background:var(--surface)}
+        /* Health 카드 v2 — 종합 도넛 + 컴팩트 4축 (폭 제한·막대 강조) */
+        .c360-health-bd2{display:flex;gap:24px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:16px 22px;margin-bottom:12px;background:var(--surface);max-width:900px}
         .c360-hb2-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
-        .c360-donut{width:78px;height:78px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-        .c360-donut-in{width:58px;height:58px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
-        .c360-donut-g{font-size:22px;font-weight:800;line-height:1}
+        .c360-donut{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+        .c360-donut-in{width:62px;height:62px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+        .c360-donut-g{font-size:24px;font-weight:800;line-height:1}
         .c360-donut-s{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
         .c360-hb2-cap{font-size:11px;color:var(--text-3)}
         .c360-hb2-right{flex:1;min-width:0}
-        .c360-hb2-h{font-size:12.5px;font-weight:700;color:var(--text-1);margin-bottom:8px}
-        .c360-hb2-row{display:grid;grid-template-columns:120px 1fr 34px 36px;align-items:center;gap:8px;margin:5px 0}
+        .c360-hb2-h{font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:10px}
+        .c360-hb2-row{display:grid;grid-template-columns:118px minmax(120px,300px) 40px 44px;align-items:center;gap:12px;margin:7px 0}
         .c360-hb2-row.low .c360-hb2-lab{color:var(--oci-red);font-weight:700}
-        .c360-hb2-lab{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .c360-hb2-lab{font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .c360-hb2-min{font-size:9.5px;font-weight:700;color:#fff;background:var(--oci-red);border-radius:4px;padding:1px 4px;margin-left:3px}
-        .c360-hb2-track{height:7px;border-radius:4px;background:var(--surface-2,rgba(0,0,0,.06));overflow:hidden}
-        .c360-hb2-track span{display:block;height:100%;border-radius:4px}
-        .c360-hb2-sc{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+        .c360-hb2-track{height:14px;border-radius:7px;background:var(--surface-2,rgba(0,0,0,.06));overflow:hidden}
+        .c360-hb2-track span{display:block;height:100%;border-radius:7px;transition:width .3s}
+        .c360-hb2-sc{font-size:15px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
         .c360-hb2-w{font-size:11px;color:var(--text-3);text-align:right}
         /* AI 추천 액션 카드 v2 */
         .c360-act2{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:8px}
@@ -186,8 +206,10 @@ const Customer360Page = {
         <h2>고객·제품 360뷰</h2>
         <div class="c360-pick">
           <input id="c360-search" placeholder="고객사 검색…" autocomplete="off">
+          <button id="c360-filter-btn" class="c360-fbtn" type="button">고급 필터</button>
         </div>
       </div>
+      <div id="c360-filter" class="c360-filter" hidden></div>
       <div id="c360-body">
         <div class="c360-empty">고객사를 선택하면 소재 라이프사이클 360뷰가 표시됩니다.</div>
       </div>
@@ -228,6 +250,101 @@ const Customer360Page = {
         this._select(c.id);
       },
     });
+    const fbtn = document.getElementById('c360-filter-btn');
+    fbtn?.addEventListener('click', () => {
+      const p = document.getElementById('c360-filter');
+      if (!p) return;
+      if (p.hasAttribute('hidden')) {
+        p.removeAttribute('hidden');
+        fbtn.classList.add('on');
+        this._renderFilterPanel();
+      } else {
+        p.setAttribute('hidden', '');
+        fbtn.classList.remove('on');
+      }
+    });
+  },
+
+  _fstate: null,
+  // 고급 필터 패널 — 정렬·Health 등급·리스크·사업유형 (클라이언트 필터)
+  _renderFilterPanel() {
+    const panel = document.getElementById('c360-filter');
+    if (!panel) return;
+    if (!this._fstate) this._fstate = { sort: 'weighted', grades: new Set(), risks: new Set(), biz: new Set() };
+    const f = this._fstate;
+    const grades = ['A+', 'A', 'B+', 'B', 'C', 'D'];
+    const bizAll = [...new Set(this._customers.flatMap(c => c.business_types || []))].sort();
+    const chip = (on, group, val, label) => `<button class="c360-chip${on ? ' on' : ''}" data-fg="${group}" data-fv="${esc(val)}">${esc(label)}</button>`;
+    panel.innerHTML = `
+      <div class="c360-frow">
+        <label class="c360-flab">정렬</label>
+        <select id="c360-fsort">
+          <option value="weighted"${f.sort === 'weighted' ? ' selected' : ''}>가중매출 ↓</option>
+          <option value="deals"${f.sort === 'deals' ? ' selected' : ''}>진행딜 ↓</option>
+          <option value="name"${f.sort === 'name' ? ' selected' : ''}>이름 ↑</option>
+        </select>
+      </div>
+      <div class="c360-frow"><label class="c360-flab">Health</label><div class="c360-chips">${grades.map(g => chip(f.grades.has(g), 'grades', g, g)).join('')}</div></div>
+      <div class="c360-frow"><label class="c360-flab">리스크</label><div class="c360-chips">${chip(f.risks.has('capa'), 'risks', 'capa', 'CAPA 부족')}${chip(f.risks.has('quality'), 'risks', 'quality', '품질 오픈')}</div></div>
+      ${bizAll.length ? `<div class="c360-frow"><label class="c360-flab">사업유형</label><div class="c360-chips">${bizAll.map(b => chip(f.biz.has(b), 'biz', b, b)).join('')}</div></div>` : ''}
+      <div id="c360-filter-results" class="c360-fresults"></div>`;
+    panel.querySelector('#c360-fsort').addEventListener('change', e => {
+      f.sort = e.target.value;
+      this._renderFilterResults();
+    });
+    panel.querySelectorAll('.c360-chip').forEach(b =>
+      b.addEventListener('click', () => {
+        const set = f[b.dataset.fg];
+        const v = b.dataset.fv;
+        if (set.has(v)) set.delete(v);
+        else set.add(v);
+        b.classList.toggle('on');
+        this._renderFilterResults();
+      })
+    );
+    this._renderFilterResults();
+  },
+
+  _renderFilterResults() {
+    const host = document.getElementById('c360-filter-results');
+    if (!host) return;
+    const f = this._fstate;
+    let list = this._customers.filter(c => {
+      if (f.grades.size && !f.grades.has(c.health_grade)) return false;
+      if (f.risks.has('capa') && !c.has_capa_short) return false;
+      if (f.risks.has('quality') && !(c.open_quality > 0)) return false;
+      if (f.biz.size && !(c.business_types || []).some(b => f.biz.has(b))) return false;
+      return true;
+    });
+    list = list.sort((a, b) =>
+      f.sort === 'name' ? a.name.localeCompare(b.name) : f.sort === 'deals' ? b.open_deals - a.open_deals : b.weighted - a.weighted
+    );
+    const rows = list
+      .slice(0, 100)
+      .map(c => {
+        const risks = [];
+        if (c.has_capa_short) risks.push('<span class="pill pill-danger">CAPA</span>');
+        if (c.open_quality > 0) risks.push(`<span class="pill pill-warn">품질 ${c.open_quality}</span>`);
+        return `<div class="c360-fitem" data-fc-id="${c.id}">
+          <span class="gr" style="background:${this._gradeColor(c.health_grade)}">${esc(c.health_grade)}</span>
+          <span class="c360-fi-name">${esc(c.name)}</span>
+          <span class="c360-fi-meta">진행 ${c.open_deals} · ${this._won(c.weighted)}</span>
+          <span class="c360-fi-risk">${risks.join('')}</span>
+        </div>`;
+      })
+      .join('');
+    host.innerHTML = `<div class="c360-fcount">결과 ${list.length}곳</div>${rows || '<div class="c360-empty" style="padding:16px">조건에 맞는 고객이 없습니다.</div>'}`;
+    host.querySelectorAll('[data-fc-id]').forEach(el =>
+      el.addEventListener('click', () => {
+        const id = Number(el.dataset.fcId);
+        const c = this._customers.find(x => x.id === id);
+        const input = document.getElementById('c360-search');
+        if (input && c) input.value = c.name;
+        document.getElementById('c360-filter')?.setAttribute('hidden', '');
+        document.getElementById('c360-filter-btn')?.classList.remove('on');
+        this._select(id);
+      })
+    );
   },
 
   async _loadCustomers() {
