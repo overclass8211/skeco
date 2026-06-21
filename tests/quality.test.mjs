@@ -167,6 +167,39 @@ describe('전사 품질관리 (Quality Inbox) API', () => {
     expect(String(ev.to_value)).toBe('3');
   });
 
+  it('PUT — 8D/CAPA 도메인 필드 저장/조회 (근본원인·CAPA·불량코드·재발)', async () => {
+    const res = await api()
+      .put(`/api/quality/cases/${caseId}`)
+      .set('X-User-Id', '1')
+      .send({
+        root_cause: '챔버 MFC 드리프트',
+        correction: 'Lot 격리',
+        preventive_action: 'MFC 주기 교정 표준 신설',
+        verification: '후속 3배치 SPEC 충족',
+        verified_at: '2026-06-20',
+        defect_code: 'ETCH-PURITY',
+        lot_no: 'L2026-0612',
+        defect_qty: 120,
+        defect_unit: 'ea',
+        customer_ref_no: 'SEC-CLM-9981',
+        is_recurring: 1,
+      });
+    expect(res.status).toBe(200);
+    const list = await api().get('/api/quality/cases?status=unresolved').set('X-User-Id', '1');
+    let row = list.body.data.find(r => r.id === caseId);
+    // caseId 가 미해결이 아닐 수 있어 전체에서 재확인
+    if (!row) {
+      const all = await api().get('/api/quality/cases?status=').set('X-User-Id', '1');
+      row = all.body.data.find(r => r.id === caseId);
+    }
+    expect(row.root_cause).toBe('챔버 MFC 드리프트');
+    expect(row.preventive_action).toBe('MFC 주기 교정 표준 신설');
+    expect(row.defect_code).toBe('ETCH-PURITY');
+    expect(Number(row.defect_qty)).toBe(120);
+    expect(Number(row.is_recurring)).toBe(1);
+    expect(row.customer_ref_no).toBe('SEC-CLM-9981');
+  });
+
   it('PUT — 드롭(dropped) 종결 시 closed_at 기록 + 미해결 집계 제외', async () => {
     const res = await api()
       .put(`/api/quality/cases/${overdueCaseId}`)

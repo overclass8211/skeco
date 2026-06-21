@@ -81,6 +81,8 @@ const QualityPage = {
         .ql-files li{display:flex;align-items:center;gap:8px;padding:4px 0}
         .ql-files a{color:var(--text-1);text-decoration:none}
         .ql-files a:hover{text-decoration:underline}
+        .ql-8d{border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--surface-2,rgba(0,0,0,.02))}
+        .ql-8d>summary{font-size:12.5px;font-weight:700;color:var(--text-1);cursor:pointer}
         .ql-d-expired{background:rgba(230,51,41,.1);color:var(--oci-red)}
         .ql-d-expiring{background:rgba(245,156,0,.14);color:#b45309}
         .ql-d-valid{background:rgba(23,168,90,.12);color:#17A85A}
@@ -471,6 +473,22 @@ const QualityPage = {
           ${slaLine}
           <div class="ql-fld full"><span>접수처리내용</span><textarea id="qd-resolution" rows="3" placeholder="조치 내용·진행 경과">${esc(c.resolution || '')}</textarea></div>
           ${this._restricted ? '' : `<div class="ql-fld full"><span>비고(원인·분석)</span><textarea id="qd-notes" rows="2">${esc(c.notes || '')}</textarea></div>`}
+          <div class="ql-fld full"><details class="ql-8d"${c.root_cause || c.preventive_action || c.defect_code ? ' open' : ''}>
+            <summary>8D / CAPA 분석 — 근본원인·시정·재발방지·효과검증</summary>
+            <div class="ql-form" style="margin-top:10px">
+              <div class="ql-fld"><span>불량/결함코드</span><input type="text" id="qd-defect-code" value="${esc(c.defect_code || '')}" placeholder="예: ETCH-PURITY"></div>
+              <div class="ql-fld"><span>Lot 번호</span><input type="text" id="qd-lot" value="${esc(c.lot_no || '')}"></div>
+              <div class="ql-fld"><span>불량수량</span><input type="number" step="0.01" id="qd-defect-qty" value="${c.defect_qty ?? ''}"></div>
+              <div class="ql-fld"><span>수량 단위</span><input type="text" id="qd-defect-unit" value="${esc(c.defect_unit || '')}" placeholder="ea/kg/L"></div>
+              <div class="ql-fld"><span>고객 클레임번호</span><input type="text" id="qd-cust-ref" value="${esc(c.customer_ref_no || '')}"></div>
+              <div class="ql-fld"><span>효과검증 완료일</span><input type="date" id="qd-verified-at" value="${esc(c.verified_at || '')}"></div>
+              <div class="ql-fld full"><label class="ql-chk"><input type="checkbox" id="qd-recurring"${c.is_recurring ? ' checked' : ''}> 재발 건 (동일 이슈 반복)</label></div>
+              <div class="ql-fld full"><span>근본원인 (RCA)</span><textarea id="qd-root" rows="2" placeholder="5Why·특성요인 분석 결과">${esc(c.root_cause || '')}</textarea></div>
+              <div class="ql-fld full"><span>시정조치 (즉시)</span><textarea id="qd-correction" rows="2" placeholder="당장의 봉쇄·교체·재작업">${esc(c.correction || '')}</textarea></div>
+              <div class="ql-fld full"><span>재발방지 (CAPA)</span><textarea id="qd-preventive" rows="2" placeholder="공정·관리 표준 개정 등 근본 대책">${esc(c.preventive_action || '')}</textarea></div>
+              <div class="ql-fld full"><span>효과검증</span><textarea id="qd-verification" rows="2" placeholder="대책 적용 후 결과 확인">${esc(c.verification || '')}</textarea></div>
+            </div>
+          </details></div>
           <div class="ql-fld full"><span>첨부 (불량사진·8D·분석리포트)</span>
             <div id="qd-files"><div class="ql-sub">불러오는 중…</div></div>
             <input type="file" id="qd-file-input" multiple style="margin-top:6px;font-size:12px">
@@ -506,6 +524,20 @@ const QualityPage = {
       };
       const notesEl = ov.querySelector('#qd-notes');
       if (notesEl) payload.notes = notesEl.value;
+      // 8D/CAPA 도메인
+      Object.assign(payload, {
+        defect_code: ov.querySelector('#qd-defect-code').value || '',
+        lot_no: ov.querySelector('#qd-lot').value || '',
+        defect_qty: ov.querySelector('#qd-defect-qty').value || '',
+        defect_unit: ov.querySelector('#qd-defect-unit').value || '',
+        customer_ref_no: ov.querySelector('#qd-cust-ref').value || '',
+        verified_at: ov.querySelector('#qd-verified-at').value || '',
+        is_recurring: ov.querySelector('#qd-recurring').checked ? 1 : 0,
+        root_cause: ov.querySelector('#qd-root').value || '',
+        correction: ov.querySelector('#qd-correction').value || '',
+        preventive_action: ov.querySelector('#qd-preventive').value || '',
+        verification: ov.querySelector('#qd-verification').value || '',
+      });
       this._save(id, payload);
     });
     // 첨부 업로드

@@ -141,6 +141,10 @@ router.get('/cases', requireLevel(1), async (req, res) => {
               qc.owner_id, t.name AS owner_name,
               qc.created_by, cb.name AS created_by_name,
               qc.resolution, qc.notes,
+              qc.root_cause, qc.correction, qc.preventive_action, qc.verification,
+              DATE_FORMAT(qc.verified_at, '%Y-%m-%d') AS verified_at,
+              qc.defect_code, qc.lot_no, qc.defect_qty, qc.defect_unit,
+              qc.customer_ref_no, qc.is_recurring,
               DATE_FORMAT(qc.due_date, '%Y-%m-%d') AS due_date_set,
               DATEDIFF(COALESCE(qc.resolved_at, CURDATE()), qc.opened_at) AS age_days,
               DATE_FORMAT(${SLA_DUE_SQL}, '%Y-%m-%d') AS due_date,
@@ -291,6 +295,18 @@ router.put('/cases/:id', requireLevel(1), async (req, res) => {
       'created_by',
       'notes',
       'resolution',
+      // 8D/CAPA 도메인
+      'root_cause',
+      'correction',
+      'preventive_action',
+      'verification',
+      'verified_at',
+      'defect_code',
+      'lot_no',
+      'defect_qty',
+      'defect_unit',
+      'customer_ref_no',
+      'is_recurring',
     ];
     const fields = [];
     const vals = [];
@@ -301,6 +317,11 @@ router.put('/cases/:id', requireLevel(1), async (req, res) => {
       if (key === 'status' && !STATUSES.includes(b[key])) continue;
       if (key === 'priority' && !PRIORITIES.includes(b[key])) continue;
       if (key === 'channel' && b[key] && !CHANNELS.includes(b[key])) continue;
+      if (key === 'is_recurring') {
+        fields.push('is_recurring=?');
+        vals.push(b[key] ? 1 : 0);
+        continue;
+      }
       fields.push(`${key}=?`);
       vals.push(b[key] === '' ? null : b[key]);
     }

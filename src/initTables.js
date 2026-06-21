@@ -886,6 +886,18 @@ async function initTables() {
       'ADD COLUMN due_date DATE DEFAULT NULL',
       'ADD COLUMN first_response_at DATETIME DEFAULT NULL',
       'ADD COLUMN closed_at DATETIME DEFAULT NULL',
+      // 8D/CAPA 도메인 (풀 패리티)
+      'ADD COLUMN root_cause TEXT DEFAULT NULL', // 근본원인(RCA)
+      'ADD COLUMN correction TEXT DEFAULT NULL', // 시정조치(즉시)
+      'ADD COLUMN preventive_action TEXT DEFAULT NULL', // 재발방지(CAPA)
+      'ADD COLUMN verification TEXT DEFAULT NULL', // 효과검증
+      'ADD COLUMN verified_at DATE DEFAULT NULL', // 효과검증 완료일
+      'ADD COLUMN defect_code VARCHAR(40) DEFAULT NULL', // 불량/결함코드(파레토)
+      'ADD COLUMN lot_no VARCHAR(60) DEFAULT NULL', // Lot 번호
+      'ADD COLUMN defect_qty DECIMAL(12,2) DEFAULT NULL', // 불량수량
+      'ADD COLUMN defect_unit VARCHAR(10) DEFAULT NULL', // 불량수량 단위
+      'ADD COLUMN customer_ref_no VARCHAR(60) DEFAULT NULL', // 고객 클레임번호
+      'ADD COLUMN is_recurring TINYINT(1) DEFAULT 0', // 재발 여부
     ]) {
       try {
         await pool.query(`ALTER TABLE quality_cases ${col}`);
