@@ -138,6 +138,12 @@ test('전사 품질관리 — 문서 만료 뷰 전환 + 만료 상태 표시', 
 
   // 문서 필터(상태) 노출
   await expect(page.locator('#df-status')).toBeVisible();
+
+  // 문서 행 클릭 → 그 문서가 있는 화면(고객360 공급 자격 탭)으로 직행
+  await page.locator('#ql-list tbody tr[data-cust]').first().click();
+  await expect.poll(() => page.evaluate(() => location.hash), { timeout: 5000 }).toBe(
+    '#customer360/1/qualification'
+  );
 });
 
 test('전사 품질관리 — KPI 에 SLA 초과·문서 만료 카드 노출', async ({ page }) => {

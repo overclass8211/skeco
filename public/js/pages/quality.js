@@ -366,13 +366,14 @@ const QualityPage = {
     );
   },
 
-  _gotoCustomer(customerId) {
+  // 고객360 으로 이동 — 기본 '공급 자격(qualification)' 탭 (품질 케이스·문서가 있는 화면)
+  _gotoCustomer(customerId, tab) {
     try {
       localStorage.setItem('c360_last', String(customerId));
     } catch (_) {
       /* noop */
     }
-    location.hash = '#customer360/' + customerId + '/quality';
+    location.hash = '#customer360/' + customerId + '/' + (tab || 'qualification');
   },
 
   // ── 엑셀(CSV) 내보내기 — UTF-8 BOM 으로 한글 깨짐 방지 ────────
