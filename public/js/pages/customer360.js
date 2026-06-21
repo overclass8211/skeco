@@ -173,6 +173,12 @@ const Customer360Page = {
         .c360-sec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin:18px 0 10px}
         .c360-sec .btn-add{margin-left:auto;font-size:12px;font-weight:500}
         .lc-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:11px}
+        /* 공정 라이프사이클 스테퍼 시인성 강화 (.lc-card 범위만) */
+        .lc-card .ss-dot{width:34px;height:34px;font-size:14px;border-width:2.5px;margin-bottom:9px}
+        .lc-card .ss-step::before{top:17px;height:4px}
+        .lc-card .ss-now .ss-dot{box-shadow:0 0 0 5px var(--oci-red-light)}
+        .lc-card .ss-label{font-size:12.5px}
+        .lc-card .ss-now-chip{font-size:10px}
         .lc-top{display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap}
         .lc-name{font-weight:700;font-size:14px}
         .pill{font-size:11px;padding:2px 8px;border-radius:6px}
@@ -606,12 +612,11 @@ const Customer360Page = {
       el.querySelectorAll('.c360-qrow').forEach(tr =>
         tr.addEventListener('click', () => this._gotoQuality())
       );
-      // 소재 카드 → 소재 상세(편집 모달). 내부 버튼 클릭은 제외
+      // 소재 카드 본문 → 상거래(영업기회) 탭으로 이동. 편집은 '수정' 버튼으로.
       el.querySelectorAll('[data-mat-card]').forEach(card =>
         card.addEventListener('click', e => {
-          if (e.target.closest('button')) return;
-          const mat = this._data.lifecycle.materials.find(m => m.id === Number(card.dataset.matCard));
-          if (mat) this._openMaterialModal(mat);
+          if (e.target.closest('button')) return; // 수요입력/수정 버튼 제외
+          this._gotoTab('commercial');
         })
       );
       // AI 추천 액션 카드 → 바로가기(상거래/공급자격 탭 또는 품질관리)
@@ -783,7 +788,7 @@ const Customer360Page = {
       ${kpis}
       <div class="c360-sec">분기 공급 리스크 (3개월)</div>
       ${flow}
-      <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 상세</span>
+      <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 영업기회</span>
         <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 공급 품목 등록</button>
       </div>
       ${board}
@@ -799,7 +804,7 @@ const Customer360Page = {
     const badges = [];
     if (m.capa_short) badges.push(`<span class="pill pill-danger">CAPA 부족</span>`);
     if (m.open_quality) badges.push(`<span class="pill pill-warn">품질 ${m.open_quality}건</span>`);
-    return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" title="소재 상세 열기">
+    return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" title="영업기회(상거래)로 이동">
       <div class="lc-top">
         <span class="lc-name">${esc(m.material_name)}</span>
         <span class="pill ${stagePill}">${esc(m.lifecycle_label)}</span>
