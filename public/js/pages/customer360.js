@@ -60,8 +60,6 @@ const Customer360Page = {
         .c360-cb-item{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
         .c360-cb-name{font-size:13px;font-weight:600;color:var(--text-1)}
         .c360-cb-meta{font-size:11px;color:var(--text-3);white-space:nowrap}
-        /* 초광폭 모니터에서 시야 분산 방지 — 본문 폭 제한 */
-        #c360-body{max-width:1480px}
         /* 고급 필터 */
         .c360-fbtn{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
         .c360-fbtn.on,.c360-fbtn:hover{border-color:var(--oci-red);color:var(--oci-red)}
@@ -74,6 +72,8 @@ const Customer360Page = {
         .c360-chip.on{background:var(--oci-red);border-color:var(--oci-red);color:#fff;font-weight:600}
         .c360-fresults{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;max-height:46vh;overflow:auto}
         .c360-fcount{font-size:11.5px;color:var(--text-3);margin-bottom:6px}
+        .c360-fhint{font-size:12px;color:var(--text-3);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+        .c360-fhint b{color:var(--oci-red);font-variant-numeric:tabular-nums}
         .c360-fitem{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:7px;cursor:pointer}
         .c360-fitem:hover{background:var(--surface-2,rgba(0,0,0,.03))}
         .c360-fitem .gr{width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
@@ -81,6 +81,10 @@ const Customer360Page = {
         .c360-fi-meta{font-size:11.5px;color:var(--text-3);white-space:nowrap}
         .c360-fi-risk{display:flex;gap:4px;flex-shrink:0}
         .c360-empty{padding:60px 20px;text-align:center;color:var(--text-3)}
+        /* 상단 한 행 — 헤더(이름·지표·리스크) + 헬스 점수 카드 나란히 */
+        .c360-toprow{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-bottom:12px}
+        .c360-toprow .c360-head{flex:1 1 440px;margin-bottom:0}
+        .c360-toprow .c360-health-bd2{flex:1 1 360px;margin-bottom:0;max-width:none}
         .c360-head{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px 18px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:12px}
         .c360-grade{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0}
         .c360-head-main{flex:1;min-width:180px}
@@ -238,9 +242,8 @@ const Customer360Page = {
       allowCustom: false,
       fetchFn: q => {
         const s = (q || '').trim().toLowerCase();
-        const list = !s
-          ? this._customers
-          : this._customers.filter(c => c.name.toLowerCase().includes(s) || (c.industry || '').toLowerCase().includes(s));
+        let list = this._filteredCustomers(); // 고급 필터(정렬·등급·리스크·사업유형) 반영
+        if (s) list = list.filter(c => c.name.toLowerCase().includes(s) || (c.industry || '').toLowerCase().includes(s));
         return list.slice(0, 50);
       },
       renderItem: c =>
@@ -287,10 +290,14 @@ const Customer360Page = {
       <div class="c360-frow"><label class="c360-flab">Health</label><div class="c360-chips">${grades.map(g => chip(f.grades.has(g), 'grades', g, g)).join('')}</div></div>
       <div class="c360-frow"><label class="c360-flab">리스크</label><div class="c360-chips">${chip(f.risks.has('capa'), 'risks', 'capa', 'CAPA 부족')}${chip(f.risks.has('quality'), 'risks', 'quality', '품질 오픈')}</div></div>
       ${bizAll.length ? `<div class="c360-frow"><label class="c360-flab">사업유형</label><div class="c360-chips">${bizAll.map(b => chip(f.biz.has(b), 'biz', b, b)).join('')}</div></div>` : ''}
-      <div id="c360-filter-results" class="c360-fresults"></div>`;
+      <div class="c360-fhint">조건에 맞는 <b id="c360-fcount">${this._filteredCustomers().length}</b>곳 — 검색창을 클릭하면 필터된 목록이 표시됩니다.</div>`;
+    const refresh = () => {
+      const el = document.getElementById('c360-fcount');
+      if (el) el.textContent = this._filteredCustomers().length;
+    };
     panel.querySelector('#c360-fsort').addEventListener('change', e => {
       f.sort = e.target.value;
-      this._renderFilterResults();
+      refresh();
     });
     panel.querySelectorAll('.c360-chip').forEach(b =>
       b.addEventListener('click', () => {
@@ -299,51 +306,23 @@ const Customer360Page = {
         if (set.has(v)) set.delete(v);
         else set.add(v);
         b.classList.toggle('on');
-        this._renderFilterResults();
+        refresh();
       })
     );
-    this._renderFilterResults();
   },
 
-  _renderFilterResults() {
-    const host = document.getElementById('c360-filter-results');
-    if (!host) return;
-    const f = this._fstate;
-    let list = this._customers.filter(c => {
+  // 현재 필터 상태로 거른+정렬한 고객 목록 (콤보박스·카운트 공용)
+  _filteredCustomers() {
+    const f = this._fstate || { sort: 'weighted', grades: new Set(), risks: new Set(), biz: new Set() };
+    const list = this._customers.filter(c => {
       if (f.grades.size && !f.grades.has(c.health_grade)) return false;
       if (f.risks.has('capa') && !c.has_capa_short) return false;
       if (f.risks.has('quality') && !(c.open_quality > 0)) return false;
       if (f.biz.size && !(c.business_types || []).some(b => f.biz.has(b))) return false;
       return true;
     });
-    list = list.sort((a, b) =>
+    return list.sort((a, b) =>
       f.sort === 'name' ? a.name.localeCompare(b.name) : f.sort === 'deals' ? b.open_deals - a.open_deals : b.weighted - a.weighted
-    );
-    const rows = list
-      .slice(0, 100)
-      .map(c => {
-        const risks = [];
-        if (c.has_capa_short) risks.push('<span class="pill pill-danger">CAPA</span>');
-        if (c.open_quality > 0) risks.push(`<span class="pill pill-warn">품질 ${c.open_quality}</span>`);
-        return `<div class="c360-fitem" data-fc-id="${c.id}">
-          <span class="gr" style="background:${this._gradeColor(c.health_grade)}">${esc(c.health_grade)}</span>
-          <span class="c360-fi-name">${esc(c.name)}</span>
-          <span class="c360-fi-meta">진행 ${c.open_deals} · ${this._won(c.weighted)}</span>
-          <span class="c360-fi-risk">${risks.join('')}</span>
-        </div>`;
-      })
-      .join('');
-    host.innerHTML = `<div class="c360-fcount">결과 ${list.length}곳</div>${rows || '<div class="c360-empty" style="padding:16px">조건에 맞는 고객이 없습니다.</div>'}`;
-    host.querySelectorAll('[data-fc-id]').forEach(el =>
-      el.addEventListener('click', () => {
-        const id = Number(el.dataset.fcId);
-        const c = this._customers.find(x => x.id === id);
-        const input = document.getElementById('c360-search');
-        if (input && c) input.value = c.name;
-        document.getElementById('c360-filter')?.setAttribute('hidden', '');
-        document.getElementById('c360-filter-btn')?.classList.remove('on');
-        this._select(id);
-      })
     );
   },
 
@@ -458,32 +437,33 @@ const Customer360Page = {
     const body = document.getElementById('c360-body');
     if (!body) return;
     body.innerHTML = `
-      <div class="c360-head">
-        <div class="c360-grade" style="background:${this._gradeColor(h.health_grade)}">${h.health_grade}</div>
-        <div class="c360-head-main">
-          <div class="c360-head-name">${esc(c.name)}</div>
-          <div class="c360-head-sub">${esc(sub || '-')}</div>
+      <div class="c360-toprow">
+        <div class="c360-head">
+          <div class="c360-head-main">
+            <div class="c360-head-name">${esc(c.name)}</div>
+            <div class="c360-head-sub">${esc(sub || '-')}</div>
+          </div>
+          <div class="c360-head-metrics">
+            <div class="c360-metric"><div class="v">${this._won(h.weighted_expected)}</div><div class="l">가중 예상매출</div></div>
+            <div class="c360-metric"><div class="v">${h.active_count}건</div><div class="l">진행 딜</div></div>
+            <div class="c360-metric"><div class="v">${h.won_count}건</div><div class="l">수주</div></div>
+            <div class="c360-metric"><div class="v">${this._won(h.contract_amount)}</div><div class="l">계약액</div></div>
+          </div>
+          <div class="c360-risks">
+            ${
+              h.risks.length
+                ? h.risks
+                    .map(r => {
+                      const tab = this._riskTab(r.label);
+                      return `<span class="c360-risk ${r.level}${tab ? ' c360-risk-link' : ''}"${tab ? ` data-risktab="${tab}" title="클릭 시 해당 탭으로 이동"` : ''}>${esc(r.label)}</span>`;
+                    })
+                    .join('')
+                : '<span class="c360-risk low">리스크 없음</span>'
+            }
+          </div>
         </div>
-        <div class="c360-head-metrics">
-          <div class="c360-metric"><div class="v">${this._won(h.weighted_expected)}</div><div class="l">가중 예상매출</div></div>
-          <div class="c360-metric"><div class="v">${h.active_count}건</div><div class="l">진행 딜</div></div>
-          <div class="c360-metric"><div class="v">${h.won_count}건</div><div class="l">수주</div></div>
-          <div class="c360-metric"><div class="v">${this._won(h.contract_amount)}</div><div class="l">계약액</div></div>
-        </div>
-        <div class="c360-risks">
-          ${
-            h.risks.length
-              ? h.risks
-                  .map(r => {
-                    const tab = this._riskTab(r.label);
-                    return `<span class="c360-risk ${r.level}${tab ? ' c360-risk-link' : ''}"${tab ? ` data-risktab="${tab}" title="클릭 시 해당 탭으로 이동"` : ''}>${esc(r.label)}</span>`;
-                  })
-                  .join('')
-              : '<span class="c360-risk low">리스크 없음</span>'
-          }
-        </div>
+        ${this._healthBreakdownHtml(h)}
       </div>
-      ${this._healthBreakdownHtml(h)}
       ${this._stageAlignHtml(h)}
       <div class="c360-narr">${this._svg('bulb', 16)}<span>${this._narrative()}</span></div>
       <div class="c360-tabs">
