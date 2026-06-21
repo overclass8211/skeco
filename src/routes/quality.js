@@ -135,7 +135,7 @@ router.get('/cases', requireLevel(1), async (req, res) => {
     const [rows] = await pool.query(
       `SELECT qc.id, qc.case_no, qc.customer_id, c.name AS customer_name,
               qc.customer_material_id, m.material_name, qc.type, qc.severity, qc.status,
-              qc.priority, qc.channel, qc.title,
+              qc.priority, qc.channel, qc.title, qc.description,
               DATE_FORMAT(qc.opened_at, '%Y-%m-%d') AS opened_at,
               DATE_FORMAT(qc.resolved_at, '%Y-%m-%d') AS resolved_at,
               qc.owner_id, t.name AS owner_name,
@@ -230,8 +230,8 @@ router.post('/cases', requireLevel(1), async (req, res) => {
     const [r] = await pool.query(
       `INSERT INTO quality_cases
          (case_no, customer_id, customer_material_id, type, severity, status, priority, channel,
-          title, opened_at, due_date, owner_id, created_by, notes, resolution)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          title, description, opened_at, due_date, owner_id, created_by, notes, resolution)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         caseNo,
         Number(b.customer_id),
@@ -242,6 +242,7 @@ router.post('/cases', requireLevel(1), async (req, res) => {
         priority,
         channel,
         b.title,
+        b.description || null,
         b.opened_at || null,
         b.due_date || null,
         b.owner_id || null,
@@ -282,6 +283,7 @@ router.put('/cases/:id', requireLevel(1), async (req, res) => {
       'priority',
       'channel',
       'title',
+      'description',
       'opened_at',
       'due_date',
       'resolved_at',

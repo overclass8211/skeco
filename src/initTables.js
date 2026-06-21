@@ -878,6 +878,7 @@ async function initTables() {
     //   resolution(접수처리내용) · created_by(접수자) · priority(처리우선순위) ·
     //   channel(접수경로) · due_date(처리기한/고객회신) · first_response_at · closed_at
     for (const col of [
+      'ADD COLUMN description TEXT DEFAULT NULL',
       'ADD COLUMN resolution TEXT DEFAULT NULL',
       'ADD COLUMN created_by INT DEFAULT NULL',
       "ADD COLUMN priority VARCHAR(20) DEFAULT 'normal'",

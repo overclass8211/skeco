@@ -21,7 +21,7 @@ const CASES = {
       id: 1, case_no: 'Q-TEST-1', customer_id: 1, customer_name: 'E2E품질고객',
       customer_material_id: null, material_name: null, type: 'NCR', severity: 'high',
       status: 'in_progress', priority: 'urgent', channel: 'audit',
-      title: '순도 편차 NCR', opened_at: '2026-06-01', resolved_at: null,
+      title: '순도 편차 NCR', description: '평택 P4 식각가스 순도 편차 접수', opened_at: '2026-06-01', resolved_at: null,
       owner_id: null, owner_name: null, created_by: 7, created_by_name: '김접수',
       resolution: '1차 회신 완료', notes: null, due_date_set: null,
       age_days: 11, due_date: '2026-06-08', days_left: -13, overdue: 1,
@@ -107,6 +107,8 @@ test('전사 품질관리 — KPI + 목록 + 상세 모달', async ({ page }) =>
   await expect(page.locator('#qd-status')).toContainText('조치완료');
   // 처리우선순위·접수처리내용·이관 버튼
   await expect(page.locator('#qd-prio')).toBeVisible();
+  // 접수내용(고객 제기 원문) + 접수처리내용(조치) 분리 입력
+  await expect(page.locator('#qd-description')).toHaveValue('평택 P4 식각가스 순도 편차 접수');
   await expect(page.locator('#qd-resolution')).toHaveValue('1차 회신 완료');
   await expect(page.locator('#qd-transfer')).toBeVisible();
   // 접수자 표시
@@ -123,6 +125,8 @@ test('전사 품질관리 — 문서 만료 뷰 전환 + 만료 상태 표시', 
   await page.goto('/#quality');
   await page.waitForSelector('#ql-list .data-table', { timeout: 15000 });
 
+  // 환경(토큰 한도 등) 일시 토스트가 클릭을 가리지 않도록 정리 후 전환
+  await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
   // 문서 만료 뷰로 전환
   await page.locator('#ql-seg button[data-view="docs"]').click();
   await page.waitForSelector('#ql-list thead:has-text("유효기한")', { timeout: 5000 });

@@ -135,17 +135,19 @@ describe('전사 품질관리 (Quality Inbox) API', () => {
         priority: 'urgent',
         channel: 'audit',
         title: '__QINBOX_WF__ 워크플로우',
+        description: '고객 제기: 순도 편차로 수율 하락',
       });
     expect(ok.status).toBe(200);
     const wfId = ok.body.data.id;
     const [[row]] = await pool.query(
-      'SELECT status, priority, channel, created_by FROM quality_cases WHERE id=?',
+      'SELECT status, priority, channel, created_by, description FROM quality_cases WHERE id=?',
       [wfId]
     );
     expect(row.status).toBe('received'); // 기본 시작 상태(A/S 동일)
     expect(row.priority).toBe('urgent');
     expect(row.channel).toBe('audit');
     expect(row.created_by).toBe(7); // 접수자 = 현재 사용자
+    expect(row.description).toBe('고객 제기: 순도 편차로 수율 하락'); // 접수내용 저장
     // 접수 이력 기록
     const hist = await api().get(`/api/quality/cases/${wfId}/history`).set('X-User-Id', '1');
     expect(hist.body.data.find(h => h.field === 'created')).toBeTruthy();

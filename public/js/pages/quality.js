@@ -459,6 +459,7 @@ const QualityPage = {
           <div class="ql-fld"><span>고객사</span><input type="text" value="${esc(c.customer_name)}" disabled></div>
           <div class="ql-fld"><span>소재</span><input type="text" value="${esc(c.material_name ? c.material_name.split(' · ')[0] : '-')}" disabled></div>
           <div class="ql-fld full"><span>제목</span><input type="text" id="qd-title" value="${esc(c.title)}"></div>
+          <div class="ql-fld full"><span>접수내용 (고객 제기 원문·상세)</span><textarea id="qd-description" rows="3" placeholder="접수된 이슈 상세 내용">${esc(c.description || '')}</textarea></div>
           <div class="ql-fld"><span>유형</span><select id="qd-type">${typeOpt}</select></div>
           <div class="ql-fld"><span>심각도</span><select id="qd-sev">${selOpts(this._SEV, c.severity)}</select></div>
           <div class="ql-fld"><span>처리우선순위</span><select id="qd-prio">${selOpts(this._PRIO, c.priority || 'normal')}</select></div>
@@ -494,6 +495,7 @@ const QualityPage = {
     ov.querySelector('#qd-save').addEventListener('click', () => {
       const payload = {
         title: ov.querySelector('#qd-title').value.trim(),
+        description: ov.querySelector('#qd-description').value,
         type: ov.querySelector('#qd-type').value,
         severity: ov.querySelector('#qd-sev').value,
         priority: ov.querySelector('#qd-prio').value,
@@ -657,6 +659,7 @@ const QualityPage = {
           <div class="ql-fld"><span>접수경로</span><select id="qn-channel">${chanOpt}</select></div>
           <div class="ql-fld"><span>발생일</span><input type="date" id="qn-opened" value="${today}"></div>
           <div class="ql-fld full"><span>제목 *</span><input type="text" id="qn-title" placeholder="예: 식각가스 VOC — 평택 P4 순도 편차"></div>
+          <div class="ql-fld full"><span>접수내용 (고객 제기 원문·상세)</span><textarea id="qn-description" rows="3" placeholder="접수된 이슈 상세 내용"></textarea></div>
           <div class="ql-fld full"><span>비고(원인·분석)</span><textarea id="qn-notes" rows="3"></textarea></div>
         </div>
         <div class="ql-actions">
@@ -676,6 +679,7 @@ const QualityPage = {
           customer_id: Number(customer_id),
           type: ov.querySelector('#qn-type').value,
           severity: ov.querySelector('#qn-sev').value,
+          description: ov.querySelector('#qn-description').value || null,
           priority: ov.querySelector('#qn-prio').value,
           channel: ov.querySelector('#qn-channel').value || null,
           opened_at: ov.querySelector('#qn-opened').value || null,
