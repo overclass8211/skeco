@@ -988,6 +988,22 @@ async function initTables() {
       INDEX idx_qd_type (doc_type)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // 고객 만족도(NPS/CSAT) — Account Health '관계·만족도' 축의 선행지표 원천
+    //   survey_type: NPS(0~10) | CSAT(1~5).  Health 산식은 최근값을 0~100 으로 정규화해 반영.
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_satisfaction (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id  INT          NOT NULL,
+      survey_type  VARCHAR(10)  NOT NULL DEFAULT 'NPS',   -- NPS | CSAT
+      score        DECIMAL(4,1) NOT NULL,                 -- NPS 0~10 / CSAT 1~5
+      surveyed_at  DATE         DEFAULT NULL,             -- 조사 시점
+      respondent   VARCHAR(120) DEFAULT NULL,             -- 응답자/부서
+      channel      VARCHAR(40)  DEFAULT NULL,             -- 설문/인터뷰/QBR 등
+      note         VARCHAR(500) DEFAULT NULL,
+      created_by   INT          DEFAULT NULL,
+      created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_cs_customer (customer_id, surveyed_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── 사용자 인증 테이블 ──────────────────────────────
     await pool.query(`CREATE TABLE IF NOT EXISTS users (
       id               INT AUTO_INCREMENT PRIMARY KEY,

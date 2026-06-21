@@ -42,6 +42,7 @@ afterAll(async () => {
     await pool.query('DELETE FROM sample_requests WHERE customer_id=?', [custId]);
     await pool.query('DELETE FROM quality_cases WHERE customer_id=?', [custId]);
     await pool.query('DELETE FROM quality_documents WHERE customer_id=?', [custId]);
+    await pool.query('DELETE FROM customer_satisfaction WHERE customer_id=?', [custId]);
     const [vs] = await pool.query('SELECT id FROM forecast_versions WHERE customer_id=?', [custId]);
     for (const v of vs) await pool.query('DELETE FROM forecast_version_items WHERE version_id=?', [v.id]);
     await pool.query('DELETE FROM forecast_versions WHERE customer_id=?', [custId]);
@@ -375,21 +376,26 @@ describe('Customer360 (MVP) API', () => {
   // ── Health 기준 설정 (4대 축 비중 모델 v2) ──
   const DIMS_100 = {
     commercial: { weight: 35, base: 40, perWon: 15, perActive: 8, contractBonus: 20 },
-    collection: { weight: 25, perOverdue: 25 },
-    quality: { weight: 25, perQuality: 20, perSupport: 15 },
+    collection: { weight: 20, perOverdue: 25 },
+    quality: { weight: 20, perQuality: 20, perSupport: 15 },
     supply: { weight: 15, shortScore: 50 },
+    satisfaction: { weight: 10 },
   };
   const THR = { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 };
 
-  it('GET /health-config — 4대 축 + 기본값 구조(v2)', async () => {
+  it('GET /health-config — 5대 축 + 기본값 구조(v2)', async () => {
     const res = await api().get('/api/customer360/health-config').set('X-User-Id', '1');
     expect(res.status).toBe(200);
     const d = res.body.data;
     expect(d.config.version).toBe(2);
     expect(d.config.dimensions.commercial).toHaveProperty('weight');
+    expect(d.config.dimensions.satisfaction).toHaveProperty('weight'); // 관계·만족도 축
     expect(d.config.thresholds).toHaveProperty('A+');
-    // 4대 축 비중 합 100
-    const wsum = ['commercial', 'collection', 'quality', 'supply'].reduce((s, k) => s + d.config.dimensions[k].weight, 0);
+    // 5대 축 비중 합 100
+    const wsum = ['commercial', 'collection', 'quality', 'supply', 'satisfaction'].reduce(
+      (s, k) => s + d.config.dimensions[k].weight,
+      0
+    );
     expect(wsum).toBe(100);
   });
 
@@ -424,7 +430,51 @@ describe('Customer360 (MVP) API', () => {
     expect(['A+', 'A', 'B+', 'B']).toContain(det.body.data.header.health_grade);
     const bd = det.body.data.header.health_breakdown;
     expect(Array.isArray(bd.dims)).toBe(true);
-    expect(bd.dims).toHaveLength(4);
+    expect(bd.dims).toHaveLength(4); // 만족도 미수집 고객 → 4축(만족도 제외, 비중 재정규화)
     expect(bd.subs).toHaveProperty('commercial');
+  });
+
+  it('만족도(NPS/CSAT) — 입력 시 Health 관계·만족도 축 반영 / 미수집 시 제외', async () => {
+    // 미수집: 만족도 축 제외 + 나머지 비중 재정규화(합 100)
+    const before = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    const dimsBefore = before.body.data.header.health_breakdown.dims;
+    expect(dimsBefore.find(d => d.key === 'satisfaction')).toBeFalsy();
+    expect(dimsBefore.reduce((a, d) => a + d.weight, 0)).toBe(100);
+
+    // 범위 검증 — NPS 0~10 초과 400
+    const bad = await api()
+      .post(`/api/customer360/${custId}/satisfaction`)
+      .set('X-User-Id', '1')
+      .send({ survey_type: 'NPS', score: 15 });
+    expect(bad.status).toBe(400);
+
+    // 입력 — NPS 9(→90), CSAT 4(→75) → 만족도 83
+    const p1 = await api()
+      .post(`/api/customer360/${custId}/satisfaction`)
+      .set('X-User-Id', '1')
+      .send({ survey_type: 'NPS', score: 9, surveyed_at: '2026-05-01' });
+    expect(p1.status).toBe(200);
+    await api()
+      .post(`/api/customer360/${custId}/satisfaction`)
+      .set('X-User-Id', '1')
+      .send({ survey_type: 'CSAT', score: 4, surveyed_at: '2026-05-01' });
+
+    // 조회 — 최근값 + 0~100 점수
+    const sat = await api().get(`/api/customer360/${custId}/satisfaction`).set('X-User-Id', '1');
+    expect(sat.body.data.latest_nps).toBe(9);
+    expect(sat.body.data.latest_csat).toBe(4);
+    expect(sat.body.data.score).toBe(83); // round(avg(90, 75))
+    expect(sat.body.data.rows.length).toBeGreaterThanOrEqual(2);
+
+    // 반영: 만족도 축 포함(5축) + 점수 83 + 비중 합 100
+    const after = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    const dimsAfter = after.body.data.header.health_breakdown.dims;
+    const satDim = dimsAfter.find(d => d.key === 'satisfaction');
+    expect(satDim).toBeTruthy();
+    expect(satDim.score).toBe(83);
+    expect(dimsAfter.reduce((a, d) => a + d.weight, 0)).toBe(100);
+
+    // 정리 — 다른 테스트 격리
+    await pool.query('DELETE FROM customer_satisfaction WHERE customer_id=?', [custId]);
   });
 });

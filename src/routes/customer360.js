@@ -80,8 +80,9 @@ router.get('/customers', async (req, res) => {
       payMap = new Map(),
       supportMap = new Map(),
       capaMap = new Map();
+    const satMap = new Map();
     if (ids.length) {
-      const [leadA, contractA, payA, supportA, capaA] = await Promise.all([
+      const [leadA, contractA, payA, supportA, capaA, satA] = await Promise.all([
         pool
           .query(
             `SELECT customer_name AS name,
@@ -116,12 +117,29 @@ router.get('/customers', async (req, res) => {
             [ids, FLOW_MONTHS]
           )
           .then(r => r[0]),
+        // 만족도(최신 NPS/CSAT) — 고객별 최근값
+        pool
+          .query(
+            `SELECT customer_id, survey_type, score FROM customer_satisfaction
+               WHERE customer_id IN (?) ORDER BY surveyed_at DESC, id DESC`,
+            [ids]
+          )
+          .then(r => r[0]),
       ]);
       leadAggMap = new Map(leadA.map(r => [r.name, r]));
       contractMap = new Map(contractA.map(r => [r.customer_id, r]));
       payMap = new Map(payA.map(r => [r.customer_id, r]));
       supportMap = new Map(supportA.map(r => [r.customer_id, r]));
       capaMap = new Map(capaA.map(r => [r.customer_id, r]));
+      // 고객별 최신 NPS/CSAT → 0~100 만족도 점수
+      const rawSat = new Map(); // id → {nps, csat}
+      for (const r of satA) {
+        const cur = rawSat.get(r.customer_id) || { nps: null, csat: null };
+        if (cur.nps === null && r.survey_type === 'NPS') cur.nps = Number(r.score);
+        if (cur.csat === null && r.survey_type === 'CSAT') cur.csat = Number(r.score);
+        rawSat.set(r.customer_id, cur);
+      }
+      for (const [cid, v] of rawSat) satMap.set(cid, satisfactionScore(v.nps, v.csat));
     }
     const healthCfg = await getHealthConfig();
 
@@ -142,6 +160,7 @@ router.get('/customers', async (req, res) => {
             openSupport: Number((supportMap.get(r.id) || {}).open_cnt) || 0,
             openQuality: Number(r.open_quality) || 0,
             capaShort: hasCapaShort,
+            satisfaction: satMap.has(r.id) ? satMap.get(r.id) : null,
           },
           healthCfg
         );
@@ -447,7 +466,8 @@ router.get('/:id', validateId, async (req, res) => {
 
     // 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
     const _healthCfgDetail = await getHealthConfig();
-    const { score, grade, subs } = computeHealth(
+    const satScore = await gatherSatisfaction(id);
+    const { score, grade, subs, weights } = computeHealth(
       {
         won: wonCount,
         active: activeCount,
@@ -456,16 +476,17 @@ router.get('/:id', validateId, async (req, res) => {
         openSupport,
         openQuality: openQ,
         capaShort: lifecycle.demand_flow.short_count > 0,
+        satisfaction: satScore,
       },
       _healthCfgDetail
     );
-    // 경영진 설명용 — 축별 점수 + 비중/라벨
+    // 경영진 설명용 — 축별 점수 + 유효 비중/라벨 (만족도 미수집 시 해당 축 숨김, 비중 재정규화)
     const healthBreakdown = {
       subs,
-      dims: HEALTH_DIM_KEYS.map(k => ({
+      dims: HEALTH_DIM_KEYS.filter(k => subs[k] !== null && subs[k] !== undefined).map(k => ({
         key: k,
         label: _healthCfgDetail.dimensions[k].label,
-        weight: _healthCfgDetail.dimensions[k].weight,
+        weight: weights[k],
         score: subs[k],
       })),
     };
@@ -1199,10 +1220,10 @@ const DEFAULT_HEALTH_CONFIG = {
       perWon: 15,
       perActive: 8,
       contractBonus: 20,
-      weight: 35,
+      weight: 30,
     },
     // 대금 회수: 제때 회수되는가 (연체 없으면 100, 건당 차감)
-    collection: { label: '대금 회수', desc: '대금이 제때 회수되는가', perOverdue: 25, weight: 25 },
+    collection: { label: '대금 회수', desc: '대금이 제때 회수되는가', perOverdue: 25, weight: 20 },
     // 품질·서비스: 문제 없이 공급되는가 (품질·지원 이슈 없으면 100)
     quality: {
       label: '품질·서비스',
@@ -1212,11 +1233,13 @@ const DEFAULT_HEALTH_CONFIG = {
       weight: 25,
     },
     // 공급 역량: 수요를 감당하는가 (CAPA 부족 시 점수 하락)
-    supply: { label: '공급 역량', desc: '수요를 감당할 수 있는가', shortScore: 50, weight: 15 },
+    supply: { label: '공급 역량', desc: '수요를 감당할 수 있는가', shortScore: 50, weight: 10 },
+    // 관계·만족도: 고객이 만족하는가 (NPS/CSAT 선행지표) — 미수집 고객은 산식에서 자동 제외
+    satisfaction: { label: '관계·만족도', desc: '고객이 만족하는가 (NPS/CSAT)', weight: 15 },
   },
   thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 }, // 미만은 D
 };
-const HEALTH_DIM_KEYS = ['commercial', 'collection', 'quality', 'supply'];
+const HEALTH_DIM_KEYS = ['commercial', 'collection', 'quality', 'supply', 'satisfaction'];
 const HEALTH_GRADE_ORDER = ['A+', 'A', 'B+', 'B', 'C'];
 
 // 저장값(부분) + 기본값 병합 — 누락 키 폴백 (구버전 저장값은 기본값으로 대체)
@@ -1232,6 +1255,7 @@ function mergeHealthConfig(saved) {
       collection: md('collection'),
       quality: md('quality'),
       supply: md('supply'),
+      satisfaction: md('satisfaction'),
     },
     thresholds: { ...DEFAULT_HEALTH_CONFIG.thresholds, ...(s.thresholds || {}) },
   };
@@ -1267,7 +1291,7 @@ function validateHealthConfig(input) {
   });
   const wsum = HEALTH_DIM_KEYS.reduce((s, k) => s + (Number(D[k].weight) || 0), 0);
   if (!errs.length && Math.round(wsum) !== 100)
-    errs.push(`4대 축 비중 합이 100%가 되어야 합니다 (현재 ${Math.round(wsum)}%)`);
+    errs.push(`5대 축 비중 합이 100%가 되어야 합니다 (현재 ${Math.round(wsum)}%)`);
   const subs = [
     ['거래 기준점', D.commercial.base],
     ['수주 점수', D.commercial.perWon],
@@ -1310,8 +1334,39 @@ function healthGrade(score, thr) {
             : 'D';
 }
 
-// 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 4대 축 0~100 → 비중 가중평균
-//   subs: 축별 0~100 점수 (경영진 "왜 이 등급?" 설명용 분해)
+// 최근 NPS(0~10)·CSAT(1~5)를 0~100 만족도 점수로 정규화(가용값 평균). 둘 다 없으면 null.
+function satisfactionScore(npsLatest, csatLatest) {
+  const parts = [];
+  if (npsLatest !== null && npsLatest !== undefined && Number.isFinite(Number(npsLatest)))
+    parts.push(Math.max(0, Math.min(100, Number(npsLatest) * 10)));
+  if (csatLatest !== null && csatLatest !== undefined && Number.isFinite(Number(csatLatest)))
+    parts.push(Math.max(0, Math.min(100, ((Number(csatLatest) - 1) / 4) * 100)));
+  if (!parts.length) return null;
+  return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+}
+
+// 고객별 최근 만족도 점수(0~100|null) — customer_satisfaction 최신 NPS/CSAT 기준
+async function gatherSatisfaction(customerId) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT survey_type, score FROM customer_satisfaction
+         WHERE customer_id=? ORDER BY surveyed_at DESC, id DESC`,
+      [customerId]
+    );
+    let nps = null;
+    let csat = null;
+    for (const r of rows) {
+      if (nps === null && r.survey_type === 'NPS') nps = Number(r.score);
+      if (csat === null && r.survey_type === 'CSAT') csat = Number(r.score);
+    }
+    return satisfactionScore(nps, csat);
+  } catch (_) {
+    return null;
+  }
+}
+
+// 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 5대 축 0~100 → 비중 가중평균
+//   subs: 축별 0~100 점수 (경영진 "왜 이 등급?" 설명용 분해). 만족도 미수집 시 해당 축 제외.
 function computeHealth(sig, cfg) {
   const c = cfg || DEFAULT_HEALTH_CONFIG;
   const D = c.dimensions;
@@ -1322,6 +1377,12 @@ function computeHealth(sig, cfg) {
   const oq = Number(sig.openQuality) || 0;
   const os = Number(sig.openSupport) || 0;
   const hasContract = (Number(sig.contractAmt) || 0) > 0;
+  // 만족도(0~100) — 미수집(null/undefined)이면 산식에서 제외(나머지 비중 재정규화)
+  const sat = sig.satisfaction;
+  const satScore =
+    sat === null || sat === undefined || !Number.isFinite(Number(sat))
+      ? null
+      : Math.round(clamp(Number(sat)));
   const subs = {
     commercial: Math.round(
       clamp(
@@ -1334,47 +1395,60 @@ function computeHealth(sig, cfg) {
     collection: Math.round(clamp(100 - overdue * D.collection.perOverdue)),
     quality: Math.round(clamp(100 - oq * D.quality.perQuality - os * D.quality.perSupport)),
     supply: sig.capaShort ? Math.round(clamp(D.supply.shortScore)) : 100,
+    satisfaction: satScore,
   };
-  const wsum = HEALTH_DIM_KEYS.reduce((s, k) => s + (Number(D[k].weight) || 0), 0) || 100;
+  // 가용 축만 가중(만족도 미수집 → 제외). 표시용 유효 비중(합 100)도 함께 반환.
+  const activeKeys = HEALTH_DIM_KEYS.filter(k => subs[k] !== null && subs[k] !== undefined);
+  const wsum = activeKeys.reduce((s, k) => s + (Number(D[k].weight) || 0), 0) || 100;
   const score = Math.round(
-    HEALTH_DIM_KEYS.reduce((s, k) => s + subs[k] * (Number(D[k].weight) || 0), 0) / wsum
+    activeKeys.reduce((s, k) => s + subs[k] * (Number(D[k].weight) || 0), 0) / wsum
   );
-  return { score, grade: healthGrade(score, c.thresholds), subs };
+  const weights = {};
+  HEALTH_DIM_KEYS.forEach(k => {
+    weights[k] =
+      subs[k] === null || subs[k] === undefined
+        ? 0
+        : Math.round(((Number(D[k].weight) || 0) / wsum) * 100);
+  });
+  return { score, grade: healthGrade(score, c.thresholds), subs, weights };
 }
 
 // 임원뷰 Top 계정용 — 상세뷰와 '동일한' 신호를 수집해 동일 산식 적용
 async function gatherHealthSignals(customerId, customerName) {
   const byCust = '(customer_id = ? OR (customer_id IS NULL AND customer_name = ?))';
   const p = [customerId, customerName];
-  const [[leadAgg], [contractAgg], [payAgg], [supportAgg], lifecycle] = await Promise.all([
-    pool
-      .query(
-        `SELECT SUM(CASE WHEN ps.role='won' THEN 1 ELSE 0 END) AS won,
+  const [[leadAgg], [contractAgg], [payAgg], [supportAgg], lifecycle, satScore] = await Promise.all(
+    [
+      pool
+        .query(
+          `SELECT SUM(CASE WHEN ps.role='won' THEN 1 ELSE 0 END) AS won,
                 SUM(CASE WHEN COALESCE(ps.role,'') NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active
            FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
           WHERE l.customer_name = ?`,
-        [customerName]
-      )
-      .then(r => r[0]),
-    pool
-      .query(`SELECT COALESCE(SUM(contract_amount),0) AS amt FROM contracts WHERE ${byCust}`, p)
-      .then(r => r[0]),
-    pool
-      .query(
-        `SELECT SUM(CASE WHEN due_date < CURDATE() AND recognized_at IS NULL THEN 1 ELSE 0 END) AS overdue_cnt
+          [customerName]
+        )
+        .then(r => r[0]),
+      pool
+        .query(`SELECT COALESCE(SUM(contract_amount),0) AS amt FROM contracts WHERE ${byCust}`, p)
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT SUM(CASE WHEN due_date < CURDATE() AND recognized_at IS NULL THEN 1 ELSE 0 END) AS overdue_cnt
            FROM payment_schedules WHERE ${byCust}`,
-        p
-      )
-      .then(r => r[0]),
-    pool
-      .query(
-        `SELECT SUM(CASE WHEN resolved_at IS NULL AND closed_at IS NULL THEN 1 ELSE 0 END) AS open_cnt
+          p
+        )
+        .then(r => r[0]),
+      pool
+        .query(
+          `SELECT SUM(CASE WHEN resolved_at IS NULL AND closed_at IS NULL THEN 1 ELSE 0 END) AS open_cnt
            FROM support_tickets WHERE customer_id = ?`,
-        [customerId]
-      )
-      .then(r => r[0]),
-    buildLifecycle(customerId),
-  ]);
+          [customerId]
+        )
+        .then(r => r[0]),
+      buildLifecycle(customerId),
+      gatherSatisfaction(customerId),
+    ]
+  );
   return {
     won: Number(leadAgg.won) || 0,
     active: Number(leadAgg.active) || 0,
@@ -1383,6 +1457,7 @@ async function gatherHealthSignals(customerId, customerName) {
     openSupport: Number(supportAgg.open_cnt) || 0,
     openQuality: lifecycle.quality.filter(q => q.status !== 'resolved').length,
     capaShort: lifecycle.demand_flow.short_count > 0,
+    satisfaction: satScore,
   };
 }
 async function buildExecSummaryData() {
@@ -2469,6 +2544,77 @@ router.put('/documents/:id', requireLevel(1), validateId, async (req, res) => {
 router.delete('/documents/:id', requireLevel(1), validateId, async (req, res) => {
   try {
     await pool.query('DELETE FROM quality_documents WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 고객 만족도(NPS/CSAT) — 관계 탭 입력·이력 + Health 만족도 축 원천 ──
+const SURVEY_TYPES = ['NPS', 'CSAT'];
+// 조회: 이력 목록 + 최근 NPS/CSAT + 0~100 만족도 점수
+router.get('/:id/satisfaction', validateId, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const [rows] = await pool.query(
+      `SELECT id, survey_type, score, DATE_FORMAT(surveyed_at,'%Y-%m-%d') AS surveyed_at,
+              respondent, channel, note
+         FROM customer_satisfaction WHERE customer_id=?
+        ORDER BY surveyed_at DESC, id DESC LIMIT 100`,
+      [id]
+    );
+    let nps = null;
+    let csat = null;
+    for (const r of rows) {
+      if (nps === null && r.survey_type === 'NPS') nps = Number(r.score);
+      if (csat === null && r.survey_type === 'CSAT') csat = Number(r.score);
+    }
+    res.json({
+      success: true,
+      data: { rows, latest_nps: nps, latest_csat: csat, score: satisfactionScore(nps, csat) },
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+// 등록: NPS(0~10)/CSAT(1~5) 범위 검증
+router.post('/:id/satisfaction', requireLevel(1), validateId, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const b = req.body || {};
+    const type = SURVEY_TYPES.includes(b.survey_type) ? b.survey_type : 'NPS';
+    const score = Number(b.score);
+    if (!Number.isFinite(score))
+      return res.status(400).json({ success: false, error: '점수(score)는 숫자여야 합니다' });
+    const max = type === 'NPS' ? 10 : 5;
+    const min = type === 'NPS' ? 0 : 1;
+    if (score < min || score > max)
+      return res
+        .status(400)
+        .json({ success: false, error: `${type} 점수는 ${min}~${max} 범위여야 합니다` });
+    const [r] = await pool.query(
+      `INSERT INTO customer_satisfaction
+         (customer_id, survey_type, score, surveyed_at, respondent, channel, note, created_by)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        id,
+        type,
+        score,
+        b.surveyed_at || null,
+        b.respondent || null,
+        b.channel || null,
+        b.note || null,
+        getUserId(req),
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+router.delete('/satisfaction/:id', requireLevel(1), validateId, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM customer_satisfaction WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     handleError(res, err);

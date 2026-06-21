@@ -629,8 +629,8 @@ const Exec360Page = {
     const card = k =>
       `<div class="ex-hdim"><div class="ex-hdim-top"><span class="ex-hdim-w">${D[k].weight}%</span><span class="ex-hdim-l">${esc(D[k].label)}</span></div><div class="ex-hdim-d">${esc(D[k].desc)}</div></div>`;
     box.innerHTML = `<div class="ex-hcfg">
-      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산출 기준 — 4대 건강 축 가중평균</span>${this._canEditHealth() ? '<button class="ex-hcfg-btn" id="ex-hcfg-edit">기준 설정</button>' : ''}</div>
-      <div class="ex-hdims">${['commercial', 'collection', 'quality', 'supply'].map(card).join('')}</div>
+      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산출 기준 — 5대 건강 축 가중평균</span>${this._canEditHealth() ? '<button class="ex-hcfg-btn" id="ex-hcfg-edit">기준 설정</button>' : ''}</div>
+      <div class="ex-hdims">${['commercial', 'collection', 'quality', 'supply', 'satisfaction'].map(card).join('')}</div>
       <div class="ex-hcfg-th">각 축을 0~100점으로 환산 후 위 비중으로 가중평균 → 등급: A+ ≥${t['A+']} · A ≥${t.A} · B+ ≥${t['B+']} · B ≥${t.B} · C ≥${t.C} · D 그 미만</div>
     </div>`;
     const editBtn = document.getElementById('ex-hcfg-edit');
@@ -646,12 +646,13 @@ const Exec360Page = {
       `<label class="ex-hcfg-fld">${label}<input type="number" step="1" min="0" max="100" data-hf="${id}" value="${val}"></label>`;
     box.innerHTML = `<div class="ex-hcfg">
       <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산출 기준 편집</span></div>
-      <div class="ex-hcfg-sec">4대 축 비중 (합계 <b id="ex-hw-sum">100</b>%, 100이어야 저장 가능)</div>
+      <div class="ex-hcfg-sec">5대 축 비중 (합계 <b id="ex-hw-sum">100</b>%, 100이어야 저장 가능)</div>
       <div class="ex-hcfg-form">
         ${num('w_commercial', '거래 성장 비중(%)', D.commercial.weight)}
         ${num('w_collection', '대금 회수 비중(%)', D.collection.weight)}
         ${num('w_quality', '품질·서비스 비중(%)', D.quality.weight)}
         ${num('w_supply', '공급 역량 비중(%)', D.supply.weight)}
+        ${num('w_satisfaction', '관계·만족도 비중(%)', D.satisfaction.weight)}
       </div>
       <details class="ex-hcfg-adv">
         <summary>세부 규칙 (축별 점수 산출 — 고급)</summary>
@@ -683,7 +684,7 @@ const Exec360Page = {
       </div>
     </div>`;
     const get = id => box.querySelector(`[data-hf="${id}"]`);
-    const wKeys = ['w_commercial', 'w_collection', 'w_quality', 'w_supply'];
+    const wKeys = ['w_commercial', 'w_collection', 'w_quality', 'w_supply', 'w_satisfaction'];
     const sumEl = box.querySelector('#ex-hw-sum');
     const saveBtn = box.querySelector('#ex-hcfg-save');
     const refreshSum = () => {
@@ -698,7 +699,7 @@ const Exec360Page = {
     const fill = cfg => {
       const d = cfg.dimensions;
       const map = {
-        w_commercial: d.commercial.weight, w_collection: d.collection.weight, w_quality: d.quality.weight, w_supply: d.supply.weight,
+        w_commercial: d.commercial.weight, w_collection: d.collection.weight, w_quality: d.quality.weight, w_supply: d.supply.weight, w_satisfaction: d.satisfaction.weight,
         c_base: d.commercial.base, c_won: d.commercial.perWon, c_active: d.commercial.perActive, c_contract: d.commercial.contractBonus,
         col_overdue: d.collection.perOverdue, q_quality: d.quality.perQuality, q_support: d.quality.perSupport, s_short: d.supply.shortScore,
         t_Ap: cfg.thresholds['A+'], t_A: cfg.thresholds.A, t_Bp: cfg.thresholds['B+'], t_B: cfg.thresholds.B, t_C: cfg.thresholds.C,
@@ -719,6 +720,7 @@ const Exec360Page = {
         collection: { weight: n('w_collection'), perOverdue: n('col_overdue') },
         quality: { weight: n('w_quality'), perQuality: n('q_quality'), perSupport: n('q_support') },
         supply: { weight: n('w_supply'), shortScore: n('s_short') },
+        satisfaction: { weight: n('w_satisfaction') },
       },
       thresholds: { 'A+': n('t_Ap'), A: n('t_A'), 'B+': n('t_Bp'), B: n('t_B'), C: n('t_C') },
     };

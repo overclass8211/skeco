@@ -375,6 +375,7 @@ const Customer360Page = {
     this._qualityDocs = null;
     this._qualityRestricted = false;
     this._revenue = null;
+    this._satisfaction = null;
     localStorage.setItem('c360_last', String(id));
     const body = document.getElementById('c360-body');
     if (body) body.innerHTML = `<div class="c360-empty">불러오는 중…</div>`;
@@ -468,7 +469,7 @@ const Customer360Page = {
     return `<div class="c360-health-bd2">
       <div class="c360-hb2-left">${donut}<div class="c360-hb2-cap">종합 Health</div></div>
       <div class="c360-hb2-right">
-        <div class="c360-hb2-h">왜 ${esc(h.health_grade)} 등급인가 — 4대 축 점수(0~100)</div>
+        <div class="c360-hb2-h">왜 ${esc(h.health_grade)} 등급인가 — ${dims.length}대 축 점수(0~100)</div>
         ${rows}
       </div>
     </div>`;
@@ -587,8 +588,11 @@ const Customer360Page = {
         sec('영업기회', this._tabDeals()) +
         sec('포캐스트', this._tabForecast()) +
         sec('계약 / 매출 / 수금', this._tabRevenue()),
-      // ④ 관계 — 조직 + 활동
-      relationship: () => sec('조직', this._tabOrg()) + sec('활동', this._tabTimeline()),
+      // ④ 관계 — 만족도(NPS/CSAT) + 조직 + 활동
+      relationship: () =>
+        sec('고객 만족도 (NPS/CSAT)', this._tabSatisfaction()) +
+        sec('조직', this._tabOrg()) +
+        sec('활동', this._tabTimeline()),
       brief: () => this._tabBrief(),
     };
     el.innerHTML = (m[this._tab] || m.lifecycle)();
@@ -617,8 +621,12 @@ const Customer360Page = {
       if (!this._quality) this._loadQuality();
       else this._bindQuality(el);
     }
-    // ④ 관계 = 조직 + 활동
-    if (t === 'relationship') this._bindOrg(el);
+    // ④ 관계 = 만족도 + 조직 + 활동
+    if (t === 'relationship') {
+      if (!this._satisfaction) this._loadSatisfaction();
+      else this._bindSatisfaction(el);
+      this._bindOrg(el);
+    }
     // ⑤ AI 브리핑 — 360 내 직접 생성/재생성
     if (t === 'brief') {
       el.querySelector('#c360-brief-gen')?.addEventListener('click', () => this._generateBrief());
@@ -1589,6 +1597,122 @@ const Customer360Page = {
       await this._select(this._custId);
       this._tab = 'quality';
       this._renderTab();
+    } catch (_) {
+      /* Toast */
+    }
+  },
+
+  // ── 고객 만족도 (NPS/CSAT) — Health 관계·만족도 축 원천 ──────
+  async _loadSatisfaction() {
+    try {
+      const r = await API.get('/customer360/' + this._custId + '/satisfaction');
+      this._satisfaction = r.data || { rows: [], latest_nps: null, latest_csat: null, score: null };
+    } catch (_) {
+      this._satisfaction = { rows: [], latest_nps: null, latest_csat: null, score: null };
+    }
+    if (this._tab === 'relationship') this._renderTab();
+  },
+  _tabSatisfaction() {
+    const sd = this._satisfaction;
+    if (!sd) return '<div class="c360-empty" style="padding:20px">불러오는 중…</div>';
+    const dash = v => (v === null || v === undefined ? '-' : v);
+    const scoreTxt = sd.score === null || sd.score === undefined ? '미수집' : sd.score + '점';
+    const sc =
+      sd.score === null || sd.score === undefined
+        ? 'var(--text-3)'
+        : sd.score >= 80
+          ? '#17A85A'
+          : sd.score >= 60
+            ? '#2357E8'
+            : sd.score >= 40
+              ? '#F59C00'
+              : '#E63329';
+    const summary = `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div class="flow-box"><div class="l">최근 NPS (0~10)</div><div class="v">${dash(sd.latest_nps)}</div></div>
+      <div class="flow-box"><div class="l">최근 CSAT (1~5)</div><div class="v">${dash(sd.latest_csat)}</div></div>
+      <div class="flow-box" style="background:rgba(0,0,0,.02)"><div class="l">종합 만족도 · Health 반영</div><div class="v" style="color:${sc}">${scoreTxt}</div></div>
+    </div>`;
+    const rows =
+      sd.rows && sd.rows.length
+        ? `<table class="data-table" style="font-size:12px"><thead><tr><th>조사일</th><th>유형</th><th>점수</th><th>응답자</th><th>채널</th><th>비고</th><th></th></tr></thead><tbody>
+            ${sd.rows
+              .map(
+                r => `<tr><td>${esc(r.surveyed_at || '-')}</td><td>${esc(r.survey_type)}</td><td><b>${r.score}</b></td><td>${esc(r.respondent || '-')}</td><td>${esc(r.channel || '-')}</td><td>${esc(r.note || '-')}</td>
+                <td style="text-align:right"><button class="lc-mini" data-sat-del="${r.id}" style="color:var(--oci-red)">삭제</button></td></tr>`
+              )
+              .join('')}
+          </tbody></table>`
+        : '<div class="c360-empty" style="padding:20px">만족도 기록이 없습니다. NPS/CSAT를 입력하면 Account Health 관계·만족도 축에 반영됩니다.</div>';
+    return `<div class="c360-sec" style="margin-top:0">만족도 이력
+        <button class="btn btn-primary btn-sm btn-add" id="sat-add">+ 만족도 입력</button>
+      </div>${summary}${rows}`;
+  },
+  _bindSatisfaction(scope) {
+    const root = scope || document;
+    root.querySelector('#sat-add')?.addEventListener('click', () => this._openSatisfactionModal());
+    root.querySelectorAll('[data-sat-del]').forEach(b =>
+      b.addEventListener('click', () => this._deleteSatisfaction(Number(b.dataset.satDel)))
+    );
+  },
+  _openSatisfactionModal() {
+    const today = new Date().toISOString().slice(0, 10);
+    Modal.open({
+      title: '고객 만족도 입력',
+      width: 480,
+      compact: true,
+      body: `<div class="form-grid">
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">유형</label><select class="form-input" id="sat-type"><option value="NPS">NPS (0~10)</option><option value="CSAT">CSAT (1~5)</option></select></div>
+            <div class="form-row"><label class="form-label">점수 *</label><input class="form-input" id="sat-score" type="number" step="0.1" placeholder="예: 9"></div>
+          </div>
+          <div class="form-row"><label class="form-label">조사일</label><input class="form-input" id="sat-date" type="date" value="${today}"></div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">응답자/부서</label><input class="form-input" id="sat-resp" placeholder="구매팀 김부장"></div>
+            <div class="form-row"><label class="form-label">채널</label><input class="form-input" id="sat-channel" placeholder="설문/QBR/인터뷰"></div>
+          </div>
+          <div class="form-row"><label class="form-label">비고</label><input class="form-input" id="sat-note"></div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="sat-cancel">취소</button><button class="btn btn-primary" id="sat-save">저장</button>`,
+      bind: { '#sat-cancel': () => Modal.close(), '#sat-save': () => this._saveSatisfaction() },
+    });
+  },
+  async _saveSatisfaction() {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const type = v('sat-type') || 'NPS';
+    const score = Number(v('sat-score'));
+    if (!Number.isFinite(score)) {
+      Toast.error('점수를 입력하세요');
+      return;
+    }
+    const max = type === 'NPS' ? 10 : 5;
+    const min = type === 'NPS' ? 0 : 1;
+    if (score < min || score > max) {
+      Toast.error(`${type} 점수는 ${min}~${max} 범위여야 합니다`);
+      return;
+    }
+    try {
+      await API.post('/customer360/' + this._custId + '/satisfaction', {
+        survey_type: type,
+        score,
+        surveyed_at: v('sat-date') || null,
+        respondent: v('sat-resp') || null,
+        channel: v('sat-channel') || null,
+        note: v('sat-note') || null,
+      });
+      Toast.success('만족도 저장 완료');
+      Modal.close();
+      // 상세 새로고침 → Health(관계·만족도 축) 재계산 + 이력 갱신
+      await this._select(this._custId, { route: 'none' });
+    } catch (e) {
+      Toast.error('저장 실패: ' + (e.message || e));
+    }
+  },
+  async _deleteSatisfaction(id) {
+    if (!confirm('이 만족도 기록을 삭제하시겠습니까?')) return;
+    try {
+      await API.del('/customer360/satisfaction/' + id);
+      Toast.success('삭제 완료');
+      await this._select(this._custId, { route: 'none' });
     } catch (_) {
       /* Toast */
     }

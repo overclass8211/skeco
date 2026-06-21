@@ -337,6 +337,32 @@ async function maybeQuality(conn, lead, matId, idx) {
       counts.docs += 1;
     }
 
+    // ── 고객 만족도(NPS/CSAT) 데모 — Health 관계·만족도 축 시연용 (멱등) ──
+    //   대표 고객 일부에 최근 NPS/CSAT 부여(높음/보통/낮음 분산). 이미 있으면 건너뜀.
+    counts.satisfaction = 0;
+    const SAT_DEMO = [
+      { name: '삼성전자', nps: 9, csat: 4.6 }, // 높음
+      { name: 'SK하이닉스', nps: 8, csat: 4.2 },
+      { name: 'UMC', nps: 6, csat: 3.4 }, // 보통
+      { name: '글로벌파운드리', nps: 4, csat: 2.8 }, // 낮음
+    ];
+    for (const sd of SAT_DEMO) {
+      const [[c]] = await conn.query('SELECT MIN(id) AS id FROM customers WHERE name=?', [sd.name]);
+      if (!c || !c.id) continue;
+      const [[ex]] = await conn.query(
+        'SELECT COUNT(*) AS n FROM customer_satisfaction WHERE customer_id=?',
+        [c.id]
+      );
+      if (ex.n > 0) continue;
+      await conn.query(
+        `INSERT INTO customer_satisfaction (customer_id, survey_type, score, surveyed_at, respondent, channel, note)
+         VALUES (?, 'NPS', ?, '2026-05-20', '구매팀', 'QBR', '분기 비즈니스 리뷰'),
+                (?, 'CSAT', ?, '2026-05-20', '품질팀', '설문', '연 1회 만족도 설문')`,
+        [c.id, sd.nps, c.id, sd.csat]
+      );
+      counts.satisfaction += 2;
+    }
+
     // ── 소속 고객(동일 회사명 담당자) 보강: 회사당 총 3명(추가 2명) — 멱등 ──
     counts.members = 0;
     const ADD_CONTACTS = [
@@ -409,6 +435,7 @@ async function maybeQuality(conn, lead, matId, idx) {
     console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
     console.log(`  · 수금 스케줄(payment_schedules): ${counts.payments} 신규`);
     console.log(`  · 품질 문서(quality_documents): ${counts.docs} 신규`);
+    console.log(`  · 고객 만족도(customer_satisfaction): ${counts.satisfaction} 신규`);
     console.log(`  · 소속 고객(동일사명 담당자): ${counts.members} 신규`);
     console.log(`  · 국내 주소 채움: ${counts.address} 행`);
     const [[m]] = await conn.query('SELECT COUNT(*) AS n FROM customer_materials');

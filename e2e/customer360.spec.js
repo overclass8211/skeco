@@ -106,6 +106,19 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/api/customer360/${CID}`, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DETAIL) })
   );
+  // 만족도(NPS/CSAT) — 관계 탭 카드
+  await page.route(`**/api/customer360/${CID}/satisfaction`, route =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: [{ id: 1, survey_type: 'NPS', score: '9.0', surveyed_at: '2026-05-01', respondent: '구매팀', channel: 'QBR', note: null }],
+          latest_nps: 9, latest_csat: null, score: 90,
+        },
+      }),
+    })
+  );
   // 소프트 링크 딥링크용 — 영업딜 상세(최소) 목
   await page.route('**/api/leads/555**', route =>
     route.fulfill({
@@ -153,8 +166,13 @@ test('고객·제품 360뷰 — 라이프사이클 보드 + 수요·생산·수�
   await expect(page.locator('#c360-rev')).toContainText('매출 인식');
   await expect(page.locator('#c360-rev')).toContainText('수금');
 
-  // 관계 탭 = 조직 + 활동 (통합) — 사업장 + 담당자
+  // 관계 탭 = 만족도 + 조직 + 활동 (통합)
   await page.locator('.c360-tab[data-tab="relationship"]').click();
+  // 고객 만족도(NPS/CSAT) 카드
+  await expect(page.locator('#c360-tab-body')).toContainText('고객 만족도');
+  await expect(page.locator('#c360-tab-body')).toContainText('종합 만족도');
+  await expect(page.locator('#sat-add')).toBeVisible();
+  // 조직 — 사업장 + 담당자
   await expect(page.locator('#c360-tab-body')).toContainText('평택');
   await expect(page.locator('#c360-tab-body')).toContainText('김구매');
   await expect(page.locator('#site-add')).toBeVisible();
