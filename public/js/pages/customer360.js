@@ -108,6 +108,12 @@ const Customer360Page = {
         .c360-kpi .h{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);margin-bottom:4px}
         .c360-kpi .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
         .c360-kpi .s{font-size:11px;color:var(--text-3);margin-top:1px}
+        .c360-kpi-link{cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
+        .c360-kpi-link:hover{border-color:var(--oci-red);box-shadow:0 2px 8px rgba(0,0,0,.06);transform:translateY(-1px)}
+        .c360-qrow{cursor:pointer}
+        .c360-qrow:hover td{background:var(--surface-2,rgba(0,0,0,.03))}
+        .lc-card-link{cursor:pointer;transition:border-color .12s,box-shadow .12s}
+        .lc-card-link:hover{border-color:var(--oci-red);box-shadow:0 2px 10px rgba(0,0,0,.06)}
         .c360-sec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin:18px 0 10px}
         .c360-sec .btn-add{margin-left:auto;font-size:12px;font-weight:500}
         .lc-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:11px}
@@ -412,22 +418,59 @@ const Customer360Page = {
     if (t === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
       el.querySelectorAll('[data-edit-mat]').forEach(b =>
-        b.addEventListener('click', () => {
+        b.addEventListener('click', e => {
+          e.stopPropagation();
           const mat = this._data.lifecycle.materials.find(m => m.id === Number(b.dataset.editMat));
           this._openMaterialModal(mat);
         })
       );
       el.querySelectorAll('[data-fc-mat]').forEach(b =>
-        b.addEventListener('click', () => {
+        b.addEventListener('click', e => {
+          e.stopPropagation();
           const mat = this._data.lifecycle.materials.find(m => m.id === Number(b.dataset.fcMat));
           this._openForecastModal(mat);
+        })
+      );
+      // KPI 카드(진행딜/견적/제안/계약) → 상거래 탭 드릴다운
+      el.querySelectorAll('.c360-kpi[data-ctab]').forEach(c =>
+        c.addEventListener('click', () => this._gotoTab(c.dataset.ctab))
+      );
+      // 품질 이슈 행 → 품질관리(해당 고객 필터)
+      el.querySelectorAll('.c360-qrow').forEach(tr =>
+        tr.addEventListener('click', () => this._gotoQuality())
+      );
+      // 소재 카드 → 소재 상세(편집 모달). 내부 버튼 클릭은 제외
+      el.querySelectorAll('[data-mat-card]').forEach(card =>
+        card.addEventListener('click', e => {
+          if (e.target.closest('button')) return;
+          const mat = this._data.lifecycle.materials.find(m => m.id === Number(card.dataset.matCard));
+          if (mat) this._openMaterialModal(mat);
         })
       );
     }
   },
 
-  _kpi(icon, label, value, sub) {
-    return `<div class="c360-kpi">
+  // 현황 탭 → 다른 탭으로 전환 (KPI 드릴다운)
+  _gotoTab(tab) {
+    if (!tab) return;
+    this._tab = tab;
+    document.querySelectorAll('.c360-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    this._renderTab();
+    const body = document.getElementById('c360-tab-body');
+    if (body) body.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  },
+
+  // 품질 이슈 → 전사 품질관리(해당 고객 필터)
+  _gotoQuality() {
+    if (typeof QualityPage !== 'undefined' && this._custId) {
+      QualityPage._filter.customer_id = String(this._custId);
+      QualityPage._filter.status = 'unresolved';
+    }
+    location.hash = '#quality';
+  },
+
+  _kpi(icon, label, value, sub, nav) {
+    return `<div class="c360-kpi${nav ? ' c360-kpi-link' : ''}"${nav ? ` data-ctab="${nav}"` : ''}>
       <div class="h">${this._svg(icon, 13)} ${esc(label)}</div>
       <div class="v">${value}</div>
       ${sub ? `<div class="s">${esc(sub)}</div>` : ''}
@@ -447,10 +490,10 @@ const Customer360Page = {
     const f = lc.demand_flow;
     const rb = this._data.header.revenue_breakdown || { month: 0, quarter: 0, annual: 0 };
     const kpis = `<div class="c360-kpis">
-      ${this._kpi('deal', '진행 딜', `${s.deals.count}건`, this._won(s.deals.total_expected))}
-      ${this._kpi('quote', '견적', `${s.quotes.count}건`, this._won(s.quotes.total_amount))}
-      ${this._kpi('proposal', '제안', `${s.proposals.count}건`, this._won(s.proposals.total_expected))}
-      ${this._kpi('contract', '계약', `${s.contracts.count}건`, this._won(s.contracts.total_amount))}
+      ${this._kpi('deal', '진행 딜', `${s.deals.count}건`, this._won(s.deals.total_expected), 'commercial')}
+      ${this._kpi('quote', '견적', `${s.quotes.count}건`, this._won(s.quotes.total_amount), 'commercial')}
+      ${this._kpi('proposal', '제안', `${s.proposals.count}건`, this._won(s.proposals.total_expected), 'commercial')}
+      ${this._kpi('contract', '계약', `${s.contracts.count}건`, this._won(s.contracts.total_amount), 'commercial')}
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px">
       <div class="flow-box"><div class="l">예상매출 · 월</div><div class="v">${this._won(rb.month)}</div></div>
@@ -482,7 +525,7 @@ const Customer360Page = {
             .map(q => {
               const mat = lc.materials.find(m => m.id === q.material_id);
               const sevCls = q.severity === 'high' ? 'pill-danger' : q.severity === 'medium' ? 'pill-warn' : 'pill-mut';
-              return `<tr><td class="mono">${esc(q.case_no)}</td><td>${esc(mat ? mat.material_name.split(' · ')[0] : '-')}</td>
+              return `<tr class="c360-qrow" title="품질관리에서 열기"><td class="mono">${esc(q.case_no)}</td><td>${esc(mat ? mat.material_name.split(' · ')[0] : '-')}</td>
                 <td>${esc(q.type)}</td><td><span class="pill ${sevCls}">${esc(q.severity)}</span></td>
                 <td>${esc(q.status)}</td><td>${esc(q.title)}</td></tr>`;
             })
@@ -499,7 +542,7 @@ const Customer360Page = {
       ${kpis}
       <div class="c360-sec">수요 → 생산 → 수주 (3개월)</div>
       ${flow}
-      <div class="c360-sec">소재별 라이프사이클
+      <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 상세</span>
         <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 소재 추가</button>
       </div>
       ${board}
@@ -515,7 +558,7 @@ const Customer360Page = {
     const badges = [];
     if (m.capa_short) badges.push(`<span class="pill pill-danger">CAPA 부족</span>`);
     if (m.open_quality) badges.push(`<span class="pill pill-warn">품질 ${m.open_quality}건</span>`);
-    return `<div class="lc-card">
+    return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" title="소재 상세 열기">
       <div class="lc-top">
         <span class="lc-name">${esc(m.material_name)}</span>
         <span class="pill ${stagePill}">${esc(m.lifecycle_label)}</span>
