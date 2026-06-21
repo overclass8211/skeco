@@ -1799,6 +1799,78 @@ ${listTxt || '없음'}
   }
 }
 
+// ── CAPA 부족 AI 진단·대책 (고객 현황 탭) ────────────────────
+async function capaDiagnose(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: '잘못된 id' });
+    const [[cust]] = await pool.query('SELECT name FROM customers WHERE id=?', [id]);
+    if (!cust) return res.status(404).json({ success: false, error: '고객 없음' });
+    const lc = await buildLifecycle(id); // 소재별 분기 수요/생산 + demand_flow 재사용
+    const f = lc.demand_flow;
+    const short = lc.materials
+      .filter(
+        m => Number(m.quarter_capacity) > 0 && Number(m.quarter_capacity) < Number(m.quarter_demand)
+      )
+      .map(m => ({
+        material_name: m.material_name,
+        business_type: m.business_type,
+        fab_line: m.fab_line || null,
+        demand: m.quarter_demand,
+        capacity: m.quarter_capacity,
+        gap: Math.round(Number(m.quarter_demand) - Number(m.quarter_capacity)),
+        unit: m.demand_unit,
+        expected_mp_date: m.expected_mp_date,
+      }));
+
+    let ai = null;
+    try {
+      const listTxt = short
+        .map(
+          m =>
+            `${m.material_name.split(' · ')[0]}(${m.business_type || '-'}, ${m.fab_line || '-'}): 수요 ${m.demand}${m.unit || ''} / 생산 ${m.capacity}${m.unit || ''} / 부족 ${m.gap}${m.unit || ''}`
+        )
+        .join('\n');
+      const prompt = `당신은 SK에코플랜트 머티리얼즈(반도체·디스플레이 소재)의 생산·공급기획 보좌역입니다.
+'${cust.name}' 고객의 분기(3개월) CAPA(생산능력) 부족을 진단하고 실행 대책을 제시하세요. 주어진 수치만 사용하고 지어내지 마세요.
+
+[분기 합계] 수요 ${f.demand} / 생산가능 ${f.capacity} / 부족 ${f.gap}${f.unit ? ' ' + f.unit : ''}
+[소재별 부족]
+${listTxt || '없음'}
+
+다음 JSON 형식으로만 응답하세요 (마크다운 없이 JSON):
+{
+  "diagnosis": "부족 핵심 원인 진단 2~3문장",
+  "causes": ["추정 원인 2~3개 (예: 특정 라인 capacity 제약, 수요 급증, 소재 편중)"],
+  "actions": ["실행 대책 2~4개 (증설/외주생산/수요 재확인/우선순위 조정/대체 라인 등 구체적으로)"]
+}`;
+      const model = genAI.getGenerativeModel({
+        model: MODEL_FAST,
+        safetySettings: SAFETY_SETTINGS,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.3,
+          maxOutputTokens: 700,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      });
+      const r = await model.generateContent(prompt);
+      const parsed = JSON.parse(r.response.text());
+      ai = {
+        diagnosis: parsed.diagnosis || '',
+        causes: Array.isArray(parsed.causes) ? parsed.causes : [],
+        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+      };
+    } catch (e) {
+      console.warn('[capa-diagnose] AI 실패(무시):', e.message);
+    }
+
+    res.json({ success: true, data: { customer: cust.name, flow: f, materials: short, ai } });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
 // ── 임원 KPI 근거 — 전체 목록 (카드 클릭 시 lazy-load) ──────────
 async function execKpiList(req, res) {
   try {
@@ -2075,6 +2147,8 @@ router.put('/samples/:id', requireLevel(1), validateId, async (req, res) => {
 // ── Phase 3: 품질 케이스 관리 ────────────────────────────────
 const QUALITY_TYPES = ['VOC', 'NCR', 'Audit', 'PCN', 'CoA'];
 const QUALITY_STATUS = ['open', 'in_progress', 'resolved'];
+
+router.post('/:id/capa-diagnose', validateId, capaDiagnose); // CAPA 부족 AI 진단·대책
 
 router.get('/:id/quality', validateId, async (req, res) => {
   try {

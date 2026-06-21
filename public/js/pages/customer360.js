@@ -195,6 +195,18 @@ const Customer360Page = {
         .flow-box{flex:1;min-width:110px;border-radius:8px;padding:12px 14px;background:var(--surface-2)}
         .flow-box .l{font-size:11px;color:var(--text-2)}
         .flow-box .v{font-size:20px;font-weight:700}
+        .c360-capa-link{cursor:pointer;transition:box-shadow .12s}
+        .c360-capa-link:hover{box-shadow:0 2px 10px rgba(230,51,41,.15)}
+        .c360-capa-ai{font-size:10px;font-weight:700;color:var(--oci-red)}
+        /* CAPA 진단 모달 */
+        .c360-capa-flow{font-size:13px;color:var(--text-2);background:var(--surface-2,rgba(0,0,0,.03));border-radius:8px;padding:9px 12px;margin-bottom:12px}
+        .c360-capa-flow b{color:var(--text-1)}
+        .c360-capa-ai-box{background:linear-gradient(135deg,rgba(230,51,41,.05),rgba(245,156,0,.04));border-radius:8px;padding:12px 14px;margin-bottom:14px}
+        .c360-capa-diag{font-size:13px;line-height:1.6;color:var(--text-1)}
+        .c360-capa-h{font-size:11px;font-weight:700;color:var(--text-3);margin-top:10px}
+        .c360-capa-ul{margin:4px 0 0;padding-left:18px;line-height:1.7;font-size:12.5px;color:var(--text-2)}
+        .c360-capa-ul.act li{color:var(--text-1)}
+        .c360-capa-th{font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px}
         .c360-act{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:8px}
         .c360-act .ai{color:#2357E8;flex-shrink:0;margin-top:1px}
         .stage-pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-2);margin:1px 2px}
@@ -598,6 +610,51 @@ const Customer360Page = {
           else this._gotoTab(t);
         })
       );
+      // 부족 CAPA 박스 → AI 진단·대책 모달
+      el.querySelector('#c360-capa-box')?.addEventListener('click', () => this._openCapaModal());
+    }
+  },
+
+  // CAPA 부족 AI 진단·대책 모달
+  async _openCapaModal() {
+    if (typeof Modal === 'undefined' || !this._custId) return;
+    Modal.open({
+      title: 'CAPA 부족 — AI 진단·대책',
+      width: 640,
+      body: '<div id="c360-capa-body" style="padding:36px;text-align:center;color:var(--text-3)">생산능력 부족 분석 중…</div>',
+    });
+    try {
+      const r = await API.post(`/customer360/${this._custId}/capa-diagnose`, {});
+      const d = r.data || {};
+      const f = d.flow || {};
+      const qty = (n, u) => this._qty(Number(n) || 0, u || f.unit || '');
+      const rows = (d.materials || [])
+        .map(
+          m =>
+            `<tr><td><strong>${esc((m.material_name || '').split(' · ')[0])}</strong></td><td>${esc(m.business_type || '-')}</td><td class="text-right">${qty(m.demand, m.unit)}</td><td class="text-right">${qty(m.capacity, m.unit)}</td><td class="text-right" style="color:var(--oci-red);font-weight:700">${qty(m.gap, m.unit)}</td></tr>`
+        )
+        .join('');
+      const ai = d.ai;
+      const aiHtml = ai
+        ? `<div class="c360-capa-ai-box">
+            ${ai.diagnosis ? `<div class="c360-capa-diag">${esc(ai.diagnosis)}</div>` : ''}
+            ${ai.causes && ai.causes.length ? `<div class="c360-capa-h">추정 원인</div><ul class="c360-capa-ul">${ai.causes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+            ${ai.actions && ai.actions.length ? `<div class="c360-capa-h">권고 대책</div><ul class="c360-capa-ul act">${ai.actions.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+          </div>`
+        : '<div style="font-size:12.5px;color:var(--text-3);padding:8px 0">AI 진단을 생성하지 못했습니다 (아래 수치 참조).</div>';
+      const box = document.getElementById('c360-capa-body');
+      if (box)
+        box.innerHTML = `
+          <div class="c360-capa-flow">분기 수요 <b>${qty(f.demand)}</b> · 생산가능 <b>${qty(f.capacity)}</b> · <span style="color:var(--oci-red)">부족 <b>${qty(f.gap)}</b></span></div>
+          ${aiHtml}
+          <div class="c360-capa-th">소재별 부족</div>
+          <div style="max-height:36vh;overflow:auto"><table class="data-table" style="font-size:12.5px">
+            <thead><tr><th>소재</th><th>사업유형</th><th class="text-right">수요</th><th class="text-right">생산</th><th class="text-right">부족</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:18px">부족 소재 없음</td></tr>'}</tbody>
+          </table></div>`;
+    } catch (e) {
+      const box = document.getElementById('c360-capa-body');
+      if (box) box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--oci-red)">분석 실패: ${esc(e.message || e)}</div>`;
     }
   },
 
@@ -662,8 +719,8 @@ const Customer360Page = {
         <span style="color:var(--text-3)">→</span>
         <div class="flow-box"><div class="l">생산 가능</div><div class="v">${this._qty(f.capacity, f.unit)}</div></div>
         <span style="color:var(--text-3)">→</span>
-        <div class="flow-box" style="background:${f.gap > 0 ? 'rgba(230,51,41,.08)' : 'var(--surface-2)'}">
-          <div class="l" style="${f.gap > 0 ? 'color:var(--oci-red)' : ''}">부족 CAPA</div>
+        <div class="flow-box${f.gap > 0 ? ' c360-capa-link' : ''}" ${f.gap > 0 ? 'id="c360-capa-box" title="AI 진단·대책 보기"' : ''} style="background:${f.gap > 0 ? 'rgba(230,51,41,.08)' : 'var(--surface-2)'}">
+          <div class="l" style="${f.gap > 0 ? 'color:var(--oci-red)' : ''}">부족 CAPA${f.gap > 0 ? ' <span class="c360-capa-ai">AI 진단 ›</span>' : ''}</div>
           <div class="v" style="${f.gap > 0 ? 'color:var(--oci-red)' : ''}">${this._qty(f.gap, f.unit)}</div>
         </div>
         <span style="color:var(--text-3)">→</span>

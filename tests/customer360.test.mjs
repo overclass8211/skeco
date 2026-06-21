@@ -132,6 +132,18 @@ describe('Customer360 (MVP) API', () => {
     expect(mpAction).toHaveProperty('owner');
   });
 
+  it('POST /:id/capa-diagnose — 부족 흐름 + 소재별 (ai는 선택)', async () => {
+    const res = await api().post(`/api/customer360/${custId}/capa-diagnose`).set('X-User-Id', '1').send({});
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    expect(d.flow).toHaveProperty('gap');
+    expect(Array.isArray(d.materials)).toBe(true);
+    // 부족 소재(capacity<demand)가 1건 이상 포착
+    expect(d.materials.length).toBeGreaterThanOrEqual(1);
+    expect(d.materials[0]).toHaveProperty('gap');
+    expect(d).toHaveProperty('ai'); // AI 키 존재(키 없으면 null)
+  });
+
   it('PUT /materials/:id — 단계 수정', async () => {
     const res = await api()
       .put(`/api/customer360/materials/${matId}`)
