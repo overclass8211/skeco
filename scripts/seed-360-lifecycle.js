@@ -315,6 +315,28 @@ async function maybeQuality(conn, lead, matId, idx) {
       counts.docs += 1;
     }
 
+    // ── 품질 문서(MSDS) 데모: 만료/임박/유효가 섞이도록 분산 (멱등) ──
+    //   문서 만료 추적 화면 데모용. doc_no = MSDS-M{id} 로 CoA 와 구분.
+    const MSDS_SPREAD = [
+      { issued: '2024-05-01', valid: '2026-05-01' }, // 만료 (과거)
+      { issued: '2024-07-08', valid: '2026-07-08' }, // 임박 (≤30일)
+      { issued: '2026-04-01', valid: '2028-04-01' }, // 유효 (여유)
+    ];
+    for (let i = 0; i < docMats.length; i++) {
+      const m = docMats[i];
+      const docNo = `MSDS-M${m.id}`;
+      const [[ex]] = await conn.query('SELECT COUNT(*) AS n FROM quality_documents WHERE doc_no=?', [docNo]);
+      if (ex.n > 0) continue;
+      const sp = MSDS_SPREAD[i % MSDS_SPREAD.length];
+      await conn.query(
+        `INSERT INTO quality_documents
+           (customer_id, customer_material_id, doc_type, doc_no, issued_at, valid_until, note)
+         VALUES (?,?, 'MSDS', ?, ?, ?, ?)`,
+        [m.customer_id, m.id, docNo, sp.issued, sp.valid, `${m.material_name.split(' · ')[0]} 물질안전보건자료`]
+      );
+      counts.docs += 1;
+    }
+
     // ── 소속 고객(동일 회사명 담당자) 보강: 회사당 총 3명(추가 2명) — 멱등 ──
     counts.members = 0;
     const ADD_CONTACTS = [

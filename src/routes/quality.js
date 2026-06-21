@@ -14,6 +14,18 @@ const { getRoleInfo } = require('../services/authService');
 const TYPES = ['VOC', 'NCR', 'Audit', 'PCN', 'CoA'];
 const SEVERITIES = ['high', 'medium', 'low'];
 const STATUSES = ['open', 'in_progress', 'resolved'];
+const DOC_TYPES = ['CoA', 'MSDS', 'CoC', '기타'];
+
+// SLA 정책 — 심각도별 처리 기한(일). 스키마 변경 없이 opened_at + 일수로 산출.
+const SLA_DAYS = { high: 7, medium: 14, low: 30 };
+// SQL: 케이스 SLA 기한 = opened_at + 심각도별 일수 (qc 별칭 기준)
+const SLA_DUE_SQL =
+  "DATE_ADD(qc.opened_at, INTERVAL CASE qc.severity WHEN 'high' THEN 7 WHEN 'low' THEN 30 ELSE 14 END DAY)";
+// SQL: 별칭 없는 quality_cases 직접 집계용
+const SLA_DUE_RAW =
+  "DATE_ADD(opened_at, INTERVAL CASE severity WHEN 'high' THEN 7 WHEN 'low' THEN 30 ELSE 14 END DAY)";
+// 문서 만료 임박 기준(일)
+const DOC_SOON_DAYS = 30;
 
 function handleError(res, err) {
   console.error('[quality]', err);
@@ -28,7 +40,7 @@ function userLevel(req) {
 // ── 전사 목록 (필터·정렬·에이징) ─────────────────────────────
 router.get('/cases', requireLevel(1), async (req, res) => {
   try {
-    const { status, type, severity, customer_id, owner_id, q, from, to, mine } = req.query;
+    const { status, type, severity, customer_id, owner_id, q, from, to, mine, sla } = req.query;
     const where = [];
     const params = [];
     if (status === 'unresolved') where.push("qc.status <> 'resolved'");
@@ -71,12 +83,25 @@ router.get('/cases', requireLevel(1), async (req, res) => {
       where.push('qc.opened_at <= ?');
       params.push(to);
     }
+    // SLA 초과(미해결 + 기한 경과)만 보기
+    if (sla === 'overdue') {
+      where.push(
+        `qc.status <> 'resolved' AND qc.opened_at IS NOT NULL AND CURDATE() > ${SLA_DUE_SQL}`
+      );
+    }
     const wsql = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const [rows] = await pool.query(
       `SELECT qc.id, qc.case_no, qc.customer_id, c.name AS customer_name,
               qc.customer_material_id, m.material_name, qc.type, qc.severity, qc.status,
-              qc.title, qc.opened_at, qc.resolved_at, qc.owner_id, t.name AS owner_name,
-              DATEDIFF(COALESCE(qc.resolved_at, CURDATE()), qc.opened_at) AS age_days
+              qc.title,
+              DATE_FORMAT(qc.opened_at, '%Y-%m-%d') AS opened_at,
+              DATE_FORMAT(qc.resolved_at, '%Y-%m-%d') AS resolved_at,
+              qc.owner_id, t.name AS owner_name,
+              DATEDIFF(COALESCE(qc.resolved_at, CURDATE()), qc.opened_at) AS age_days,
+              DATE_FORMAT(${SLA_DUE_SQL}, '%Y-%m-%d') AS due_date,
+              CASE WHEN qc.status <> 'resolved' AND qc.opened_at IS NOT NULL
+                   THEN DATEDIFF(${SLA_DUE_SQL}, CURDATE()) END AS days_left,
+              (qc.status <> 'resolved' AND qc.opened_at IS NOT NULL AND CURDATE() > ${SLA_DUE_SQL}) AS overdue
          FROM quality_cases qc
          JOIN customers c ON c.id = qc.customer_id
          LEFT JOIN customer_materials m ON m.id = qc.customer_material_id
@@ -105,9 +130,18 @@ router.get('/summary', requireLevel(1), async (req, res) => {
          SUM(status <> 'resolved' AND severity = 'high') AS high_open,
          SUM(status = 'in_progress') AS in_progress,
          SUM(opened_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS new_this_month,
+         SUM(status <> 'resolved' AND opened_at IS NOT NULL AND CURDATE() > ${SLA_DUE_RAW}) AS overdue,
          ROUND(AVG(CASE WHEN status = 'resolved' AND resolved_at IS NOT NULL
                         THEN DATEDIFF(resolved_at, opened_at) END), 1) AS avg_resolve_days
        FROM quality_cases`
+    );
+    // 문서(CoA/MSDS/CoC) 만료 현황 — 별도 테이블
+    const [[d]] = await pool.query(
+      `SELECT
+         SUM(valid_until IS NOT NULL AND valid_until < CURDATE()) AS doc_expired,
+         SUM(valid_until IS NOT NULL AND valid_until >= CURDATE()
+             AND valid_until <= DATE_ADD(CURDATE(), INTERVAL ${DOC_SOON_DAYS} DAY)) AS doc_expiring
+       FROM quality_documents`
     );
     res.json({
       success: true,
@@ -116,6 +150,11 @@ router.get('/summary', requireLevel(1), async (req, res) => {
         high_open: Number(k.high_open) || 0,
         in_progress: Number(k.in_progress) || 0,
         new_this_month: Number(k.new_this_month) || 0,
+        overdue: Number(k.overdue) || 0,
+        doc_expired: Number(d.doc_expired) || 0,
+        doc_expiring: Number(d.doc_expiring) || 0,
+        sla_policy: SLA_DAYS,
+        doc_soon_days: DOC_SOON_DAYS,
         avg_resolve_days:
           k.avg_resolve_days === null || k.avg_resolve_days === undefined
             ? null
@@ -205,6 +244,58 @@ router.put('/cases/:id', requireLevel(1), async (req, res) => {
     vals.push(id);
     await pool.query(`UPDATE quality_cases SET ${fields.join(', ')} WHERE id=?`, vals);
     res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 전사 문서 만료 현황 (CoA/MSDS/CoC) ───────────────────────
+//   원천: quality_documents.valid_until. 상태: expired / expiring(≤30일) / valid.
+router.get('/documents', requireLevel(1), async (req, res) => {
+  try {
+    const { doc_type, customer_id, q, status } = req.query;
+    const where = [];
+    const params = [];
+    if (DOC_TYPES.includes(doc_type)) {
+      where.push('d.doc_type = ?');
+      params.push(doc_type);
+    }
+    if (customer_id) {
+      where.push('d.customer_id = ?');
+      params.push(Number(customer_id));
+    }
+    if (q) {
+      where.push('(d.doc_no LIKE ? OR m.material_name LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    // 상태 필터 — valid_until 기준
+    if (status === 'expired') where.push('d.valid_until IS NOT NULL AND d.valid_until < CURDATE()');
+    else if (status === 'expiring')
+      where.push(
+        `d.valid_until IS NOT NULL AND d.valid_until >= CURDATE() AND d.valid_until <= DATE_ADD(CURDATE(), INTERVAL ${DOC_SOON_DAYS} DAY)`
+      );
+    else if (status === 'attention')
+      where.push(
+        `d.valid_until IS NOT NULL AND d.valid_until <= DATE_ADD(CURDATE(), INTERVAL ${DOC_SOON_DAYS} DAY)`
+      );
+    const wsql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const [rows] = await pool.query(
+      `SELECT d.id, d.customer_id, c.name AS customer_name,
+              d.customer_material_id, m.material_name,
+              d.doc_type, d.doc_no,
+              DATE_FORMAT(d.issued_at, '%Y-%m-%d') AS issued_at,
+              DATE_FORMAT(d.valid_until, '%Y-%m-%d') AS valid_until,
+              d.file_url, d.note,
+              DATEDIFF(d.valid_until, CURDATE()) AS days_left
+         FROM quality_documents d
+         JOIN customers c ON c.id = d.customer_id
+         LEFT JOIN customer_materials m ON m.id = d.customer_material_id
+         ${wsql}
+        ORDER BY (d.valid_until IS NULL) ASC, d.valid_until ASC, d.id DESC
+        LIMIT 500`,
+      params
+    );
+    res.json({ success: true, data: rows, soon_days: DOC_SOON_DAYS });
   } catch (err) {
     handleError(res, err);
   }
