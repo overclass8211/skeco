@@ -206,9 +206,15 @@ const Customer360Page = {
         .c360-capa-link{cursor:pointer;transition:box-shadow .12s}
         .c360-capa-link:hover{box-shadow:0 2px 10px rgba(230,51,41,.15)}
         .c360-capa-ai{font-size:10px;font-weight:700;color:var(--oci-red)}
-        /* CAPA 진단 모달 */
-        .c360-capa-flow{font-size:13px;color:var(--text-2);background:var(--surface-2,rgba(0,0,0,.03));border-radius:8px;padding:9px 12px;margin-bottom:12px}
-        .c360-capa-flow b{color:var(--text-1)}
+        /* CAPA 진단 모달 (좌측 정렬·경영진 스캔용) */
+        #c360-capa-body{text-align:left}
+        #c360-capa-body .data-table th.text-right{text-align:right}
+        .c360-capa-sum{display:flex;gap:10px;margin-bottom:6px}
+        .c360-capa-stat{flex:1;border:1px solid var(--border);border-radius:9px;padding:10px 14px;background:var(--surface)}
+        .c360-capa-stat .l{display:block;font-size:11.5px;color:var(--text-3);margin-bottom:3px}
+        .c360-capa-stat .v{font-size:21px;font-weight:800;color:var(--text-1);font-variant-numeric:tabular-nums}
+        .c360-capa-stat .v.risk{color:var(--oci-red)}
+        .c360-capa-cap{font-size:11px;color:var(--text-3);margin-bottom:14px}
         .c360-capa-ai-box{background:linear-gradient(135deg,rgba(230,51,41,.05),rgba(245,156,0,.04));border-radius:8px;padding:12px 14px;margin-bottom:14px}
         .c360-capa-diag{font-size:13px;line-height:1.6;color:var(--text-1)}
         .c360-capa-h{font-size:11px;font-weight:700;color:var(--text-3);margin-top:10px}
@@ -660,15 +666,21 @@ const Customer360Page = {
           </div>`
         : '<div style="font-size:12.5px;color:var(--text-3);padding:8px 0">AI 진단을 생성하지 못했습니다 (아래 수치 참조).</div>';
       const box = document.getElementById('c360-capa-body');
-      if (box)
+      if (box) {
+        box.removeAttribute('style'); // 로딩 div 의 가운데정렬·패딩 제거 → 좌측 정렬 본문
         box.innerHTML = `
-          <div class="c360-capa-flow">CAPA 부족 소재 <b>${f.short_count ?? (d.materials || []).length}개</b> · <span style="color:var(--oci-red)">부족 매출 리스크 <b>${this._won(f.risk_revenue || 0)}</b></span> <span style="color:var(--text-3)">(소재별 단위 상이 → 수량 합산 대신 건수·금액 기준)</span></div>
+          <div class="c360-capa-sum">
+            <div class="c360-capa-stat"><span class="l">CAPA 부족 소재</span><span class="v">${f.short_count ?? (d.materials || []).length}개</span></div>
+            <div class="c360-capa-stat"><span class="l">부족 매출 리스크</span><span class="v risk">${this._won(f.risk_revenue || 0)}</span></div>
+          </div>
+          <div class="c360-capa-cap">소재별 단위가 달라 수량 합산 대신 건수·금액 기준으로 집계</div>
           ${aiHtml}
           <div class="c360-capa-th">소재별 부족</div>
-          <div style="max-height:36vh;overflow:auto"><table class="data-table" style="font-size:12.5px">
+          <div style="max-height:36vh;overflow:auto"><table class="data-table c360-capa-tbl" style="font-size:12.5px">
             <thead><tr><th>소재</th><th>사업유형</th><th class="text-right">수요</th><th class="text-right">생산</th><th class="text-right">부족</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:18px">부족 소재 없음</td></tr>'}</tbody>
           </table></div>`;
+      }
     } catch (e) {
       const box = document.getElementById('c360-capa-body');
       if (box) box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--oci-red)">분석 실패: ${esc(e.message || e)}</div>`;
