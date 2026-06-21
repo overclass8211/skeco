@@ -56,6 +56,9 @@ const App = {
     // 사이드바 메뉴를 RBAC/메뉴설정 적용 전까지 숨김 — 비활성 메뉴 깜박임 방지
     document.body.classList.add('menu-pending');
 
+    // 안전장치: init 중 예외로 첫 렌더에 못 닿아도 스플래시가 영구히 남지 않도록 강제 해제
+    this._bootFallback = setTimeout(() => this._hideBoot(), 10000);
+
     // ── 인증 확인 ──────────────────────────────────────────
     await this.checkAuth();
 
@@ -134,6 +137,9 @@ const App = {
     await this.navigate(startPage, { replace: true });
     // 딥링크/새로고침 — URL 의 상세 파라미터(#page/id/tab) 복원
     this._restoreRoute();
+
+    // 첫 페이지 렌더까지 끝났으므로 부트 스플래시 제거 (인증→메뉴→렌더 깜박임 차단 종료)
+    this._hideBoot();
 
     // v6.0.0: PWA shortcut 후속 처리 — 모달 자동 오픈 + URL 정리
     if (pwaAction === 'scan-card') {
@@ -281,6 +287,19 @@ const App = {
         this.style.height = Math.min(this.scrollHeight, 120) + 'px';
       });
     }
+  },
+
+  // 부트 스플래시 제거 — body.app-ready 로 페이드아웃 후 DOM 제거 (중복 호출 안전)
+  _hideBoot() {
+    if (this._bootHidden) return;
+    this._bootHidden = true;
+    if (this._bootFallback) {
+      clearTimeout(this._bootFallback);
+      this._bootFallback = null;
+    }
+    document.body.classList.add('app-ready');
+    const el = document.getElementById('app-boot');
+    if (el) setTimeout(() => el.remove(), 300); // 페이드(.25s) 후 DOM 제거
   },
 
   // ── 인증 + RBAC ───────────────────────────────────────────

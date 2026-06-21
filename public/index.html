@@ -37,6 +37,12 @@
 </head>
 <body>
 
+<!-- 부트 스플래시 — 인증·메뉴·첫 렌더 완료 전까지 빈 화면/요소 팝인 깜박임 차단.
+     body.app-ready 가 붙으면 페이드아웃 (app.js init 종료 시점). -->
+<div id="app-boot" aria-hidden="true">
+  <div class="app-boot-spinner"></div>
+</div>
+
 <!-- ============== SIDEBAR ============== -->
 <aside class="sidebar">
   <div class="sidebar-logo" data-action="navigate" data-page="exec360" title="임원 360뷰 홈">

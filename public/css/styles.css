@@ -138,6 +138,23 @@ a { text-decoration: none; color: inherit; }
 }
 /* RBAC/메뉴설정 적용 전 사이드바 숨김 — 비활성 메뉴 깜박임 방지 (init 완료 시 해제) */
 body.menu-pending .sidebar-nav { visibility: hidden; }
+
+/* 부트 스플래시 — init(인증→메뉴→첫 렌더) 완료 전까지 전체를 덮어 깜박임 차단 */
+#app-boot {
+  position: fixed; inset: 0; z-index: 99999;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  transition: opacity .25s ease;
+}
+body.app-ready #app-boot { opacity: 0; pointer-events: none; }
+.app-boot-spinner {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 3px solid var(--brand-light);
+  border-top-color: var(--brand);
+  animation: appBootSpin .7s linear infinite;
+}
+@keyframes appBootSpin { to { transform: rotate(360deg); } }
+
 .nav-section { padding: 6px 0; }
 .nav-section-title {
   font-size: 10px;
