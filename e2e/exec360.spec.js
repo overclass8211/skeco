@@ -46,6 +46,14 @@ test.beforeEach(async ({ page }) => {
     const data = KPI_LISTS[kpi] || { kpi, total: 0, items: [] };
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
   });
+  await page.route('**/api/customer360/health-config', route => {
+    const config = {
+      base: 60,
+      weights: { won: 7, wonMax: 20, active: 2, activeMax: 10, contract: 8, overdue: 8, support: 5, quality: 5, capa: 8 },
+      thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 },
+    };
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { config, defaults: config } }) });
+  });
 });
 
 test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async ({ page }) => {
@@ -82,4 +90,19 @@ test('임원 360 요약 — KPI 카드 클릭 시 근거 모달', async ({ page 
   await page.locator('.ex-kpi[data-kpi="quality"]').click();
   await expect(page.locator('#modal-overlay')).toContainText('품질 오픈');
   await expect(page.locator('#modal-overlay')).toContainText('순도 편차');
+});
+
+test('임원 360 요약 — 평균 Health 모달의 기준 패널 + 편집 진입', async ({ page }) => {
+  await page.goto('/#exec360');
+  await page.waitForSelector('#ex-body .ex-kpi[data-kpi="health"]', { timeout: 15000 });
+
+  await page.locator('.ex-kpi[data-kpi="health"]').click();
+  // 산식 기준 패널 + 등급 라인 노출
+  await expect(page.locator('#ex-health-cfg')).toContainText('등급 산식 기준');
+  await expect(page.locator('#ex-health-cfg')).toContainText('A+ ≥90');
+
+  // admin → '기준 설정' 편집 진입 → 입력 폼 노출
+  await page.locator('#ex-hcfg-edit').click();
+  await expect(page.locator('#ex-health-cfg [data-hf="base"]')).toBeVisible();
+  await expect(page.locator('#ex-health-cfg [data-hf="t_C"]')).toBeVisible();
 });

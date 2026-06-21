@@ -89,6 +89,8 @@ router.get('/exec-brief', execBriefGet);
 router.post('/exec-brief', execBriefPost);
 router.post('/exec-stage/:stage', execStageAnalyze);
 router.get('/exec-kpi/:kpi', execKpiList); // KPI 근거 전체 목록 — /:id 보다 먼저
+router.get('/health-config', healthConfigGet); // Health 기준 조회 (전원)
+router.put('/health-config', requireLevel(2), healthConfigSave); // Health 기준 저장 (team_lead+)
 
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
@@ -360,15 +362,18 @@ router.get('/:id', validateId, async (req, res) => {
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
 
     // 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
-    const { score, grade } = computeHealth({
-      won: wonCount,
-      active: activeCount,
-      contractAmt,
-      overdue,
-      openSupport,
-      openQuality: openQ,
-      capaShort: lifecycle.demand_flow.gap > 0,
-    });
+    const { score, grade } = computeHealth(
+      {
+        won: wonCount,
+        active: activeCount,
+        contractAmt,
+        overdue,
+        openSupport,
+        openQuality: openQ,
+        capaShort: lifecycle.demand_flow.gap > 0,
+      },
+      await getHealthConfig()
+    );
 
     // ── 예상매출 월/분기/연 분해 (demand_forecasts 기준) ──
     const [brkRows] = await pool.query(
@@ -935,33 +940,118 @@ router.get('/forecast/versions/:vid', async (req, res) => {
 });
 
 // ── 임원 360 요약 (전사 집계) ────────────────────────────────
-function healthGrade(score) {
-  return score >= 90
+// Account Health 산식 설정 — 사용자 재정의 가능(system_settings 저장, 없으면 기본값)
+const HEALTH_CFG_KEY = 'health_config';
+const DEFAULT_HEALTH_CONFIG = {
+  base: 60, // 기준점
+  weights: {
+    won: 7, // 수주 건당 가점
+    wonMax: 20, // 수주 가점 상한
+    active: 2, // 진행 딜 건당 가점
+    activeMax: 10, // 진행 가점 상한
+    contract: 8, // 계약 보유 가점
+    overdue: 8, // 연체 수금 건당 감점
+    support: 5, // 미해결 지원(CS) 건당 감점
+    quality: 5, // 미해결 품질(VOC/NCR) 건당 감점
+    capa: 8, // CAPA 부족 감점
+  },
+  thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 }, // 미만은 D
+};
+const HEALTH_WEIGHT_KEYS = [
+  'won',
+  'wonMax',
+  'active',
+  'activeMax',
+  'contract',
+  'overdue',
+  'support',
+  'quality',
+  'capa',
+];
+const HEALTH_GRADE_ORDER = ['A+', 'A', 'B+', 'B', 'C'];
+
+// 저장값(부분) + 기본값 병합 — 누락 키 폴백
+function mergeHealthConfig(saved) {
+  const s = saved && typeof saved === 'object' ? saved : {};
+  return {
+    base: Number.isFinite(s.base) ? s.base : DEFAULT_HEALTH_CONFIG.base,
+    weights: { ...DEFAULT_HEALTH_CONFIG.weights, ...(s.weights || {}) },
+    thresholds: { ...DEFAULT_HEALTH_CONFIG.thresholds, ...(s.thresholds || {}) },
+  };
+}
+
+let _healthCfg = null;
+let _healthCfgAt = 0;
+async function getHealthConfig(force) {
+  if (!force && _healthCfg && Date.now() - _healthCfgAt < 30000) return _healthCfg;
+  let saved = {};
+  try {
+    const [[row]] = await pool.query(
+      'SELECT setting_value FROM system_settings WHERE setting_key=?',
+      [HEALTH_CFG_KEY]
+    );
+    if (row && row.setting_value) saved = JSON.parse(row.setting_value);
+  } catch (_) {
+    /* 파싱/조회 실패 시 기본값 */
+  }
+  _healthCfg = mergeHealthConfig(saved);
+  _healthCfgAt = Date.now();
+  return _healthCfg;
+}
+
+// 입력 검증 — 가중치/기준점 0~100, 임계값 A+>A>B+>B>C 단조감소
+function validateHealthConfig(input) {
+  const cfg = mergeHealthConfig(input);
+  const errs = [];
+  const ok = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
+  if (!ok(cfg.base)) errs.push('기준점은 0~100 숫자여야 합니다');
+  for (const k of HEALTH_WEIGHT_KEYS) {
+    if (!ok(cfg.weights[k])) errs.push(`가중치 '${k}'는 0~100 숫자여야 합니다`);
+  }
+  const tv = HEALTH_GRADE_ORDER.map(g => cfg.thresholds[g]);
+  if (tv.some(v => !ok(v))) {
+    errs.push('등급 임계값은 0~100 숫자여야 합니다');
+  } else {
+    for (let i = 1; i < tv.length; i++) {
+      if (tv[i] >= tv[i - 1]) {
+        errs.push('등급 임계값은 A+ > A > B+ > B > C 순으로 낮아져야 합니다');
+        break;
+      }
+    }
+  }
+  return { cfg, errs };
+}
+
+function healthGrade(score, thr) {
+  const t = thr || DEFAULT_HEALTH_CONFIG.thresholds;
+  return score >= t['A+']
     ? 'A+'
-    : score >= 80
+    : score >= t.A
       ? 'A'
-      : score >= 70
+      : score >= t['B+']
         ? 'B+'
-        : score >= 60
+        : score >= t.B
           ? 'B'
-          : score >= 45
+          : score >= t.C
             ? 'C'
             : 'D';
 }
 
 // 단일 Account Health 산식 (상세뷰·임원뷰 공용) — 등급 불일치 방지
-//   60 기준 + 수주/진행 가점, 계약 보유 가점, 연체/지원/품질/CAPA 감점
-function computeHealth(sig) {
-  let s = 60;
-  s += Math.min(20, (Number(sig.won) || 0) * 7); // 수주 실적
-  s += Math.min(10, (Number(sig.active) || 0) * 2); // 진행 파이프라인
-  if ((Number(sig.contractAmt) || 0) > 0) s += 8; // 계약 보유
-  s -= (Number(sig.overdue) || 0) * 8; // 연체 수금
-  s -= (Number(sig.openSupport) || 0) * 5; // 미해결 지원
-  s -= (Number(sig.openQuality) || 0) * 5; // 미해결 품질
-  if (sig.capaShort) s -= 8; // CAPA 부족
+//   기준점 + 수주/진행 가점, 계약 보유 가점, 연체/지원/품질/CAPA 감점 (설정값 적용)
+function computeHealth(sig, cfg) {
+  const c = cfg || DEFAULT_HEALTH_CONFIG;
+  const w = c.weights;
+  let s = Number(c.base) || 0;
+  s += Math.min(w.wonMax, (Number(sig.won) || 0) * w.won); // 수주 실적
+  s += Math.min(w.activeMax, (Number(sig.active) || 0) * w.active); // 진행 파이프라인
+  if ((Number(sig.contractAmt) || 0) > 0) s += w.contract; // 계약 보유
+  s -= (Number(sig.overdue) || 0) * w.overdue; // 연체 수금
+  s -= (Number(sig.openSupport) || 0) * w.support; // 미해결 지원
+  s -= (Number(sig.openQuality) || 0) * w.quality; // 미해결 품질
+  if (sig.capaShort) s -= w.capa; // CAPA 부족
   s = Math.max(0, Math.min(100, s));
-  return { score: s, grade: healthGrade(s) };
+  return { score: s, grade: healthGrade(s, c.thresholds) };
 }
 
 // 임원뷰 Top 계정용 — 상세뷰와 '동일한' 신호를 수집해 동일 산식 적용
@@ -1113,10 +1203,11 @@ async function buildExecSummaryData() {
   const winRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null;
 
   // Top 계정 Health — 상세뷰와 동일한 신호·산식으로 계산해 등급 일치 보장
+  const healthCfg = await getHealthConfig();
   const topAccounts = await Promise.all(
     acctRows.map(async a => {
       const sig = await gatherHealthSignals(a.id, a.name);
-      const { grade } = computeHealth(sig);
+      const { grade } = computeHealth(sig, healthCfg);
       const risks = [];
       if (sig.capaShort) risks.push({ level: 'medium', label: 'CAPA 부족' });
       if (sig.openQuality > 0) risks.push({ level: 'high', label: `품질 ${sig.openQuality}` });
@@ -1161,7 +1252,7 @@ async function buildExecSummaryData() {
       win_rate: winRate, // 마감 승률 = won/(won+lost)
       won_deals: won,
       lost_deals: lost,
-      avg_health: healthGrade(avgScore),
+      avg_health: healthGrade(avgScore, healthCfg.thresholds),
       open_quality: Number(qAgg.n) || 0,
       capa_short_accounts: capaShortIds.size,
     },
@@ -1463,10 +1554,11 @@ async function execKpiList(req, res) {
           ORDER BY agg.weighted DESC
           LIMIT 80`
       );
+      const healthCfg = await getHealthConfig();
       items = await Promise.all(
         rows.map(async a => {
           const sig = await gatherHealthSignals(a.id, a.name);
-          const { grade, score } = computeHealth(sig);
+          const { grade, score } = computeHealth(sig, healthCfg);
           return {
             name: a.name,
             grade,
@@ -1518,6 +1610,33 @@ async function execKpiList(req, res) {
     }
 
     res.json({ success: true, data: { kpi, total: items.length, items } });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+// ── Account Health 기준 설정 — 조회/저장 ─────────────────────
+async function healthConfigGet(req, res) {
+  try {
+    const config = await getHealthConfig(true);
+    res.json({ success: true, data: { config, defaults: DEFAULT_HEALTH_CONFIG } });
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+async function healthConfigSave(req, res) {
+  try {
+    const { cfg, errs } = validateHealthConfig(req.body || {});
+    if (errs.length) return res.status(400).json({ success: false, error: errs.join(' / ') });
+    await pool.query(
+      `INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`,
+      [HEALTH_CFG_KEY, JSON.stringify(cfg)]
+    );
+    _healthCfg = cfg; // 캐시 즉시 반영
+    _healthCfgAt = Date.now();
+    res.json({ success: true, data: { config: cfg } });
   } catch (err) {
     handleError(res, err);
   }

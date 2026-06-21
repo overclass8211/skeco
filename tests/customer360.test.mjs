@@ -52,6 +52,8 @@ afterAll(async () => {
   }
   if (leadId) await pool.query('DELETE FROM leads WHERE id=?', [leadId]);
   if (custId) await pool.query('DELETE FROM customers WHERE id=?', [custId]);
+  // Health 기준 설정 원복(테스트가 저장한 값 제거 → 기본값 복귀)
+  await pool.query("DELETE FROM system_settings WHERE setting_key='health_config'");
 });
 
 describe('Customer360 (MVP) API', () => {
@@ -337,5 +339,51 @@ describe('Customer360 (MVP) API', () => {
     const res = await api().get(`/api/customer360/${custId}/quality`).set('X-User-Id', '1');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('detail_restricted');
+  });
+
+  // ── Health 기준 설정 (사용자 재정의) ──
+  it('GET /health-config — 현재 기준 + 기본값 구조', async () => {
+    const res = await api().get('/api/customer360/health-config').set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    expect(d.config).toHaveProperty('base');
+    expect(d.config.weights).toHaveProperty('won');
+    expect(d.config.thresholds).toHaveProperty('A+');
+    expect(d.defaults.base).toBe(60);
+  });
+
+  it('PUT /health-config — 잘못된 임계값(단조감소 위반) 400', async () => {
+    const res = await api()
+      .put('/api/customer360/health-config')
+      .set('X-User-Id', '1')
+      .send({ thresholds: { 'A+': 70, A: 80, 'B+': 60, B: 50, C: 40 } });
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /health-config — 범위 밖 가중치 400', async () => {
+    const res = await api()
+      .put('/api/customer360/health-config')
+      .set('X-User-Id', '1')
+      .send({ weights: { capa: -5 } });
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /health-config — 유효 저장 200 + GET 반영 + 등급 변화', async () => {
+    // 기준점을 크게 올려 등급 상향 → 저장 반영 확인
+    const save = await api()
+      .put('/api/customer360/health-config')
+      .set('X-User-Id', '1')
+      .send({
+        base: 85,
+        weights: { won: 7, wonMax: 20, active: 2, activeMax: 10, contract: 8, overdue: 8, support: 5, quality: 5, capa: 8 },
+        thresholds: { 'A+': 90, A: 80, 'B+': 70, B: 60, C: 45 },
+      });
+    expect(save.status).toBe(200);
+    expect(save.body.data.config.base).toBe(85);
+    const get = await api().get('/api/customer360/health-config').set('X-User-Id', '1');
+    expect(get.body.data.config.base).toBe(85);
+    // 단일 산식 적용 — 상세뷰 등급이 상향(기준점 85 → 최소 B 이상)
+    const det = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    expect(['A+', 'A', 'B+', 'B']).toContain(det.body.data.header.health_grade);
   });
 });

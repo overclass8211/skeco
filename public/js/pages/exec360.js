@@ -42,6 +42,21 @@ const Exec360Page = {
         .ex-kpi-grades{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
         .ex-kpi-grade{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-2)}
         .ex-kpi-grade .gr{width:24px;height:24px;border-radius:6px;font-size:11px}
+        /* Health 기준 패널 */
+        .ex-hcfg{border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:14px;background:var(--surface-2,rgba(0,0,0,.015))}
+        .ex-hcfg-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+        .ex-hcfg-h .ex-stage-th{margin:0}
+        .ex-hcfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 14px;font-size:12px;color:var(--text-2)}
+        .ex-hcfg-grid b{color:var(--text-1)}
+        .ex-hcfg-th{font-size:11.5px;color:var(--text-3);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+        .ex-hcfg-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px 14px;margin:4px 0 10px}
+        .ex-hcfg-fld{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--text-2)}
+        .ex-hcfg-fld input{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);color:var(--text-1)}
+        .ex-hcfg-sec{font-size:11px;font-weight:700;color:var(--text-3);margin:6px 0 2px;grid-column:1/-1}
+        .ex-hcfg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+        .ex-hcfg-btn{font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-1);cursor:pointer}
+        .ex-hcfg-btn.primary{background:var(--oci-red);border-color:var(--oci-red);color:#fff}
+        .ex-hcfg-btn.primary:hover{filter:brightness(1.05)}
         .ex-sec{font-size:14px;font-weight:700;color:var(--text-1);margin:22px 0 12px}
         /* 단계 분포 — 가로 흐름(발굴→납품) + 비중 + 병목(최다) 강조 */
         /* AI 임원 브리핑 */
@@ -369,8 +384,10 @@ const Exec360Page = {
       body:
         `<div class="ex-kpi-lead">${m.lead}</div>` +
         `<div class="ex-kpi-formula">${m.formula}</div>` +
+        (kpi === 'health' ? '<div id="ex-health-cfg"></div>' : '') +
         `<div id="ex-kpi-list" style="padding:28px;text-align:center;color:var(--text-3)">전체 내역 불러오는 중…</div>`,
     });
+    if (kpi === 'health') this._loadHealthCriteria();
     try {
       const r = await API.get(`/customer360/exec-kpi/${kpi}`);
       const items = (r.data && r.data.items) || [];
@@ -491,6 +508,124 @@ const Exec360Page = {
       );
     }
     return '';
+  },
+
+  // ── Health 기준 패널 (조회 + team_lead+ 편집) ───────────────
+  _canEditHealth() {
+    const role = (typeof App !== 'undefined' && App.currentUser && App.currentUser.role) || '';
+    return ['team_lead', 'executive', 'admin', 'superadmin'].includes(role);
+  },
+  async _loadHealthCriteria() {
+    const box = document.getElementById('ex-health-cfg');
+    if (!box) return;
+    box.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:4px 0">기준 불러오는 중…</div>';
+    try {
+      const r = await API.get('/customer360/health-config');
+      this._healthCfg = r.data.config;
+      this._healthDefaults = r.data.defaults;
+      this._renderHealthCriteria();
+    } catch (_) {
+      box.innerHTML = '';
+    }
+  },
+  _renderHealthCriteria() {
+    const box = document.getElementById('ex-health-cfg');
+    if (!box) return;
+    const c = this._healthCfg;
+    const w = c.weights;
+    const t = c.thresholds;
+    box.innerHTML = `<div class="ex-hcfg">
+      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산식 기준</span>${this._canEditHealth() ? '<button class="ex-hcfg-btn" id="ex-hcfg-edit">기준 설정</button>' : ''}</div>
+      <div class="ex-hcfg-grid">
+        <div>기준점 <b>${c.base}</b></div>
+        <div>수주 <b>+${w.won}</b>/건 (최대 +${w.wonMax})</div>
+        <div>진행 딜 <b>+${w.active}</b>/건 (최대 +${w.activeMax})</div>
+        <div>계약 보유 <b>+${w.contract}</b></div>
+        <div>연체 수금 <b>−${w.overdue}</b>/건</div>
+        <div>미해결 지원 <b>−${w.support}</b>/건</div>
+        <div>미해결 품질 <b>−${w.quality}</b>/건</div>
+        <div>CAPA 부족 <b>−${w.capa}</b></div>
+      </div>
+      <div class="ex-hcfg-th">등급: A+ ≥${t['A+']} · A ≥${t.A} · B+ ≥${t['B+']} · B ≥${t.B} · C ≥${t.C} · D 그 미만 (점수 0~100)</div>
+    </div>`;
+    const editBtn = document.getElementById('ex-hcfg-edit');
+    if (editBtn) editBtn.addEventListener('click', () => this._renderHealthEdit());
+  },
+  _renderHealthEdit() {
+    const box = document.getElementById('ex-health-cfg');
+    if (!box) return;
+    const c = this._healthCfg;
+    const num = (id, label, val) =>
+      `<label class="ex-hcfg-fld">${label}<input type="number" step="1" min="0" max="100" data-hf="${id}" value="${val}"></label>`;
+    const w = c.weights;
+    const t = c.thresholds;
+    box.innerHTML = `<div class="ex-hcfg">
+      <div class="ex-hcfg-h"><span class="ex-stage-th">등급 산식 기준 편집</span></div>
+      <div class="ex-hcfg-form">
+        <div class="ex-hcfg-sec">기준점 · 가점/감점 가중치</div>
+        ${num('base', '기준점', c.base)}
+        ${num('won', '수주 +/건', w.won)}
+        ${num('wonMax', '수주 가점 상한', w.wonMax)}
+        ${num('active', '진행 +/건', w.active)}
+        ${num('activeMax', '진행 가점 상한', w.activeMax)}
+        ${num('contract', '계약 보유 +', w.contract)}
+        ${num('overdue', '연체 −/건', w.overdue)}
+        ${num('support', '미해결 지원 −/건', w.support)}
+        ${num('quality', '미해결 품질 −/건', w.quality)}
+        ${num('capa', 'CAPA 부족 −', w.capa)}
+        <div class="ex-hcfg-sec">등급 임계값 (A+ &gt; A &gt; B+ &gt; B &gt; C)</div>
+        ${num('t_Ap', 'A+ 이상', t['A+'])}
+        ${num('t_A', 'A 이상', t.A)}
+        ${num('t_Bp', 'B+ 이상', t['B+'])}
+        ${num('t_B', 'B 이상', t.B)}
+        ${num('t_C', 'C 이상', t.C)}
+      </div>
+      <div class="ex-hcfg-actions">
+        <button class="ex-hcfg-btn" id="ex-hcfg-reset">기본값 복원</button>
+        <button class="ex-hcfg-btn" id="ex-hcfg-cancel">취소</button>
+        <button class="ex-hcfg-btn primary" id="ex-hcfg-save">저장</button>
+      </div>
+    </div>`;
+    const get = id => box.querySelector(`[data-hf="${id}"]`);
+    const fill = cfg => {
+      const map = {
+        base: cfg.base, won: cfg.weights.won, wonMax: cfg.weights.wonMax, active: cfg.weights.active,
+        activeMax: cfg.weights.activeMax, contract: cfg.weights.contract, overdue: cfg.weights.overdue,
+        support: cfg.weights.support, quality: cfg.weights.quality, capa: cfg.weights.capa,
+        t_Ap: cfg.thresholds['A+'], t_A: cfg.thresholds.A, t_Bp: cfg.thresholds['B+'], t_B: cfg.thresholds.B, t_C: cfg.thresholds.C,
+      };
+      Object.keys(map).forEach(id => { const el = get(id); if (el) el.value = map[id]; });
+    };
+    box.querySelector('#ex-hcfg-cancel').addEventListener('click', () => this._renderHealthCriteria());
+    box.querySelector('#ex-hcfg-reset').addEventListener('click', () => fill(this._healthDefaults));
+    box.querySelector('#ex-hcfg-save').addEventListener('click', () => this._saveHealthCfg(get));
+  },
+  async _saveHealthCfg(get) {
+    const n = id => Number(get(id).value);
+    const payload = {
+      base: n('base'),
+      weights: {
+        won: n('won'), wonMax: n('wonMax'), active: n('active'), activeMax: n('activeMax'),
+        contract: n('contract'), overdue: n('overdue'), support: n('support'), quality: n('quality'), capa: n('capa'),
+      },
+      thresholds: { 'A+': n('t_Ap'), A: n('t_A'), 'B+': n('t_Bp'), B: n('t_B'), C: n('t_C') },
+    };
+    try {
+      await API.put('/customer360/health-config', payload);
+      if (typeof Toast !== 'undefined') Toast.success?.('Health 기준 저장 — 전체 등급에 반영됩니다');
+      // 전사 데이터 + 모달 재계산 (등급 일괄 반영)
+      Modal.close();
+      try {
+        const res = await API.get('/customer360/exec-summary');
+        this._data = res.data;
+        this._renderBody();
+      } catch (_) {
+        /* noop */
+      }
+      this._openKpiModal('health');
+    } catch (e) {
+      if (typeof Toast !== 'undefined') Toast.error?.('저장 실패: ' + (e.message || e));
+    }
   },
 
   // ── 임원 AI 브리핑 (전사 요약) ──────────────────────────────
