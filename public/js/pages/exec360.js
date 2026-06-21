@@ -68,6 +68,14 @@ const Exec360Page = {
         .ex-hcfg-adv{margin:2px 0 10px}
         .ex-hcfg-adv summary{font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;padding:4px 0}
         .ex-hcfg-adv[open] summary{margin-bottom:4px}
+        /* Health 계정별 등급 표 — 고정 레이아웃(열 어긋남 방지) */
+        .ex-htbl{table-layout:fixed;width:100%}
+        .ex-htbl col.ex-htcol-n{width:30%}
+        .ex-htbl col.ex-htcol-g{width:13%}
+        .ex-htbl th.ex-htc,.ex-htbl td.ex-htc{text-align:center;white-space:nowrap}
+        .ex-htbl th.ex-htn,.ex-htbl td.ex-htn{text-align:left}
+        .ex-htbl td.ex-htn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ex-htbl td.ex-htc{font-variant-numeric:tabular-nums}
         .ex-sec{font-size:14px;font-weight:700;color:var(--text-1);margin:22px 0 12px}
         /* 단계 분포 — 가로 흐름(발굴→납품) + 비중 + 병목(최다) 강조 */
         /* AI 임원 브리핑 */
@@ -472,23 +480,24 @@ const Exec360Page = {
       const sc = v => {
         const n = Number.isFinite(v) ? v : 0;
         const col = n >= 80 ? '#17A85A' : n >= 60 ? 'var(--text-1)' : n >= 40 ? '#b45309' : 'var(--oci-red)';
-        return `<td class="text-right" style="color:${col}">${n}</td>`;
+        return `<td class="ex-htc" style="color:${col}">${n}</td>`;
       };
       const rows = items
         .map(a => {
           const s = a.subs || {};
-          return `<tr><td><strong>${esc(a.name)}</strong></td><td><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="text-right"><b>${a.score}</b></td>${sc(s.commercial)}${sc(s.collection)}${sc(s.quality)}${sc(s.supply)}</tr>`;
+          return `<tr><td class="ex-htn"><strong>${esc(a.name)}</strong></td><td class="ex-htc"><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="ex-htc"><b>${a.score}</b></td>${sc(s.commercial)}${sc(s.collection)}${sc(s.quality)}${sc(s.supply)}</tr>`;
         })
         .join('');
+      const table = rows
+        ? `<div class="ex-kpi-scroll"><table class="data-table ex-htbl">
+            <colgroup><col class="ex-htcol-n"><col class="ex-htcol-g"><col><col><col><col><col></colgroup>
+            <thead><tr><th class="ex-htn">고객사</th><th class="ex-htc">Health</th><th class="ex-htc">종합</th><th class="ex-htc">거래</th><th class="ex-htc">회수</th><th class="ex-htc">품질</th><th class="ex-htc">공급</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`
+        : '<div style="text-align:center;color:var(--text-3);padding:20px">계정 없음</div>';
       return (
         `<div class="ex-stage-th">등급 분포</div><div class="ex-kpi-grades">${grades || '<span style="color:var(--text-3);font-size:12px">데이터 없음</span>'}</div>` +
         `<div class="ex-stage-th">계정별 등급 — 축별 점수(0~100)로 "왜 이 등급"이 한눈에</div>` +
-        scroll(
-          '<th>고객사</th><th>Health</th><th class="text-right">종합</th><th class="text-right">거래</th><th class="text-right">회수</th><th class="text-right">품질</th><th class="text-right">공급</th>',
-          rows,
-          '계정 없음',
-          7
-        ) +
+        table +
         foot('개 계정', total)
       );
     }
