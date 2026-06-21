@@ -23,9 +23,10 @@ const SUMMARY = {
       { id: 990777, name: 'E2E임원고객', weighted: 12800000000, active: 5, won: 1, health_grade: 'A-', risks: [{ level: 'high', label: '품질 1' }] },
     ],
     risks: {
-      capa_short: [{ name: 'SK하이닉스', gap: 6000 }],
-      quality: [{ name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }],
-      eval_delay: [{ name: 'Intel', material: 'SOC 하드마스크 · PoC' }],
+      capa_short: [{ customer_id: 501, name: 'SK하이닉스', gap: 6000 }],
+      quality: [{ customer_id: 502, name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }],
+      eval_delay: [{ customer_id: 503, name: 'Intel', material: 'SOC 하드마스크 · PoC' }],
+      misalign: [{ customer_id: 504, name: 'UMC', level: 'medium', label: '수주됐으나 소재 인증이 평가 이하 — 양산·납품 지연 리스크', count: 1 }],
     },
   },
 };
@@ -105,6 +106,21 @@ test('임원 360 요약 — KPI 모달 항목 클릭 시 드릴다운(고객360)
   // 목록 행(고객) 클릭 → 고객360 으로 이동
   await page.locator('#ex-kpi-list tr[data-cust]').first().click();
   await expect(page).toHaveURL(/#customer360/, { timeout: 5000 });
+});
+
+test('임원 360 요약 — 리스크 요약 항목 클릭 시 드릴다운', async ({ page }) => {
+  await page.goto('/#exec360');
+  await page.waitForSelector('#ex-body .ex-rcard', { timeout: 15000 });
+
+  // CAPA 리스크 항목 → 고객360
+  await page.locator('.ex-rcard .it[data-cust]').first().click();
+  await expect(page).toHaveURL(/#customer360/, { timeout: 5000 });
+
+  // 품질 리스크 항목 → 품질관리
+  await page.goto('/#exec360');
+  await page.waitForSelector('#ex-body .ex-rcard', { timeout: 15000 });
+  await page.locator('.ex-rcard .it[data-qcust]').first().click();
+  await expect(page).toHaveURL(/#quality/, { timeout: 5000 });
 });
 
 test('임원 360 요약 — 평균 Health 모달의 기준 패널 + 편집 진입', async ({ page }) => {

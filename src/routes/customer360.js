@@ -1307,7 +1307,7 @@ async function buildExecSummaryData() {
       // 평가 지연(평가/샘플 단계 소재)
       pool
         .query(
-          `SELECT c.name AS customer_name, m.material_name
+          `SELECT c.id AS customer_id, c.name AS customer_name, m.material_name
              FROM customer_materials m JOIN customers c ON c.id=m.customer_id
             WHERE m.lifecycle_stage IN ('evaluation','sample') AND m.status<>'closed'
             ORDER BY m.updated_at ASC LIMIT 6`
@@ -1397,7 +1397,7 @@ async function buildExecSummaryData() {
       .then(r => r[0]),
     pool
       .query(
-        `SELECT c.name AS name,
+        `SELECT c.name AS name, MIN(c.id) AS customer_id,
                 MAX(FIELD(m.lifecycle_stage,'discovery','sample','evaluation','specin','massprod','delivery')-1) AS life_rank
            FROM customer_materials m JOIN customers c ON c.id=m.customer_id
           WHERE m.status<>'closed'
@@ -1418,6 +1418,7 @@ async function buildExecSummaryData() {
     });
     if (flags.length) {
       misalign.push({
+        customer_id: lr.customer_id,
         name: lr.name,
         level: flags[0].level,
         label: flags[0].label,
@@ -1465,16 +1466,22 @@ async function buildExecSummaryData() {
     top_accounts: topAccounts,
     risks: {
       capa_short: capaShortList.map(x => ({
+        customer_id: x.customer_id,
         name: nameById.get(x.customer_id) || '-',
         gap: x.gap,
       })),
       quality: qTop.map(q => ({
+        customer_id: q.customer_id,
         name: q.customer_name,
         title: q.title,
         severity: q.severity,
         type: q.type,
       })),
-      eval_delay: evalRows.map(e => ({ name: e.customer_name, material: e.material_name })),
+      eval_delay: evalRows.map(e => ({
+        customer_id: e.customer_id,
+        name: e.customer_name,
+        material: e.material_name,
+      })),
       misalign,
     },
   };

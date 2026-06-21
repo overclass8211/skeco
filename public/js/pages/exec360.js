@@ -38,6 +38,9 @@ const Exec360Page = {
         .ex-kpi-lead span{font-size:12px;font-weight:500;color:var(--text-3);margin-left:7px}
         .ex-kpi-formula{font-size:12px;line-height:1.55;color:var(--text-2);background:rgba(22,100,229,.05);border-radius:7px;padding:9px 12px;margin-bottom:14px}
         .ex-kpi-scroll{max-height:42vh;overflow:auto}
+        /* 숫자 헤더 우측정렬 — .data-table th{text-align:left} 보다 우선(특이도) */
+        #ex-kpi-list .data-table th.text-right{text-align:right}
+        #ex-kpi-list .data-table th,#ex-kpi-list .data-table td{white-space:nowrap}
         .ex-kpi-note{font-size:11px;color:var(--text-3);margin-top:10px}
         .ex-kpi-grades{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
         .ex-kpi-grade{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-2)}
@@ -119,6 +122,8 @@ const Exec360Page = {
         .ex-rcard{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface)}
         .ex-rcard .h{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px;margin-bottom:8px;font-weight:600}
         .ex-rcard .it{font-size:12px;padding:3px 0;color:var(--text-1);border-top:1px solid var(--border)}
+        .ex-rcard .it-link{cursor:pointer;transition:color .12s}
+        .ex-rcard .it-link:hover{color:var(--oci-red);text-decoration:underline}
         .gr{display:inline-flex;width:28px;height:28px;border-radius:7px;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
         .pill{font-size:11px;padding:2px 8px;border-radius:6px;margin-left:3px}
         .p-d{background:rgba(230,51,41,.1);color:var(--oci-red)}
@@ -188,16 +193,26 @@ const Exec360Page = {
       </table>`;
 
     const r = d.risks;
+    // items: [{text, cust?, q?}] — cust→고객360, q→품질관리(고객 필터)
     const riskCard = (title, iconP, color, items, empty) => `<div class="ex-rcard">
         <div class="h" style="color:${color}">${this._svgIcon(iconP)} ${title}</div>
-        ${items.length ? items.map(t => `<div class="it">${esc(t)}</div>`).join('') : `<div class="it" style="color:var(--text-3)">${empty}</div>`}
+        ${
+          items.length
+            ? items
+                .map(
+                  it =>
+                    `<div class="it${it.cust || it.q ? ' it-link' : ''}"${it.cust ? ` data-cust="${it.cust}"` : ''}${it.q ? ` data-qcust="${it.q}"` : ''}>${esc(it.text)}</div>`
+                )
+                .join('')
+            : `<div class="it" style="color:var(--text-3)">${empty}</div>`
+        }
       </div>`;
     const risks = `<div class="ex-sec">리스크 요약</div>
       <div class="ex-risk">
-        ${riskCard('CAPA 부족', '<rect x="3" y="9" width="18" height="11" rx="1"/><path d="M9 9V5h6v4"/>', 'var(--oci-red)', r.capa_short.slice(0, 5).map(x => `${x.name} · 부족 ${Math.round(x.gap).toLocaleString('ko-KR')}`), 'CAPA 부족 없음')}
-        ${riskCard('품질 오픈', '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>', '#b45309', r.quality.slice(0, 5).map(q => `${q.name} · ${q.title} (${q.severity})`), '품질 이슈 없음')}
-        ${riskCard('평가 지연/진행', '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', 'var(--text-2)', r.eval_delay.slice(0, 5).map(e => `${e.name} · ${e.material.split(' · ')[0]}`), '평가 지연 없음')}
-        ${riskCard('단계 불일치', '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>', 'var(--oci-red)', (r.misalign || []).slice(0, 5).map(m => `${m.name} · ${m.label.split(' — ')[0]}`), '영업·공정 단계 정합 양호')}
+        ${riskCard('CAPA 부족', '<rect x="3" y="9" width="18" height="11" rx="1"/><path d="M9 9V5h6v4"/>', 'var(--oci-red)', r.capa_short.slice(0, 5).map(x => ({ text: `${x.name} · 부족 ${Math.round(x.gap).toLocaleString('ko-KR')}`, cust: x.customer_id })), 'CAPA 부족 없음')}
+        ${riskCard('품질 오픈', '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>', '#b45309', r.quality.slice(0, 5).map(q => ({ text: `${q.name} · ${q.title} (${q.severity})`, q: q.customer_id })), '품질 이슈 없음')}
+        ${riskCard('평가 지연/진행', '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', 'var(--text-2)', r.eval_delay.slice(0, 5).map(e => ({ text: `${e.name} · ${e.material.split(' · ')[0]}`, cust: e.customer_id })), '평가 지연 없음')}
+        ${riskCard('단계 불일치', '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>', 'var(--oci-red)', (r.misalign || []).slice(0, 5).map(m => ({ text: `${m.name} · ${m.label.split(' — ')[0]}`, cust: m.customer_id })), '영업·공정 단계 정합 양호')}
       </div>`;
 
     const body = document.getElementById('ex-body');
@@ -220,6 +235,13 @@ const Exec360Page = {
     // KPI 카드 클릭 → 근거 모달
     body.querySelectorAll('.ex-kpi[data-kpi]').forEach(c =>
       c.addEventListener('click', () => this._openKpiModal(c.dataset.kpi))
+    );
+    // 리스크 요약 항목 클릭 → 고객360 / 품질관리 드릴다운
+    body.querySelectorAll('.ex-rcard .it[data-cust]').forEach(el =>
+      el.addEventListener('click', () => this._goCustomer(el.dataset.cust))
+    );
+    body.querySelectorAll('.ex-rcard .it[data-qcust]').forEach(el =>
+      el.addEventListener('click', () => this._goQuality(el.dataset.qcust))
     );
     this._loadBrief();
   },
