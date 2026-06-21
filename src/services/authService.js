@@ -29,6 +29,7 @@ const ROLE_PAGES = {
     'customers',
     'calendar',
     'support',
+    'quality', // 전사 품질관리 (Quality Inbox) — 전원 조회
     'quotes',
     'proposals',
     'contracts',
@@ -46,6 +47,7 @@ const ROLE_PAGES = {
     'customers',
     'calendar',
     'support',
+    'quality', // 전사 품질관리
     'quotes',
     'proposals',
     'contracts',
@@ -71,6 +73,7 @@ const ROLE_PAGES = {
     'customers',
     'calendar',
     'support',
+    'quality', // 전사 품질관리
     'quotes',
     'proposals',
     'contracts',
@@ -97,6 +100,7 @@ const ROLE_PAGES = {
     'customers',
     'calendar',
     'support',
+    'quality', // 전사 품질관리
     'quotes',
     'proposals',
     'contracts',
