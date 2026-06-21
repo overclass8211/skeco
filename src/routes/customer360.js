@@ -1269,11 +1269,12 @@ async function buildExecSummaryData() {
         .query(
           `SELECT customer_id,
                   COALESCE(SUM(customer_forecast),0) AS demand,
-                  COALESCE(SUM(production_capacity),0) AS capacity
+                  COALESCE(SUM(production_capacity),0) AS capacity,
+                  MIN(unit) AS unit, COUNT(DISTINCT unit) AS unit_cnt
              FROM demand_forecasts
             WHERE month IN (?)
             GROUP BY customer_id`,
-          [FORECAST_MONTHS]
+          [FLOW_MONTHS]
         )
         .then(r => r[0]),
       // Top 계정 (가중 예상매출) — 회사명 단위 집계 후 대표 고객 id 매핑(동일사명 중복행 배수집계 방지)
@@ -1323,7 +1324,11 @@ async function buildExecSummaryData() {
     const capacity = Number(r.capacity) || 0;
     if (capacity > 0 && capacity < demand) {
       capaShortIds.add(r.customer_id);
-      capaShortList.push({ customer_id: r.customer_id, gap: Math.round(demand - capacity) });
+      capaShortList.push({
+        customer_id: r.customer_id,
+        gap: Math.round(demand - capacity),
+        unit: Number(r.unit_cnt) === 1 ? r.unit || '' : '', // 단위 혼재 시 생략
+      });
     }
   }
   // capaShort 고객명 매핑
@@ -1469,6 +1474,7 @@ async function buildExecSummaryData() {
         customer_id: x.customer_id,
         name: nameById.get(x.customer_id) || '-',
         gap: x.gap,
+        unit: x.unit,
       })),
       quality: qTop.map(q => ({
         customer_id: q.customer_id,
@@ -1815,14 +1821,15 @@ async function execKpiList(req, res) {
       const [rows] = await pool.query(
         `SELECT df.customer_id, c.name,
                 COALESCE(SUM(df.customer_forecast),0) AS demand,
-                COALESCE(SUM(df.production_capacity),0) AS capacity
+                COALESCE(SUM(df.production_capacity),0) AS capacity,
+                MIN(df.unit) AS unit, COUNT(DISTINCT df.unit) AS unit_cnt
            FROM demand_forecasts df JOIN customers c ON c.id=df.customer_id
           WHERE df.month IN (?)
           GROUP BY df.customer_id, c.name
          HAVING SUM(df.production_capacity) > 0
             AND SUM(df.production_capacity) < SUM(df.customer_forecast)
           ORDER BY (SUM(df.customer_forecast) - SUM(df.production_capacity)) DESC`,
-        [FORECAST_MONTHS]
+        [FLOW_MONTHS]
       );
       items = rows.map(r => ({
         customer_id: r.customer_id,
@@ -1830,6 +1837,7 @@ async function execKpiList(req, res) {
         demand: Math.round(Number(r.demand) || 0),
         capacity: Math.round(Number(r.capacity) || 0),
         gap: Math.round((Number(r.demand) || 0) - (Number(r.capacity) || 0)),
+        unit: Number(r.unit_cnt) === 1 ? r.unit || '' : '',
       }));
     } else {
       return res.status(400).json({ success: false, error: '알 수 없는 KPI' });
