@@ -53,6 +53,9 @@ const App = {
   },
 
   async init() {
+    // 사이드바 메뉴를 RBAC/메뉴설정 적용 전까지 숨김 — 비활성 메뉴 깜박임 방지
+    document.body.classList.add('menu-pending');
+
     // ── 인증 확인 ──────────────────────────────────────────
     await this.checkAuth();
 
@@ -79,8 +82,12 @@ const App = {
     this.updateNavBadges();
 
     // 사이드바 메뉴 구조 동적 적용 (관리자 설정 반영)
-    // — 비동기, 실패 시 하드코딩 폴백으로 안전하게 유지
-    this.applyMenuConfig();
+    // — 적용 완료까지 await 후 사이드바 표시(깜박임 방지). 실패해도 finally 로 반드시 노출
+    try {
+      await this.applyMenuConfig();
+    } finally {
+      document.body.classList.remove('menu-pending');
+    }
 
     // 알림 로드 (기능 토글 ON 일 때만)
     if (Features.isEnabled('crm.notifications')) {
@@ -124,7 +131,7 @@ const App = {
         } catch (_) {}
       }
     }
-    await this.navigate(startPage);
+    await this.navigate(startPage, { replace: true });
 
     // v6.0.0: PWA shortcut 후속 처리 — 모달 자동 오픈 + URL 정리
     if (pwaAction === 'scan-card') {
@@ -178,7 +185,7 @@ const App = {
     // 브라우저 뒤로/앞으로 버튼 지원
     window.addEventListener('hashchange', () => {
       const p = location.hash.replace(/^#/, '').trim();
-      if (p && this.pages[p] && p !== this.currentPage) this.navigate(p);
+      if (p && this.pages[p] && p !== this.currentPage) this.navigate(p, { replace: true });
     });
   },
 
@@ -571,7 +578,7 @@ const App = {
     window.addEventListener('resize', check);
   },
 
-  async navigate(pageId) {
+  async navigate(pageId, opts = {}) {
     const page = this.pages[pageId];
     if (!page) {
       Toast.error('알 수 없는 페이지: ' + pageId);
@@ -605,7 +612,7 @@ const App = {
       // 대시보드로 자동 이동 (단, dashboard 자체가 OFF 인 경우 leads 로 fallback)
       const fallback = Features.isEnabled('crm.dashboard') ? 'dashboard' : 'leads';
       if (pageId !== fallback) {
-        return this.navigate(fallback);
+        return this.navigate(fallback, { replace: true });
       }
       return;
     }
@@ -620,8 +627,12 @@ const App = {
       localStorage.setItem('oci_lastPage', pageId);
     } catch (_) {}
     // URL hash 동기화 (브라우저 뒤로가기 호환)
+    //  - 의미있는 이동: pushState(히스토리 적재) → 앱 내 뒤로가기 정상 동작(풀 리로드 방지)
+    //  - 최초 로드 / popstate·hashchange 복귀 / 차단 fallback: replaceState(중복 적재 방지)
+    //  - URL 이 이미 목적지(hash-set 드릴다운 등): 아무것도 안 함
     if (location.hash.replace(/^#/, '') !== pageId) {
-      history.replaceState(null, '', '#' + pageId);
+      if (opts.replace) history.replaceState(null, '', '#' + pageId);
+      else history.pushState(null, '', '#' + pageId);
     }
 
     // 사이드바 active 토글

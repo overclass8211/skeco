@@ -136,6 +136,8 @@ a { text-decoration: none; color: inherit; }
   overflow-y: auto;
   padding: 8px 0;
 }
+/* RBAC/메뉴설정 적용 전 사이드바 숨김 — 비활성 메뉴 깜박임 방지 (init 완료 시 해제) */
+body.menu-pending .sidebar-nav { visibility: hidden; }
 .nav-section { padding: 6px 0; }
 .nav-section-title {
   font-size: 10px;
