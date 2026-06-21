@@ -670,34 +670,51 @@ async function buildLifecycle(customerId) {
     opened_at: q.opened_at,
   }));
 
-  // 규칙 기반 AI 추천 액션 (상위 4건)
+  // 규칙 기반 AI 추천 액션 (상위 4건) — 우선순위/담당/근거/바로가기 포함(카드형)
+  //   priority: high|medium|low · owner: 담당 팀 · title/detail 분리 · nav: 드릴다운 타겟
   const actions = [];
   const shortMat = materials.find(m => m.capa_short);
   if (shortMat) {
     actions.push({
       icon: 'factory',
-      text: `생산팀에 CAPA 재검토 요청 — ${shortMat.material_name} 분기 수요 ${fmtQty(shortMat.quarter_demand, shortMat.demand_unit)} 대비 부족`,
+      priority: 'high',
+      owner: '생산팀',
+      title: 'CAPA 재검토 요청',
+      detail: `${shortMat.material_name.split(' · ')[0]} 분기 수요 ${fmtQty(shortMat.quarter_demand, shortMat.demand_unit)} 대비 생산 부족`,
+      nav: 'commercial',
     });
   }
   const specinMat = materials.find(m => m.lifecycle_stage === 'specin');
   if (specinMat) {
     actions.push({
       icon: 'file-check',
-      text: `${specinMat.material_name} 양산 승인 미팅 제안 — 공정기술팀 평가 결과 확인`,
+      priority: 'medium',
+      owner: '공정기술팀',
+      title: '양산 승인 미팅 제안',
+      detail: `${specinMat.material_name.split(' · ')[0]} Spec-in 평가 결과 확인 후 양산 전환 추진`,
+      nav: 'qualification',
     });
   }
   const openQuality = quality.find(q => q.status !== 'resolved');
   if (openQuality) {
     actions.push({
       icon: 'shield-check',
-      text: `${openQuality.title} 재발방지 보고서 고객 공유 — 평가/거래 재개 유도`,
+      priority: 'high',
+      owner: '품질팀',
+      title: '재발방지 보고서 고객 공유',
+      detail: `${openQuality.title} — 평가/거래 재개 유도`,
+      nav: 'quality',
     });
   }
   const evalMat = materials.find(m => m.lifecycle_stage === 'evaluation');
   if (evalMat && actions.length < 4) {
     actions.push({
       icon: 'flask',
-      text: `${evalMat.material_name} 고객 평가 진행 점검 — 재샘플/스펙 협의 필요 여부 확인`,
+      priority: 'medium',
+      owner: '영업팀',
+      title: '고객 평가 진행 점검',
+      detail: `${evalMat.material_name.split(' · ')[0]} 재샘플/스펙 협의 필요 여부 확인`,
+      nav: 'qualification',
     });
   }
 

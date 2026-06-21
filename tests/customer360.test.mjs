@@ -120,8 +120,11 @@ describe('Customer360 (MVP) API', () => {
     expect(lc.demand_flow.demand).toBe(100);
     expect(lc.demand_flow.capacity).toBe(80);
     expect(lc.demand_flow.gap).toBe(20);
-    // specin 소재 → 양산 승인 미팅 액션 존재
-    expect(lc.actions.some(a => /양산 승인/.test(a.text))).toBe(true);
+    // specin 소재 → 양산 승인 미팅 액션 존재 (카드형: title/owner/priority)
+    const mpAction = lc.actions.find(a => /양산 승인/.test(a.title || ''));
+    expect(mpAction).toBeTruthy();
+    expect(mpAction).toHaveProperty('priority');
+    expect(mpAction).toHaveProperty('owner');
   });
 
   it('PUT /materials/:id — 단계 수정', async () => {

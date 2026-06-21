@@ -56,8 +56,10 @@ const Customer360Page = {
         .c360-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
         .c360-bar h2{font-size:18px;font-weight:700;margin:0}
         .c360-pick{margin-left:auto;display:flex;gap:8px;align-items:center}
-        .c360-pick input,.c360-pick select{height:34px;border:1px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;background:var(--surface);color:var(--text-1)}
-        .c360-pick select{min-width:230px}
+        .c360-pick input{height:34px;width:280px;border:1px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;background:var(--surface);color:var(--text-1)}
+        .c360-cb-item{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+        .c360-cb-name{font-size:13px;font-weight:600;color:var(--text-1)}
+        .c360-cb-meta{font-size:11px;color:var(--text-3);white-space:nowrap}
         .c360-empty{padding:60px 20px;text-align:center;color:var(--text-3)}
         .c360-head{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px 18px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:12px}
         .c360-grade{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0}
@@ -84,6 +86,34 @@ const Customer360Page = {
         .c360-hb-track{height:6px;border-radius:4px;background:var(--surface-2,rgba(0,0,0,.06));overflow:hidden}
         .c360-hb-track span{display:block;height:100%;border-radius:4px}
         .c360-hb-w{font-size:10.5px;color:var(--text-3);margin-top:3px}
+        /* Health 카드 v2 — 종합 도넛 + 컴팩트 4축 */
+        .c360-health-bd2{display:flex;gap:20px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:12px;background:var(--surface)}
+        .c360-hb2-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+        .c360-donut{width:78px;height:78px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+        .c360-donut-in{width:58px;height:58px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+        .c360-donut-g{font-size:22px;font-weight:800;line-height:1}
+        .c360-donut-s{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+        .c360-hb2-cap{font-size:11px;color:var(--text-3)}
+        .c360-hb2-right{flex:1;min-width:0}
+        .c360-hb2-h{font-size:12.5px;font-weight:700;color:var(--text-1);margin-bottom:8px}
+        .c360-hb2-row{display:grid;grid-template-columns:120px 1fr 34px 36px;align-items:center;gap:8px;margin:5px 0}
+        .c360-hb2-row.low .c360-hb2-lab{color:var(--oci-red);font-weight:700}
+        .c360-hb2-lab{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .c360-hb2-min{font-size:9.5px;font-weight:700;color:#fff;background:var(--oci-red);border-radius:4px;padding:1px 4px;margin-left:3px}
+        .c360-hb2-track{height:7px;border-radius:4px;background:var(--surface-2,rgba(0,0,0,.06));overflow:hidden}
+        .c360-hb2-track span{display:block;height:100%;border-radius:4px}
+        .c360-hb2-sc{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+        .c360-hb2-w{font-size:11px;color:var(--text-3);text-align:right}
+        /* AI 추천 액션 카드 v2 */
+        .c360-act2{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:8px}
+        .c360-act2-link{cursor:pointer;transition:border-color .12s,box-shadow .12s}
+        .c360-act2-link:hover{border-color:var(--oci-red);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+        .c360-act2-pri{font-size:11px;font-weight:700;border-radius:6px;padding:3px 9px;flex-shrink:0}
+        .c360-act2-body{flex:1;min-width:0}
+        .c360-act2-title{font-size:13px;font-weight:600;color:var(--text-1)}
+        .c360-act2-owner{font-size:11px;font-weight:600;color:var(--text-3);background:var(--surface-2,rgba(0,0,0,.05));border-radius:5px;padding:1px 6px;margin-left:4px}
+        .c360-act2-detail{font-size:12px;color:var(--text-2);margin-top:3px;line-height:1.45}
+        .c360-act2-go{font-size:12px;font-weight:600;color:var(--oci-red);white-space:nowrap;flex-shrink:0}
         /* 단계 정합성 인사이트 */
         .c360-align{border:1px solid var(--border);border-radius:10px;padding:11px 16px;margin-bottom:12px;background:var(--surface)}
         .c360-align-h{font-size:12.5px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
@@ -156,7 +186,6 @@ const Customer360Page = {
         <h2>고객·제품 360뷰</h2>
         <div class="c360-pick">
           <input id="c360-search" placeholder="고객사 검색…" autocomplete="off">
-          <select id="c360-select"><option value="">고객사 선택…</option></select>
         </div>
       </div>
       <div id="c360-body">
@@ -164,48 +193,50 @@ const Customer360Page = {
       </div>
     `;
 
-    document.getElementById('c360-search')?.addEventListener('input', e => this._filterOptions(e.target.value));
-    document.getElementById('c360-select')?.addEventListener('change', e => {
-      if (e.target.value) this._select(Number(e.target.value));
-    });
-
     await this._loadCustomers();
+    this._attachPicker();
     const last = Number(localStorage.getItem('c360_last') || 0);
     if (last && this._customers.some(c => c.id === last)) {
-      const sel = document.getElementById('c360-select');
-      if (sel) sel.value = String(last);
+      const input = document.getElementById('c360-search');
+      const c = this._customers.find(x => x.id === last);
+      if (input && c) input.value = c.name;
       await this._select(last);
     }
+  },
+
+  // 고객사 검색 콤보박스 — 입력 즉시 매칭 + 진행딜/파이프라인 배지
+  _attachPicker() {
+    const input = document.getElementById('c360-search');
+    if (!input || typeof Combobox === 'undefined') return;
+    if (this._cb) this._cb.destroy?.();
+    this._cb = Combobox.attach({
+      inputEl: input,
+      minChars: 0,
+      debounceMs: 120,
+      allowCustom: false,
+      fetchFn: q => {
+        const s = (q || '').trim().toLowerCase();
+        const list = !s
+          ? this._customers
+          : this._customers.filter(c => c.name.toLowerCase().includes(s) || (c.industry || '').toLowerCase().includes(s));
+        return list.slice(0, 50);
+      },
+      renderItem: c =>
+        `<div class="c360-cb-item"><span class="c360-cb-name">${esc(c.name)}</span><span class="c360-cb-meta">${c.open_deals ? '진행 ' + c.open_deals : ''}${c.pipeline_amount ? ' · ' + this._won(c.pipeline_amount) : ''}</span></div>`,
+      onSelect: c => {
+        input.value = c.name;
+        this._select(c.id);
+      },
+    });
   },
 
   async _loadCustomers() {
     try {
       const res = await API.get('/customer360/customers');
       this._customers = res.data || [];
-      this._renderOptions(this._customers);
     } catch (_) {
       /* Toast 처리 */
     }
-  },
-
-  _renderOptions(list) {
-    const sel = document.getElementById('c360-select');
-    if (!sel) return;
-    const cur = this._custId ? String(this._custId) : sel.value;
-    sel.innerHTML =
-      '<option value="">고객사 선택…</option>' +
-      list
-        .map(c => `<option value="${c.id}">${esc(c.name)}${c.pipeline_amount ? ' · ' + this._won(c.pipeline_amount) : ''}</option>`)
-        .join('');
-    if (cur) sel.value = cur;
-  },
-
-  _filterOptions(q) {
-    const s = (q || '').trim().toLowerCase();
-    const filtered = !s
-      ? this._customers
-      : this._customers.filter(c => c.name.toLowerCase().includes(s) || (c.industry || '').toLowerCase().includes(s));
-    this._renderOptions(filtered);
   },
 
   async _select(id) {
@@ -244,18 +275,33 @@ const Customer360Page = {
   _healthBreakdownHtml(h) {
     const bd = h.health_breakdown;
     if (!bd || !Array.isArray(bd.dims) || !bd.dims.length) return '';
-    const bar = d => {
-      const s = Number.isFinite(d.score) ? d.score : 0;
-      const col = s >= 80 ? '#17A85A' : s >= 60 ? '#2357E8' : s >= 40 ? '#F59C00' : '#E63329';
-      return `<div class="c360-hb-item">
-        <div class="c360-hb-top"><span>${esc(d.label)}</span><b>${s}</b></div>
-        <div class="c360-hb-track"><span style="width:${s}%;background:${col}"></span></div>
-        <div class="c360-hb-w">비중 ${d.weight}%</div>
+    const dims = bd.dims;
+    const lowest = dims.reduce((a, b) => (b.score < a.score ? b : a), dims[0]);
+    const sig = s => (s >= 80 ? '#17A85A' : s >= 60 ? '#2357E8' : s >= 40 ? '#F59C00' : '#E63329');
+    const gc = this._gradeColor(h.health_grade);
+    const score = h.health_score;
+    const donut = `<div class="c360-donut" style="background:conic-gradient(${gc} ${score * 3.6}deg, var(--border) 0deg)">
+        <div class="c360-donut-in"><span class="c360-donut-g" style="color:${gc}">${esc(h.health_grade)}</span><span class="c360-donut-s">${score}점</span></div>
       </div>`;
-    };
-    return `<div class="c360-health-bd">
-      <div class="c360-hb-h">왜 ${esc(h.health_grade)} 등급인가 — 4대 축 점수(0~100) · 종합 ${h.health_score}점</div>
-      <div class="c360-hb-grid">${bd.dims.map(bar).join('')}</div>
+    const rows = dims
+      .map(d => {
+        const s = Number.isFinite(d.score) ? d.score : 0;
+        const c = sig(s);
+        const low = d === lowest && s < 80;
+        return `<div class="c360-hb2-row${low ? ' low' : ''}">
+          <span class="c360-hb2-lab">${esc(d.label)}${low ? ' <span class="c360-hb2-min">최저</span>' : ''}</span>
+          <span class="c360-hb2-track"><span style="width:${s}%;background:${c}"></span></span>
+          <span class="c360-hb2-sc" style="color:${c}">${s}</span>
+          <span class="c360-hb2-w">${d.weight}%</span>
+        </div>`;
+      })
+      .join('');
+    return `<div class="c360-health-bd2">
+      <div class="c360-hb2-left">${donut}<div class="c360-hb2-cap">종합 Health</div></div>
+      <div class="c360-hb2-right">
+        <div class="c360-hb2-h">왜 ${esc(h.health_grade)} 등급인가 — 4대 축 점수(0~100)</div>
+        ${rows}
+      </div>
     </div>`;
   },
 
@@ -447,6 +493,14 @@ const Customer360Page = {
           if (mat) this._openMaterialModal(mat);
         })
       );
+      // AI 추천 액션 카드 → 바로가기(상거래/공급자격 탭 또는 품질관리)
+      el.querySelectorAll('.c360-act2[data-anav]').forEach(c =>
+        c.addEventListener('click', () => {
+          const t = c.dataset.anav;
+          if (t === 'quality') this._gotoQuality();
+          else this._gotoTab(t);
+        })
+      );
     }
   },
 
@@ -533,8 +587,26 @@ const Customer360Page = {
         </tbody></table>`
       : '<div class="c360-empty" style="padding:24px">품질 이슈 없음</div>';
 
+    const PRIO = {
+      high: { t: '긴급', c: 'var(--oci-red)', bg: 'rgba(230,51,41,.1)' },
+      medium: { t: '중요', c: '#b45309', bg: 'rgba(245,156,0,.14)' },
+      low: { t: '참고', c: 'var(--text-2)', bg: 'var(--surface-2,rgba(0,0,0,.05))' },
+    };
     const actions = lc.actions.length
-      ? lc.actions.map(a => `<div class="c360-act"><span class="ai">${this._svg('bulb', 16)}</span><span>${esc(a.text)}</span></div>`).join('')
+      ? lc.actions
+          .map(a => {
+            const p = PRIO[a.priority] || PRIO.medium;
+            const title = a.title || a.text || '';
+            return `<div class="c360-act2${a.nav ? ' c360-act2-link' : ''}"${a.nav ? ` data-anav="${a.nav}"` : ''}>
+              <span class="c360-act2-pri" style="color:${p.c};background:${p.bg}">${p.t}</span>
+              <div class="c360-act2-body">
+                <div class="c360-act2-title">${esc(title)}${a.owner ? ` <span class="c360-act2-owner">${esc(a.owner)}</span>` : ''}</div>
+                ${a.detail ? `<div class="c360-act2-detail">${esc(a.detail)}</div>` : ''}
+              </div>
+              ${a.nav ? '<span class="c360-act2-go">바로가기 ›</span>' : ''}
+            </div>`;
+          })
+          .join('')
       : '<div class="c360-empty" style="padding:24px">추천 액션 없음</div>';
 
     // 랜딩 대시보드: KPI → 프로세스 흐름(수요·생산·수주) → 소재 라이프사이클 → 품질 → 액션
