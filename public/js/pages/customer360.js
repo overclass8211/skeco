@@ -645,7 +645,7 @@ const Customer360Page = {
       const box = document.getElementById('c360-capa-body');
       if (box)
         box.innerHTML = `
-          <div class="c360-capa-flow">분기 수요 <b>${qty(f.demand)}</b> · 생산가능 <b>${qty(f.capacity)}</b> · <span style="color:var(--oci-red)">부족 <b>${qty(f.gap)}</b></span></div>
+          <div class="c360-capa-flow">CAPA 부족 소재 <b>${f.short_count ?? (d.materials || []).length}개</b> · <span style="color:var(--oci-red)">부족 매출 리스크 <b>${this._won(f.risk_revenue || 0)}</b></span> <span style="color:var(--text-3)">(소재별 단위 상이 → 수량 합산 대신 건수·금액 기준)</span></div>
           ${aiHtml}
           <div class="c360-capa-th">소재별 부족</div>
           <div style="max-height:36vh;overflow:auto"><table class="data-table" style="font-size:12.5px">
@@ -711,20 +711,23 @@ const Customer360Page = {
 
     const board = lc.materials.length
       ? lc.materials.map(m => this._matCard(m)).join('')
-      : '<div class="c360-empty">등록된 소재가 없습니다. “소재 추가”로 시작하세요.</div>';
+      : '<div class="c360-empty">등록된 공급 품목이 없습니다. “공급 품목 등록”으로 시작하세요.</div>';
 
     const flow = `
       <div class="flow">
-        <div class="flow-box"><div class="l">분기 예상 수요</div><div class="v">${this._qty(f.demand, f.unit)}</div></div>
-        <span style="color:var(--text-3)">→</span>
-        <div class="flow-box"><div class="l">생산 가능</div><div class="v">${this._qty(f.capacity, f.unit)}</div></div>
-        <span style="color:var(--text-3)">→</span>
-        <div class="flow-box${f.gap > 0 ? ' c360-capa-link' : ''}" ${f.gap > 0 ? 'id="c360-capa-box" title="AI 진단·대책 보기"' : ''} style="background:${f.gap > 0 ? 'rgba(230,51,41,.08)' : 'var(--surface-2)'}">
-          <div class="l" style="${f.gap > 0 ? 'color:var(--oci-red)' : ''}">부족 CAPA${f.gap > 0 ? ' <span class="c360-capa-ai">AI 진단 ›</span>' : ''}</div>
-          <div class="v" style="${f.gap > 0 ? 'color:var(--oci-red)' : ''}">${this._qty(f.gap, f.unit)}</div>
-        </div>
-        <span style="color:var(--text-3)">→</span>
-        <div class="flow-box" style="background:rgba(23,168,90,.08)"><div class="l" style="color:#17A85A">예상 수주</div><div class="v" style="color:#17A85A">${this._won(f.expected_order)}</div></div>
+        <div class="flow-box" style="background:rgba(23,168,90,.08)"><div class="l" style="color:#17A85A">분기 예상 수주</div><div class="v" style="color:#17A85A">${this._won(f.expected_order)}</div></div>
+        ${
+          f.short_count > 0
+            ? `<div class="flow-box c360-capa-link" id="c360-capa-box" title="AI 진단·대책 보기" style="background:rgba(230,51,41,.08)">
+                 <div class="l" style="color:var(--oci-red)">CAPA 부족 소재 <span class="c360-capa-ai">AI 진단 ›</span></div>
+                 <div class="v" style="color:var(--oci-red)">${f.short_count}개</div>
+               </div>
+               <div class="flow-box" style="background:rgba(230,51,41,.05)">
+                 <div class="l" style="color:var(--oci-red)">부족 매출 리스크</div>
+                 <div class="v" style="color:var(--oci-red)">${this._won(f.risk_revenue)}</div>
+               </div>`
+            : `<div class="flow-box" style="background:rgba(23,168,90,.06)"><div class="l" style="color:#17A85A">공급 충족</div><div class="v" style="color:#17A85A">정상</div></div>`
+        }
       </div>`;
 
     const quality = lc.quality.length
@@ -766,10 +769,10 @@ const Customer360Page = {
     // 랜딩 대시보드: KPI → 프로세스 흐름(수요·생산·수주) → 소재 라이프사이클 → 품질 → 액션
     return `
       ${kpis}
-      <div class="c360-sec">수요 → 생산 → 수주 (3개월)</div>
+      <div class="c360-sec">분기 공급 리스크 (3개월)</div>
       ${flow}
       <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 상세</span>
-        <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 소재 추가</button>
+        <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 공급 품목 등록</button>
       </div>
       ${board}
       <div class="c360-sec">품질 이슈</div>
@@ -791,7 +794,7 @@ const Customer360Page = {
         ${badges.join('')}
         <span class="lc-edit">
           <button class="lc-mini" data-fc-mat="${m.id}" title="월 수요 입력">수요 입력</button>
-          <button class="lc-mini" data-edit-mat="${m.id}" title="소재 수정">수정</button>
+          <button class="lc-mini" data-edit-mat="${m.id}" title="공급 품목 수정">수정</button>
         </span>
       </div>
       ${this._ribbon(m.lifecycle_index)}
@@ -1027,7 +1030,7 @@ const Customer360Page = {
             </div>`;
           })
           .join('')
-      : '<div class="c360-empty">등록된 소재가 없습니다. 라이프사이클 탭에서 소재를 추가하세요.</div>';
+      : '<div class="c360-empty">등록된 공급 품목이 없습니다. 현황 탭에서 공급 품목을 등록하세요.</div>';
 
     return `
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
@@ -1674,7 +1677,7 @@ const Customer360Page = {
       ([k, l]) => `<option value="${k}" ${mat && mat.lifecycle_stage === k ? 'selected' : ''}>${l}</option>`
     ).join('');
     Modal.open({
-      title: isEdit ? '소재 수정' : '소재 추가',
+      title: isEdit ? '공급 품목 수정' : '공급 품목 등록',
       width: 520,
       compact: true,
       body: `
@@ -1730,7 +1733,7 @@ const Customer360Page = {
     try {
       if (mat) await API.put(`/customer360/materials/${mat.id}`, payload);
       else await API.post('/customer360/materials', { ...payload, customer_id: this._custId });
-      Toast.success(mat ? '소재 수정 완료' : '소재 추가 완료');
+      Toast.success(mat ? '공급 품목 수정 완료' : '공급 품목 등록 완료');
       Modal.close();
       await this._reload();
     } catch (_) {

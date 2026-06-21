@@ -439,8 +439,8 @@ router.get('/:id', validateId, async (req, res) => {
     // ── 라이프사이클(소재) + 수요·생산·수주 흐름 + 품질 ──
     const lifecycle = await buildLifecycle(id);
     // 라이프사이클 리스크를 헤더 리스크에 병합
-    if (lifecycle.demand_flow.gap > 0) {
-      risks.unshift({ level: 'high', label: `CAPA 부족 ${lifecycle.demand_flow.gap_label}` });
+    if (lifecycle.demand_flow.short_count > 0) {
+      risks.unshift({ level: 'high', label: `CAPA 부족 ${lifecycle.demand_flow.short_count}건` });
     }
     const openQ = lifecycle.quality.filter(q => q.status !== 'resolved').length;
     if (openQ > 0) risks.unshift({ level: 'medium', label: `품질 이슈 ${openQ}건` });
@@ -455,7 +455,7 @@ router.get('/:id', validateId, async (req, res) => {
         overdue,
         openSupport,
         openQuality: openQ,
-        capaShort: lifecycle.demand_flow.gap > 0,
+        capaShort: lifecycle.demand_flow.short_count > 0,
       },
       _healthCfgDetail
     );
@@ -732,10 +732,23 @@ async function buildLifecycle(customerId) {
 
   const unit = unitSet.size === 1 ? [...unitSet][0] : '';
   const gap = Math.max(0, Math.round(totalDemand - totalCapa));
+  // 단위-안전 지표: 부족 소재 수(건) + 부족 매출 리스크(₩=부족분 비율 × 예상수주)
+  const shortMats = materials.filter(m => m.capa_short);
+  const shortCount = shortMats.length;
+  const riskRevenue = Math.round(
+    shortMats.reduce((s, m) => {
+      const d = Number(m.quarter_demand) || 0;
+      const c = Number(m.quarter_capacity) || 0;
+      const ratio = d > 0 ? Math.min(1, (d - c) / d) : 0;
+      return s + ratio * (Number(m.quarter_expected_order) || 0);
+    }, 0)
+  );
   const demand_flow = {
     demand: Math.round(totalDemand),
     capacity: Math.round(totalCapa),
     gap,
+    short_count: shortCount,
+    risk_revenue: riskRevenue,
     expected_order: Math.round(totalExpectedOrder),
     unit,
     demand_label: fmtQty(totalDemand, unit),
@@ -1331,7 +1344,7 @@ async function gatherHealthSignals(customerId, customerName) {
     overdue: Number(payAgg.overdue_cnt) || 0,
     openSupport: Number(supportAgg.open_cnt) || 0,
     openQuality: lifecycle.quality.filter(q => q.status !== 'resolved').length,
-    capaShort: lifecycle.demand_flow.gap > 0,
+    capaShort: lifecycle.demand_flow.short_count > 0,
   };
 }
 async function buildExecSummaryData() {
@@ -1834,8 +1847,8 @@ async function capaDiagnose(req, res) {
       const prompt = `당신은 SK에코플랜트 머티리얼즈(반도체·디스플레이 소재)의 생산·공급기획 보좌역입니다.
 '${cust.name}' 고객의 분기(3개월) CAPA(생산능력) 부족을 진단하고 실행 대책을 제시하세요. 주어진 수치만 사용하고 지어내지 마세요.
 
-[분기 합계] 수요 ${f.demand} / 생산가능 ${f.capacity} / 부족 ${f.gap}${f.unit ? ' ' + f.unit : ''}
-[소재별 부족]
+[분기 요약] 부족 소재 ${f.short_count}개 · 부족 매출 리스크 ₩${(Number(f.risk_revenue) || 0).toLocaleString('ko-KR')} (소재별 단위가 달라 수량 합산은 무의미하므로 소재별로 판단)
+[소재별 부족] (소재별 단위 그대로)
 ${listTxt || '없음'}
 
 다음 JSON 형식으로만 응답하세요 (마크다운 없이 JSON):
