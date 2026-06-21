@@ -586,7 +586,7 @@ const Exec360Page = {
       /* noop */
     }
     if (typeof Modal !== 'undefined') Modal.close();
-    location.hash = '#customer360';
+    location.hash = '#customer360/' + id; // URL 라우트로 해당 고객 복원
   },
   _goLead(id) {
     if (!id) return;

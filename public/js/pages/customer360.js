@@ -247,12 +247,16 @@ const Customer360Page = {
 
     await this._loadCustomers();
     this._attachPicker();
-    const last = Number(localStorage.getItem('c360_last') || 0);
+    // URL 라우트(#customer360/41)에 고객 id 있으면 우선, 없으면 마지막 본 고객 복원
+    const route = typeof App !== 'undefined' && App._parseRoute ? App._parseRoute() : { page: '', params: [] };
+    const routeId = route.page === 'customer360' && route.params[0] ? Number(route.params[0]) : 0;
+    const last = routeId || Number(localStorage.getItem('c360_last') || 0);
     if (last && this._customers.some(c => c.id === last)) {
       const input = document.getElementById('c360-search');
       const c = this._customers.find(x => x.id === last);
       if (input && c) input.value = c.name;
-      await this._select(last);
+      if (route.params[1]) this._tab = route.params[1]; // 딥링크 탭
+      await this._select(last, { route: 'replace' });
     }
   },
 
@@ -361,7 +365,8 @@ const Customer360Page = {
     }
   },
 
-  async _select(id) {
+  // 고객 선택 — opts.route: 'push'(기본) | 'replace' | 'none' (URL 반영 방식)
+  async _select(id, opts = {}) {
     this._custId = id;
     this._fcData = null;
     this._cmpVer = null;
@@ -377,8 +382,41 @@ const Customer360Page = {
       const res = await API.get('/customer360/' + id);
       this._data = res.data;
       this._renderDashboard();
+      const mode = opts.route || 'push';
+      if (mode !== 'none' && typeof App !== 'undefined') {
+        const seg = this._tab && this._tab !== 'lifecycle' ? ['customer360', id, this._tab] : ['customer360', id];
+        App._setRoute(seg, { replace: mode === 'replace' });
+      }
     } catch (_) {
       if (body) body.innerHTML = `<div class="c360-empty">데이터를 불러오지 못했습니다.</div>`;
+    }
+  },
+
+  // 탭 전환 단일 진입점 — active 토글 + 렌더 + URL 라우트 반영
+  _setTab(tab, opts = {}) {
+    if (!tab) return;
+    this._tab = tab;
+    document.querySelectorAll('.c360-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    this._renderTab();
+    const mode = opts.route || 'push';
+    if (mode !== 'none' && this._custId && typeof App !== 'undefined') {
+      const seg = tab === 'lifecycle' ? ['customer360', this._custId] : ['customer360', this._custId, tab];
+      App._setRoute(seg, { replace: mode === 'replace' });
+    }
+  },
+
+  // URL 라우트 복원 — 고객 선택 + 탭 (뒤로/앞으로·딥링크)
+  async restore(id, tab) {
+    if (!id) return;
+    const targetTab = tab || 'lifecycle';
+    if (this._custId !== id) {
+      this._tab = targetTab;
+      const input = document.getElementById('c360-search');
+      const c = (this._customers || []).find(x => x.id === id);
+      if (input && c) input.value = c.name;
+      await this._select(id, { route: 'none' }); // URL 이미 정확 → 히스토리 손대지 않음
+    } else if (this._tab !== targetTab) {
+      this._setTab(targetTab, { route: 'none' });
     }
   },
 
@@ -516,20 +554,11 @@ const Customer360Page = {
       <div id="c360-tab-body"></div>
     `;
     body.querySelectorAll('.c360-tab').forEach(btn =>
-      btn.addEventListener('click', () => {
-        this._tab = btn.dataset.tab;
-        body.querySelectorAll('.c360-tab').forEach(b => b.classList.toggle('active', b === btn));
-        this._renderTab();
-      })
+      btn.addEventListener('click', () => this._setTab(btn.dataset.tab))
     );
     // 리스크 칩 클릭 → 관련 탭으로 이동 (실행형 경보)
     body.querySelectorAll('.c360-risk[data-risktab]').forEach(el =>
-      el.addEventListener('click', () => {
-        const tab = el.dataset.risktab;
-        this._tab = tab;
-        body.querySelectorAll('.c360-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-        this._renderTab();
-      })
+      el.addEventListener('click', () => this._setTab(el.dataset.risktab))
     );
     this._renderTab();
   },
@@ -690,9 +719,7 @@ const Customer360Page = {
   // 현황 탭 → 다른 탭으로 전환 (KPI 드릴다운)
   _gotoTab(tab) {
     if (!tab) return;
-    this._tab = tab;
-    document.querySelectorAll('.c360-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    this._renderTab();
+    this._setTab(tab);
     const body = document.getElementById('c360-tab-body');
     if (body) body.scrollIntoView({ block: 'start', behavior: 'smooth' });
   },

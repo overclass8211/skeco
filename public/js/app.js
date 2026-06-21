@@ -121,7 +121,7 @@ const App = {
     } else if (pwaAction === 'meeting') {
       startPage = 'meeting';
     } else {
-      const hashPage = location.hash.replace(/^#/, '').trim();
+      const hashPage = location.hash.replace(/^#/, '').split('/')[0].trim();
       if (hashPage && this.pages[hashPage]) {
         startPage = hashPage;
       } else {
@@ -132,6 +132,8 @@ const App = {
       }
     }
     await this.navigate(startPage, { replace: true });
+    // 딥링크/새로고침 — URL 의 상세 파라미터(#page/id/tab) 복원
+    this._restoreRoute();
 
     // v6.0.0: PWA shortcut 후속 처리 — 모달 자동 오픈 + URL 정리
     if (pwaAction === 'scan-card') {
@@ -183,10 +185,7 @@ const App = {
     }, 1000);
 
     // 브라우저 뒤로/앞으로 버튼 지원
-    window.addEventListener('hashchange', () => {
-      const p = location.hash.replace(/^#/, '').trim();
-      if (p && this.pages[p] && p !== this.currentPage) this.navigate(p, { replace: true });
-    });
+    window.addEventListener('hashchange', () => this._applyRoute());
   },
 
   // ── 이벤트 위임 핸들러 (인라인 onclick 대체) ──────────────
@@ -578,6 +577,43 @@ const App = {
     window.addEventListener('resize', check);
   },
 
+  // ── 라우트 파서/적용 (상세·탭·드릴다운 URL 반영) ────────────
+  //   해시 형식: #page  또는  #page/param1/param2  (예: #customer360/41/commercial, #leads/12)
+  _parseRoute() {
+    const seg = location.hash
+      .replace(/^#/, '')
+      .split('/')
+      .map(s => decodeURIComponent(s.trim()))
+      .filter(Boolean);
+    return { page: seg[0] || '', params: seg.slice(1) };
+  },
+  // URL 만 갱신(렌더는 호출측이 이미 수행) — pushState/replaceState (hashchange 미발생)
+  _setRoute(segments, opts = {}) {
+    const url = '#' + segments.filter(s => s !== '' && s !== null && s !== undefined).map(s => encodeURIComponent(String(s))).join('/');
+    if (location.hash === url) return;
+    if (opts.replace) history.replaceState(null, '', url);
+    else history.pushState(null, '', url);
+  },
+  // 현재 URL 의 상세 파라미터를 페이지별 복원 핸들러로 위임
+  _restoreRoute(route) {
+    const r = route || this._parseRoute();
+    if (!r.page || !r.params.length) return;
+    if (r.page === 'customer360' && typeof Customer360Page !== 'undefined' && Customer360Page.restore) {
+      Customer360Page.restore(Number(r.params[0]), r.params[1]);
+    } else if (r.page === 'leads' && r.params[0]) {
+      this.openLeadDetail(Number(r.params[0]), { fromRoute: true });
+    }
+  },
+  // 뒤로/앞으로(hashchange) → URL 기준으로 베이스 렌더 + 상세 복원 (리로드·인증재검사 없음)
+  async _applyRoute() {
+    const route = this._parseRoute();
+    if (!route.page || !this.pages[route.page]) return;
+    if (route.page !== this.currentPage) {
+      await this.navigate(route.page, { keepUrl: true });
+    }
+    this._restoreRoute(route);
+  },
+
   async navigate(pageId, opts = {}) {
     const page = this.pages[pageId];
     if (!page) {
@@ -627,12 +663,14 @@ const App = {
       localStorage.setItem('oci_lastPage', pageId);
     } catch (_) {}
     // URL hash 동기화 (브라우저 뒤로가기 호환)
-    //  - 의미있는 이동: pushState(히스토리 적재) → 앱 내 뒤로가기 정상 동작(풀 리로드 방지)
-    //  - 최초 로드 / popstate·hashchange 복귀 / 차단 fallback: replaceState(중복 적재 방지)
-    //  - URL 이 이미 목적지(hash-set 드릴다운 등): 아무것도 안 함
-    if (location.hash.replace(/^#/, '') !== pageId) {
-      if (opts.replace) history.replaceState(null, '', '#' + pageId);
-      else history.pushState(null, '', '#' + pageId);
+    //  - keepUrl: 라우트 복원 중(URL 이미 정확) → 히스토리 손대지 않음
+    //  - 그 외: base 세그먼트가 바뀔 때만 push(기본)/replace. 상세 파라미터(#page/id)는 보존
+    if (!opts.keepUrl) {
+      const baseInUrl = location.hash.replace(/^#/, '').split('/')[0];
+      if (baseInUrl !== pageId) {
+        if (opts.replace) history.replaceState(null, '', '#' + pageId);
+        else history.pushState(null, '', '#' + pageId);
+      }
     }
 
     // 사이드바 active 토글
@@ -1198,7 +1236,9 @@ const App = {
   // ============================================================
   // 리드 상세 모달 (활동이력 포함)
   // ============================================================
-  async openLeadDetail(id) {
+  async openLeadDetail(id, opts = {}) {
+    if (!opts.fromRoute) this._setRoute(['leads', id]); // 영업딜 상세를 URL 라우트로(뒤로가기 복원)
+    this.currentPage = 'leads'; // 상세도 leads 컨텍스트 — 뒤로가기 시 라우터가 베이스 재렌더하도록
     try {
       const result = await API.leads.get(id);
       const l = result.data;
