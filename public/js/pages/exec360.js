@@ -197,6 +197,7 @@ const Exec360Page = {
         ${riskCard('CAPA 부족', '<rect x="3" y="9" width="18" height="11" rx="1"/><path d="M9 9V5h6v4"/>', 'var(--oci-red)', r.capa_short.slice(0, 5).map(x => `${x.name} · 부족 ${Math.round(x.gap).toLocaleString('ko-KR')}`), 'CAPA 부족 없음')}
         ${riskCard('품질 오픈', '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>', '#b45309', r.quality.slice(0, 5).map(q => `${q.name} · ${q.title} (${q.severity})`), '품질 이슈 없음')}
         ${riskCard('평가 지연/진행', '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', 'var(--text-2)', r.eval_delay.slice(0, 5).map(e => `${e.name} · ${e.material.split(' · ')[0]}`), '평가 지연 없음')}
+        ${riskCard('단계 불일치', '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>', 'var(--oci-red)', (r.misalign || []).slice(0, 5).map(m => `${m.name} · ${m.label.split(' — ')[0]}`), '영업·공정 단계 정합 양호')}
       </div>`;
 
     const body = document.getElementById('ex-body');

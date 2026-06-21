@@ -82,6 +82,10 @@ describe('Customer360 (MVP) API', () => {
     expect(d.customer.id).toBe(custId);
     expect(d.header).toHaveProperty('health_grade');
     expect(d.header).toHaveProperty('weighted_expected');
+    // 단계 정합성 인사이트
+    expect(d.header).toHaveProperty('stage_alignment');
+    expect(d.header.stage_alignment).toHaveProperty('flags');
+    expect(Array.isArray(d.header.stage_alignment.flags)).toBe(true);
     // 10억 × 50% = 5억
     expect(d.header.weighted_expected).toBe(500000000);
     expect(Array.isArray(d.materials)).toBe(true);
@@ -234,6 +238,7 @@ describe('Customer360 (MVP) API', () => {
     expect(d.risks).toHaveProperty('capa_short');
     expect(d.risks).toHaveProperty('quality');
     expect(d.risks).toHaveProperty('eval_delay');
+    expect(Array.isArray(d.risks.misalign)).toBe(true); // 단계 정합성 불일치
     // /exec-summary 가 /:id 보다 먼저 매칭되어 404/400 이 아님
     expect(res.body.success).toBe(true);
   });

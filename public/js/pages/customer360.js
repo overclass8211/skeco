@@ -84,6 +84,18 @@ const Customer360Page = {
         .c360-hb-track{height:6px;border-radius:4px;background:var(--surface-2,rgba(0,0,0,.06));overflow:hidden}
         .c360-hb-track span{display:block;height:100%;border-radius:4px}
         .c360-hb-w{font-size:10.5px;color:var(--text-3);margin-top:3px}
+        /* 단계 정합성 인사이트 */
+        .c360-align{border:1px solid var(--border);border-radius:10px;padding:11px 16px;margin-bottom:12px;background:var(--surface)}
+        .c360-align-h{font-size:12.5px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+        .c360-align-map{font-size:12px;font-weight:500;color:var(--text-2)}
+        .c360-align-map b{color:var(--text-1)}
+        .c360-align-flags{display:flex;flex-direction:column;gap:5px}
+        .c360-align-flag{font-size:12px;padding:5px 10px;border-radius:7px;line-height:1.4}
+        .c360-align-flag.high{background:rgba(230,51,41,.08);color:var(--oci-red);border-left:3px solid var(--oci-red)}
+        .c360-align-flag.medium{background:rgba(245,156,0,.1);color:#b45309;border-left:3px solid #F59C00}
+        .c360-align-flag.info{background:var(--surface-2,rgba(0,0,0,.04));color:var(--text-2);border-left:3px solid var(--text-3)}
+        .c360-align.ok .c360-align-h{margin-bottom:0}
+        .c360-align-ok{font-size:12px;color:#17A85A;font-weight:600}
         .c360-narr{background:var(--oci-red-light,rgba(230,51,41,.06));border-radius:8px;padding:10px 14px;font-size:13px;color:var(--text-1);margin-bottom:16px;line-height:1.6;display:flex;gap:8px;align-items:flex-start}
         .c360-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
         .c360-tab{padding:9px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -241,6 +253,21 @@ const Customer360Page = {
     </div>`;
   },
 
+  // 영업딜 ↔ 공정 라이프사이클 단계 정합성
+  _stageAlignHtml(h) {
+    const a = h.stage_alignment;
+    if (!a) return '';
+    const sl = a.sales_label || '영업딜 없음';
+    const ll = a.life_label || '소재 없음';
+    const flags = a.flags || [];
+    const map = `<span class="c360-align-map">영업딜 <b>${esc(sl)}</b> ↔ 공정 <b>${esc(ll)}</b></span>`;
+    if (!flags.length) {
+      return `<div class="c360-align ok"><div class="c360-align-h">단계 정합성 ${map}</div><span class="c360-align-ok">✓ 영업·공정 단계 정합 양호</span></div>`;
+    }
+    const chips = flags.map(f => `<span class="c360-align-flag ${f.level}">${esc(f.label)}</span>`).join('');
+    return `<div class="c360-align"><div class="c360-align-h">단계 정합성 경보 ${map}</div><div class="c360-align-flags">${chips}</div></div>`;
+  },
+
   _narrative() {
     const lc = this._data.lifecycle;
     const parts = [];
@@ -288,6 +315,7 @@ const Customer360Page = {
         </div>
       </div>
       ${this._healthBreakdownHtml(h)}
+      ${this._stageAlignHtml(h)}
       <div class="c360-narr">${this._svg('bulb', 16)}<span>${this._narrative()}</span></div>
       <div class="c360-tabs">
         ${[

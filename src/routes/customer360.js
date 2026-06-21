@@ -386,6 +386,29 @@ router.get('/:id', validateId, async (req, res) => {
       })),
     };
 
+    // ── 영업딜 ↔ 공정 라이프사이클 정합성 인사이트 ──
+    const activeLeadRanks = leadRows
+      .filter(l => l.stage_role !== 'lost' && l.stage_role !== 'dropped')
+      .map(l => SALES_EQUIV_RANK[l.stage])
+      .filter(v => v !== undefined);
+    const salesRank = activeLeadRanks.length ? Math.max(...activeLeadRanks) : null;
+    const lifeRanks = lifecycle.materials
+      .map(m => STAGE_ORDER.indexOf(m.lifecycle_stage))
+      .filter(i => i >= 0);
+    const lifeRank = lifeRanks.length ? Math.max(...lifeRanks) : null;
+    const stageAlignment = {
+      sales_rank: salesRank,
+      sales_label: salesRankLabel(salesRank),
+      life_rank: lifeRank,
+      life_label: lifeRank === null ? null : STAGE_LABELS[STAGE_ORDER[lifeRank]],
+      flags: evalAlignment({
+        salesRank,
+        hasWon: wonCount > 0,
+        hasDeal: wonCount + activeCount > 0,
+        lifeRank,
+      }),
+    };
+
     // ── 예상매출 월/분기/연 분해 (demand_forecasts 기준) ──
     const [brkRows] = await pool.query(
       `SELECT df.month AS m, COALESCE(SUM(df.expected_revenue),0) AS rev
@@ -431,6 +454,7 @@ router.get('/:id', validateId, async (req, res) => {
           health_score: score,
           health_grade: grade,
           health_breakdown: healthBreakdown,
+          stage_alignment: stageAlignment,
           weighted_expected: Math.round(Number(weightedAgg.weighted) || 0),
           won_count: wonCount,
           active_count: activeCount,
@@ -490,6 +514,62 @@ const STAGE_LABELS = {
 };
 const STAGE_ORDER = ['discovery', 'sample', 'evaluation', 'specin', 'massprod', 'delivery'];
 const FLOW_MONTHS = ['2026-07', '2026-08', '2026-09'];
+
+// ── 영업딜 단계 ↔ 공정 라이프사이클 정합성(불일치) 인사이트 ──
+//   두 축을 공통 0~5 랭크(라이프사이클 기준)로 정규화해 비교. 스키마 변경 없음.
+const SALES_EQUIV_RANK = {
+  lead: 0,
+  review: 1,
+  proposal: 2.5,
+  bidding: 3,
+  negotiation: 3.5,
+  won: 4,
+};
+// 비선형 랭크값 → 표시 라벨 (정확 매칭; SQL/JS 모두 동일 값 산출)
+const SALES_RANK_LABEL = {
+  0: '발굴',
+  1: '샘플평가',
+  2.5: 'Spec-in/승인',
+  3: '가격협의',
+  3.5: '공급계약',
+  4: '양산/정기수주',
+};
+
+// 공통 랭크 입력 → 불일치 플래그 배열
+function evalAlignment({ salesRank, hasWon, hasDeal, lifeRank }) {
+  const flags = [];
+  if (lifeRank !== null && lifeRank >= 4 && !hasWon) {
+    flags.push({
+      code: 'rev_leak',
+      level: 'high',
+      label: '양산 중인데 정기수주 미확정 — 매출 누수·계약 누락 의심',
+    });
+  }
+  if (hasWon && lifeRank !== null && lifeRank <= 2) {
+    flags.push({
+      code: 'deliver_delay',
+      level: 'medium',
+      label: '수주됐으나 소재 인증이 평가 이하 — 양산·납품 지연 리스크',
+    });
+  }
+  if (lifeRank !== null && lifeRank >= 3 && !hasDeal) {
+    flags.push({
+      code: 'no_pipeline',
+      level: 'medium',
+      label: 'Spec-in↑ 진행인데 연결된 영업딜 없음 — 파이프라인 등록 누락',
+    });
+  }
+  if (salesRank !== null && salesRank >= 3.5 && !hasWon && lifeRank !== null && lifeRank <= 1) {
+    flags.push({ code: 'sales_ahead', level: 'info', label: '계약 협의 중이나 소재 인증 미착수' });
+  }
+  return flags;
+}
+
+// 영업딜 등가 랭크(라이프사이클 기준 라벨) → 표시용
+function salesRankLabel(rank) {
+  if (rank === null || rank === undefined) return null;
+  return SALES_RANK_LABEL[Math.round(rank)] || null;
+}
 
 function fmtQty(n, unit) {
   const v = Math.round(Number(n) || 0);
@@ -1301,6 +1381,71 @@ async function buildExecSummaryData() {
       )
     : 0;
 
+  // ── 전사 단계 정합성(불일치) — 고객별 영업 랭크 vs 공정 랭크 ──
+  const [salesAgg, lifeAgg] = await Promise.all([
+    pool
+      .query(
+        `SELECT l.customer_name AS name,
+                MAX(CASE l.stage WHEN 'lead' THEN 0 WHEN 'review' THEN 1 WHEN 'proposal' THEN 2.5
+                     WHEN 'bidding' THEN 3 WHEN 'negotiation' THEN 3.5 WHEN 'won' THEN 4 ELSE NULL END) AS sales_rank,
+                SUM(l.stage='won') AS won_cnt,
+                COUNT(*) AS deal_cnt
+           FROM leads l
+          WHERE l.stage NOT IN ('lost','dropped')
+          GROUP BY l.customer_name`
+      )
+      .then(r => r[0]),
+    pool
+      .query(
+        `SELECT c.name AS name,
+                MAX(FIELD(m.lifecycle_stage,'discovery','sample','evaluation','specin','massprod','delivery')-1) AS life_rank
+           FROM customer_materials m JOIN customers c ON c.id=m.customer_id
+          WHERE m.status<>'closed'
+          GROUP BY c.name`
+      )
+      .then(r => r[0]),
+  ]);
+  const salesByName = new Map(salesAgg.map(r => [r.name, r]));
+  const misalign = [];
+  const seenMis = new Set();
+  for (const lr of lifeAgg) {
+    const s = salesByName.get(lr.name);
+    const flags = evalAlignment({
+      salesRank: s && s.sales_rank !== null ? Number(s.sales_rank) : null,
+      hasWon: s ? Number(s.won_cnt) > 0 : false,
+      hasDeal: s ? Number(s.deal_cnt) > 0 : false,
+      lifeRank: lr.life_rank === null ? null : Number(lr.life_rank),
+    });
+    if (flags.length) {
+      misalign.push({
+        name: lr.name,
+        level: flags[0].level,
+        label: flags[0].label,
+        count: flags.length,
+      });
+      seenMis.add(lr.name);
+    }
+  }
+  // 소재가 없고 영업만 앞선 케이스(선행 영업)도 포착
+  for (const s of salesAgg) {
+    if (seenMis.has(s.name)) continue;
+    const flags = evalAlignment({
+      salesRank: s.sales_rank !== null ? Number(s.sales_rank) : null,
+      hasWon: Number(s.won_cnt) > 0,
+      hasDeal: Number(s.deal_cnt) > 0,
+      lifeRank: null,
+    });
+    if (flags.length)
+      misalign.push({
+        name: s.name,
+        level: flags[0].level,
+        label: flags[0].label,
+        count: flags.length,
+      });
+  }
+  const LEVEL_ORDER = { high: 0, medium: 1, info: 2 };
+  misalign.sort((a, b) => (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9));
+
   return {
     kpis: {
       weighted_expected: Math.round(Number(wAgg.weighted) || 0),
@@ -1330,6 +1475,7 @@ async function buildExecSummaryData() {
         type: q.type,
       })),
       eval_delay: evalRows.map(e => ({ name: e.customer_name, material: e.material_name })),
+      misalign,
     },
   };
 }
