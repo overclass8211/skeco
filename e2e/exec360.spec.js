@@ -32,8 +32,8 @@ const SUMMARY = {
 
 // KPI 카드 클릭 시 lazy-load 되는 /exec-kpi/:kpi 별 결정적 fixture
 const KPI_LISTS = {
-  weighted: { kpi: 'weighted', total: 1, items: [{ name: 'E2E임원고객', weighted: 12800000000, active: 5 }] },
-  quality: { kpi: 'quality', total: 1, items: [{ name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }] },
+  weighted: { kpi: 'weighted', total: 1, items: [{ customer_id: 777, name: 'E2E임원고객', weighted: 12800000000, active: 5 }] },
+  quality: { kpi: 'quality', total: 1, items: [{ customer_id: 777, name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }] },
 };
 
 test.beforeEach(async ({ page }) => {
@@ -95,6 +95,16 @@ test('임원 360 요약 — KPI 카드 클릭 시 근거 모달', async ({ page 
   await page.locator('.ex-kpi[data-kpi="quality"]').click();
   await expect(page.locator('#modal-overlay')).toContainText('품질 오픈');
   await expect(page.locator('#modal-overlay')).toContainText('순도 편차');
+});
+
+test('임원 360 요약 — KPI 모달 항목 클릭 시 드릴다운(고객360)', async ({ page }) => {
+  await page.goto('/#exec360');
+  await page.waitForSelector('#ex-body .ex-kpi[data-kpi="weighted"]', { timeout: 15000 });
+
+  await page.locator('.ex-kpi[data-kpi="weighted"]').click();
+  // 목록 행(고객) 클릭 → 고객360 으로 이동
+  await page.locator('#ex-kpi-list tr[data-cust]').first().click();
+  await expect(page).toHaveURL(/#customer360/, { timeout: 5000 });
 });
 
 test('임원 360 요약 — 평균 Health 모달의 기준 패널 + 편집 진입', async ({ page }) => {

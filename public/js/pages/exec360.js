@@ -414,6 +414,7 @@ const Exec360Page = {
       const total = Number.isFinite(r.data && r.data.total) ? r.data.total : items.length;
       const box = document.querySelector('#ex-kpi-list');
       if (box) box.outerHTML = `<div id="ex-kpi-list">${this._kpiListHtml(kpi, items, total)}</div>`;
+      this._wireKpiRows();
     } catch (e) {
       const box = document.querySelector('#ex-kpi-list');
       if (box) box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--oci-red)">불러오기 실패: ${esc(e.message || e)}</div>`;
@@ -429,7 +430,7 @@ const Exec360Page = {
 
     if (kpi === 'weighted') {
       const rows = items
-        .map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td class="text-right">${won(a.weighted)}</td><td class="text-right">${a.active}</td></tr>`)
+        .map(a => `<tr data-cust="${a.customer_id || ''}"><td><strong>${esc(a.name)}</strong></td><td class="text-right">${won(a.weighted)}</td><td class="text-right">${a.active}</td></tr>`)
         .join('');
       return (
         `<div class="ex-stage-th">계정별 가중매출</div>` +
@@ -441,7 +442,7 @@ const Exec360Page = {
       const rows = items
         .map(
           d =>
-            `<tr><td><strong>${esc(d.project_name || '-')}</strong></td><td>${esc(d.customer_name)}</td><td>${esc(d.stage_label)}</td><td class="text-right">${won(d.expected_amount)}</td><td class="text-right">${won(d.weighted)}</td></tr>`
+            `<tr data-lead="${d.lead_id || ''}"><td><strong>${esc(d.project_name || '-')}</strong></td><td>${esc(d.customer_name)}</td><td>${esc(d.stage_label)}</td><td class="text-right">${won(d.expected_amount)}</td><td class="text-right">${won(d.weighted)}</td></tr>`
         )
         .join('');
       return (
@@ -459,7 +460,7 @@ const Exec360Page = {
       const rows = items
         .map(
           d =>
-            `<tr><td><strong>${esc(d.project_name || '-')}</strong></td><td>${esc(d.customer_name)}</td><td><span class="pill ${d.result === 'won' ? 'p-w' : 'p-d'}" style="${d.result === 'won' ? 'background:rgba(23,168,90,.12);color:#17A85A' : ''}">${d.result === 'won' ? '수주' : '실주'}</span></td><td class="text-right">${won(d.expected_amount)}</td></tr>`
+            `<tr data-lead="${d.lead_id || ''}"><td><strong>${esc(d.project_name || '-')}</strong></td><td>${esc(d.customer_name)}</td><td><span class="pill ${d.result === 'won' ? 'p-w' : 'p-d'}" style="${d.result === 'won' ? 'background:rgba(23,168,90,.12);color:#17A85A' : ''}">${d.result === 'won' ? '수주' : '실주'}</span></td><td class="text-right">${won(d.expected_amount)}</td></tr>`
         )
         .join('');
       return (
@@ -486,7 +487,7 @@ const Exec360Page = {
       const rows = items
         .map(a => {
           const s = a.subs || {};
-          return `<tr><td class="ex-htn"><strong>${esc(a.name)}</strong></td><td class="ex-htc"><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="ex-htc"><b>${a.score}</b></td>${sc(s.commercial)}${sc(s.collection)}${sc(s.quality)}${sc(s.supply)}</tr>`;
+          return `<tr data-cust="${a.customer_id || ''}"><td class="ex-htn"><strong>${esc(a.name)}</strong></td><td class="ex-htc"><span class="gr" style="background:${this._gradeColor(a.grade)};width:24px;height:24px;font-size:11px">${a.grade}</span></td><td class="ex-htc"><b>${a.score}</b></td>${sc(s.commercial)}${sc(s.collection)}${sc(s.quality)}${sc(s.supply)}</tr>`;
         })
         .join('');
       const table = rows
@@ -506,7 +507,7 @@ const Exec360Page = {
       const rows = items
         .map(
           q =>
-            `<tr><td><strong>${esc(q.name)}</strong></td><td>${esc(q.title)}</td><td>${esc(q.type || '-')}</td><td><span class="pill ${q.severity === 'high' ? 'p-d' : 'p-w'}">${esc(q.severity)}</span></td></tr>`
+            `<tr data-qcust="${q.customer_id || ''}"><td><strong>${esc(q.name)}</strong></td><td>${esc(q.title)}</td><td>${esc(q.type || '-')}</td><td><span class="pill ${q.severity === 'high' ? 'p-d' : 'p-w'}">${esc(q.severity)}</span></td></tr>`
         )
         .join('');
       return (
@@ -519,7 +520,7 @@ const Exec360Page = {
       const rows = items
         .map(
           x =>
-            `<tr><td><strong>${esc(x.name)}</strong></td><td class="text-right">${Number(x.demand).toLocaleString('ko-KR')}</td><td class="text-right">${Number(x.capacity).toLocaleString('ko-KR')}</td><td class="text-right" style="color:var(--oci-red);font-weight:700">${Number(x.gap).toLocaleString('ko-KR')}</td></tr>`
+            `<tr data-cust="${x.customer_id || ''}"><td><strong>${esc(x.name)}</strong></td><td class="text-right">${Number(x.demand).toLocaleString('ko-KR')}</td><td class="text-right">${Number(x.capacity).toLocaleString('ko-KR')}</td><td class="text-right" style="color:var(--oci-red);font-weight:700">${Number(x.gap).toLocaleString('ko-KR')}</td></tr>`
         )
         .join('');
       return (
@@ -534,6 +535,49 @@ const Exec360Page = {
       );
     }
     return '';
+  },
+
+  // KPI 목록 행 클릭 → 관련 화면 드릴다운 (고객360 / 영업딜 상세 / 품질관리)
+  _wireKpiRows() {
+    const box = document.getElementById('ex-kpi-list');
+    if (!box) return;
+    box.querySelectorAll('tr[data-cust]').forEach(tr => {
+      if (!tr.dataset.cust) return;
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => this._goCustomer(tr.dataset.cust));
+    });
+    box.querySelectorAll('tr[data-lead]').forEach(tr => {
+      if (!tr.dataset.lead) return;
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => this._goLead(tr.dataset.lead));
+    });
+    box.querySelectorAll('tr[data-qcust]').forEach(tr => {
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => this._goQuality(tr.dataset.qcust));
+    });
+  },
+  _goCustomer(id) {
+    if (!id) return;
+    try {
+      localStorage.setItem('c360_last', String(id));
+    } catch (_) {
+      /* noop */
+    }
+    if (typeof Modal !== 'undefined') Modal.close();
+    location.hash = '#customer360';
+  },
+  _goLead(id) {
+    if (!id) return;
+    if (typeof Modal !== 'undefined') Modal.close();
+    if (typeof App !== 'undefined' && App.openLeadDetail) App.openLeadDetail(Number(id));
+  },
+  _goQuality(custId) {
+    if (typeof QualityPage !== 'undefined') {
+      QualityPage._filter.customer_id = custId ? String(custId) : '';
+      QualityPage._filter.status = 'unresolved';
+    }
+    if (typeof Modal !== 'undefined') Modal.close();
+    location.hash = '#quality';
   },
 
   // ── Health 기준 패널 (조회 + team_lead+ 편집) ───────────────

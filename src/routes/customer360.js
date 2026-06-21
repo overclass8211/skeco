@@ -1695,17 +1695,19 @@ async function execKpiList(req, res) {
     if (kpi === 'weighted') {
       // 계정별 가중 예상매출 (전체)
       const [rows] = await pool.query(
-        `SELECT agg.customer_name AS name, agg.weighted, agg.active
+        `SELECT rep.id AS customer_id, agg.customer_name AS name, agg.weighted, agg.active
            FROM ( SELECT l.customer_name,
                     COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
                       THEN l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100 ELSE 0 END),0) AS weighted,
                     SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active
                   FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
                   GROUP BY l.customer_name ) agg
+           JOIN (SELECT name, MIN(id) AS id FROM customers GROUP BY name) rep ON rep.name=agg.customer_name
           WHERE agg.weighted > 0
           ORDER BY agg.weighted DESC`
       );
       items = rows.map(r => ({
+        customer_id: r.customer_id,
         name: r.name,
         weighted: Math.round(Number(r.weighted) || 0),
         active: Number(r.active) || 0,
@@ -1713,7 +1715,7 @@ async function execKpiList(req, res) {
     } else if (kpi === 'deals') {
       // 진행 딜 전체 명세
       const [rows] = await pool.query(
-        `SELECT l.customer_name, l.project_name, l.stage, ps.label AS stage_label,
+        `SELECT l.id AS lead_id, l.customer_id, l.customer_name, l.project_name, l.stage, ps.label AS stage_label,
                 COALESCE(l.expected_amount,0) AS expected_amount,
                 COALESCE(l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100,0) AS weighted
            FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
@@ -1721,6 +1723,8 @@ async function execKpiList(req, res) {
           ORDER BY weighted DESC, l.id DESC`
       );
       items = rows.map(r => ({
+        lead_id: r.lead_id,
+        customer_id: r.customer_id,
         customer_name: r.customer_name,
         project_name: r.project_name,
         stage_label: r.stage_label || r.stage,
@@ -1730,12 +1734,14 @@ async function execKpiList(req, res) {
     } else if (kpi === 'winrate') {
       // 마감(수주·실주) 딜 전체
       const [rows] = await pool.query(
-        `SELECT l.customer_name, l.project_name, l.stage, COALESCE(l.expected_amount,0) AS expected_amount
+        `SELECT l.id AS lead_id, l.customer_id, l.customer_name, l.project_name, l.stage, COALESCE(l.expected_amount,0) AS expected_amount
            FROM leads l
           WHERE l.stage IN ('won','lost')
           ORDER BY FIELD(l.stage,'won','lost'), l.expected_amount DESC`
       );
       items = rows.map(r => ({
+        lead_id: r.lead_id,
+        customer_id: r.customer_id,
         customer_name: r.customer_name,
         project_name: r.project_name,
         result: r.stage,
@@ -1763,6 +1769,7 @@ async function execKpiList(req, res) {
           const sig = await gatherHealthSignals(a.id, a.name);
           const { grade, score, subs } = computeHealth(sig, healthCfg);
           return {
+            customer_id: a.id,
             name: a.name,
             grade,
             score,
@@ -1783,12 +1790,13 @@ async function execKpiList(req, res) {
     } else if (kpi === 'quality') {
       // 미해결 품질 케이스 전체
       const [rows] = await pool.query(
-        `SELECT c.name AS customer_name, q.title, q.severity, q.type, q.opened_at
+        `SELECT q.customer_id, c.name AS customer_name, q.title, q.severity, q.type, q.opened_at
            FROM quality_cases q JOIN customers c ON c.id=q.customer_id
           WHERE q.status<>'resolved'
           ORDER BY FIELD(q.severity,'high','medium','low'), q.opened_at DESC`
       );
       items = rows.map(r => ({
+        customer_id: r.customer_id,
         name: r.customer_name,
         title: r.title,
         severity: r.severity,
@@ -1810,6 +1818,7 @@ async function execKpiList(req, res) {
         [FORECAST_MONTHS]
       );
       items = rows.map(r => ({
+        customer_id: r.customer_id,
         name: r.name,
         demand: Math.round(Number(r.demand) || 0),
         capacity: Math.round(Number(r.capacity) || 0),
