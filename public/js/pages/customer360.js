@@ -63,14 +63,25 @@ const Customer360Page = {
         /* 고급 필터 */
         .c360-fbtn{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
         .c360-fbtn.on,.c360-fbtn:hover{border-color:var(--oci-red);color:var(--oci-red)}
-        .c360-filter{max-width:1480px;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px 16px;margin-bottom:12px}
+        .c360-fbtn.primary{background:var(--oci-red);border-color:var(--oci-red);color:#fff}
+        .c360-fbtn.primary:hover{filter:brightness(.95);color:#fff}
+        /* 플로팅 드롭다운 — 대시보드를 밀지 않고 일시적으로 오버레이 */
+        .c360-topwrap{position:relative;z-index:40}
+        .c360-filter{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:50;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px 16px;box-shadow:0 10px 32px rgba(0,0,0,.16)}
+        /* 고객지원 스타일 컨트롤 행 */
+        .c360-fctrls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+        .c360-fctrl{display:flex;flex-direction:column;gap:3px}
+        .c360-fctrl>label{font-size:11px;color:var(--text-3)}
+        .c360-fctrl select,.c360-fctrl input{height:32px;border:1px solid var(--border);border-radius:6px;padding:0 9px;font-size:13px;background:var(--surface);color:var(--text-1);min-width:130px}
+        .c360-fctrl-actions{display:flex;gap:6px;align-items:flex-end;margin-left:auto}
+        .c360-fctrl-actions .c360-fbtn{height:32px}
         .c360-frow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
         .c360-flab{font-size:12px;font-weight:700;color:var(--text-2);width:62px;flex-shrink:0}
         .c360-frow select{height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:13px;background:var(--surface);color:var(--text-1)}
         .c360-chips{display:flex;flex-wrap:wrap;gap:6px}
         .c360-chip{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;transition:all .12s}
         .c360-chip.on{background:var(--oci-red);border-color:var(--oci-red);color:#fff;font-weight:600}
-        .c360-fresults{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;max-height:46vh;overflow:auto}
+        .c360-fresults{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;max-height:340px;overflow:auto}
         .c360-fcount{font-size:11.5px;color:var(--text-3);margin-bottom:6px}
         .c360-fhint{font-size:12px;color:var(--text-3);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
         .c360-fhint b{color:var(--oci-red);font-variant-numeric:tabular-nums}
@@ -232,14 +243,16 @@ const Customer360Page = {
         .c360-brief{border:1px solid var(--border);border-radius:10px;padding:18px;background:var(--surface)}
         .c360-brief-head{font-size:15px;font-weight:700;line-height:1.5;background:linear-gradient(135deg,rgba(22,100,229,.08),rgba(124,77,255,.06));border-left:3px solid var(--oci-blue);padding:12px 14px;border-radius:8px;margin-bottom:14px}
       </style>
-      <div class="c360-bar">
-        <h2>고객·제품 360뷰</h2>
-        <div class="c360-pick">
-          <input id="c360-search" placeholder="고객사 검색…" autocomplete="off">
-          <button id="c360-filter-btn" class="c360-fbtn" type="button">고급 필터</button>
+      <div class="c360-topwrap">
+        <div class="c360-bar">
+          <h2>고객·제품 360뷰</h2>
+          <div class="c360-pick">
+            <input id="c360-search" placeholder="고객사 검색…" autocomplete="off">
+            <button id="c360-filter-btn" class="c360-fbtn" type="button">고급 필터</button>
+          </div>
         </div>
+        <div id="c360-filter" class="c360-filter" hidden></div>
       </div>
-      <div id="c360-filter" class="c360-filter" hidden></div>
       <div id="c360-body">
         <div class="c360-empty">고객사를 선택하면 소재 라이프사이클 360뷰가 표시됩니다.</div>
       </div>
@@ -284,71 +297,144 @@ const Customer360Page = {
       },
     });
     const fbtn = document.getElementById('c360-filter-btn');
-    fbtn?.addEventListener('click', () => {
+    fbtn?.addEventListener('click', e => {
+      e.stopPropagation();
       const p = document.getElementById('c360-filter');
       if (!p) return;
-      if (p.hasAttribute('hidden')) {
-        p.removeAttribute('hidden');
-        fbtn.classList.add('on');
-        this._renderFilterPanel();
-      } else {
-        p.setAttribute('hidden', '');
-        fbtn.classList.remove('on');
-      }
+      if (p.hasAttribute('hidden')) this._openFilter();
+      else this._closeFilter();
     });
+    // 바깥 클릭 시 드롭다운 닫기 (한 번만 바인딩)
+    if (!this._filterOutsideBound) {
+      this._filterOutsideBound = true;
+      document.addEventListener('click', e => {
+        const p = document.getElementById('c360-filter');
+        if (!p || p.hasAttribute('hidden')) return;
+        if (!e.target.closest('.c360-topwrap')) this._closeFilter();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') this._closeFilter();
+      });
+    }
+  },
+  _openFilter() {
+    const p = document.getElementById('c360-filter');
+    const fbtn = document.getElementById('c360-filter-btn');
+    if (!p) return;
+    p.removeAttribute('hidden');
+    fbtn?.classList.add('on');
+    this._renderFilterPanel();
+    setTimeout(() => document.getElementById('cf-q')?.focus(), 0);
+  },
+  _closeFilter() {
+    const p = document.getElementById('c360-filter');
+    const fbtn = document.getElementById('c360-filter-btn');
+    if (p) p.setAttribute('hidden', '');
+    fbtn?.classList.remove('on');
   },
 
   _fstate: null,
-  // 고급 필터 패널 — 정렬·Health 등급·리스크·사업유형 (클라이언트 필터)
+  _fq: '',
+  // 고급 필터 패널 — 고객지원(A/S) 스타일: 라벨드 컨트롤 + 초기화·적용 + 결과 목록
   _renderFilterPanel() {
     const panel = document.getElementById('c360-filter');
     if (!panel) return;
-    if (!this._fstate) this._fstate = { sort: 'weighted', grades: new Set(), risks: new Set(), biz: new Set() };
+    if (!this._fstate) this._fstate = { sort: 'weighted', grade: '', risk: '', biz: '' };
     const f = this._fstate;
     const grades = ['A+', 'A', 'B+', 'B', 'C', 'D'];
     const bizAll = [...new Set(this._customers.flatMap(c => c.business_types || []))].sort();
-    const chip = (on, group, val, label) => `<button class="c360-chip${on ? ' on' : ''}" data-fg="${group}" data-fv="${esc(val)}">${esc(label)}</button>`;
+    const opt = (v, label, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label)}</option>`;
     panel.innerHTML = `
-      <div class="c360-frow">
-        <label class="c360-flab">정렬</label>
-        <select id="c360-fsort">
-          <option value="weighted"${f.sort === 'weighted' ? ' selected' : ''}>가중매출 ↓</option>
-          <option value="deals"${f.sort === 'deals' ? ' selected' : ''}>진행딜 ↓</option>
-          <option value="name"${f.sort === 'name' ? ' selected' : ''}>이름 ↑</option>
-        </select>
+      <div class="c360-fctrls">
+        <div class="c360-fctrl"><label>정렬</label><select id="cf-sort">
+          ${opt('weighted', '가중매출 ↓', f.sort)}${opt('deals', '진행딜 ↓', f.sort)}${opt('name', '이름 ↑', f.sort)}
+        </select></div>
+        <div class="c360-fctrl"><label>Health 등급</label><select id="cf-grade">
+          ${opt('', '전체', f.grade)}${grades.map(g => opt(g, g, f.grade)).join('')}
+        </select></div>
+        <div class="c360-fctrl"><label>리스크</label><select id="cf-risk">
+          ${opt('', '전체', f.risk)}${opt('capa', 'CAPA 부족', f.risk)}${opt('quality', '품질 오픈', f.risk)}
+        </select></div>
+        <div class="c360-fctrl"><label>사업유형</label><select id="cf-biz">
+          ${opt('', '전체', f.biz)}${bizAll.map(b => opt(b, b, f.biz)).join('')}
+        </select></div>
+        <div class="c360-fctrl"><label>고객사명</label><input id="cf-q" placeholder="고객사명" value="${esc(this._fq || '')}" autocomplete="off"></div>
+        <div class="c360-fctrl-actions"><button class="c360-fbtn" id="cf-reset" type="button">초기화</button><button class="c360-fbtn primary" id="cf-apply" type="button">적용</button></div>
       </div>
-      <div class="c360-frow"><label class="c360-flab">Health</label><div class="c360-chips">${grades.map(g => chip(f.grades.has(g), 'grades', g, g)).join('')}</div></div>
-      <div class="c360-frow"><label class="c360-flab">리스크</label><div class="c360-chips">${chip(f.risks.has('capa'), 'risks', 'capa', 'CAPA 부족')}${chip(f.risks.has('quality'), 'risks', 'quality', '품질 오픈')}</div></div>
-      ${bizAll.length ? `<div class="c360-frow"><label class="c360-flab">사업유형</label><div class="c360-chips">${bizAll.map(b => chip(f.biz.has(b), 'biz', b, b)).join('')}</div></div>` : ''}
-      <div class="c360-fhint">조건에 맞는 <b id="c360-fcount">${this._filteredCustomers().length}</b>곳 — 검색창을 클릭하면 필터된 목록이 표시됩니다.</div>`;
-    const refresh = () => {
-      const el = document.getElementById('c360-fcount');
-      if (el) el.textContent = this._filteredCustomers().length;
-    };
-    panel.querySelector('#c360-fsort').addEventListener('change', e => {
-      f.sort = e.target.value;
-      refresh();
+      <div id="c360-fresults" class="c360-fresults"></div>`;
+    panel.querySelector('#cf-apply').addEventListener('click', () => this._applyFilter());
+    panel.querySelector('#cf-reset').addEventListener('click', () => this._resetFilter());
+    panel.querySelector('#cf-q').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this._applyFilter();
     });
-    panel.querySelectorAll('.c360-chip').forEach(b =>
-      b.addEventListener('click', () => {
-        const set = f[b.dataset.fg];
-        const v = b.dataset.fv;
-        if (set.has(v)) set.delete(v);
-        else set.add(v);
-        b.classList.toggle('on');
-        refresh();
+    this._renderFilterResults(); // 패널 열 때 현재 조건으로 즉시 목록 표시
+  },
+  _applyFilter() {
+    const g = id => document.getElementById(id);
+    if (!g('cf-sort')) return;
+    this._fstate = {
+      sort: g('cf-sort').value,
+      grade: g('cf-grade').value,
+      risk: g('cf-risk').value,
+      biz: g('cf-biz').value,
+    };
+    this._fq = (g('cf-q').value || '').trim();
+    this._renderFilterResults();
+  },
+  _resetFilter() {
+    this._fstate = { sort: 'weighted', grade: '', risk: '', biz: '' };
+    this._fq = '';
+    this._renderFilterPanel();
+  },
+  // 적용된 조건으로 거른 고객 목록 (고객지원 리스트 패턴) — 행 클릭 시 해당 360 열기
+  _renderFilterResults() {
+    const host = document.getElementById('c360-fresults');
+    if (!host) return;
+    const q = (this._fq || '').toLowerCase();
+    let list = this._filteredCustomers();
+    if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || (c.industry || '').toLowerCase().includes(q));
+    const rows = list
+      .slice(0, 100)
+      .map(c => {
+        const gc = this._gradeColor(c.health_grade);
+        const risks = [];
+        if (c.has_capa_short) risks.push('<span class="pill pill-danger">CAPA</span>');
+        if (c.open_quality > 0) risks.push(`<span class="pill pill-warn">품질 ${c.open_quality}</span>`);
+        return `<div class="c360-fitem" data-cid="${c.id}">
+          <span class="gr" style="background:${gc}">${esc(c.health_grade || '-')}</span>
+          <span class="c360-fi-name">${esc(c.name)}</span>
+          <span class="c360-fi-meta">${c.open_deals ? '진행 ' + c.open_deals + ' · ' : ''}${this._won(c.weighted)}</span>
+          <span class="c360-fi-risk">${risks.join('')}</span>
+        </div>`;
+      })
+      .join('');
+    host.innerHTML = `<div class="c360-fcount">조건에 맞는 <b>${list.length}</b>곳${list.length > 100 ? ' (상위 100 표시)' : ''}</div>${
+      list.length ? rows : '<div class="c360-empty" style="padding:24px">조건에 맞는 고객사가 없습니다.</div>'
+    }`;
+    host.querySelectorAll('.c360-fitem[data-cid]').forEach(el =>
+      el.addEventListener('click', () => {
+        const id = Number(el.dataset.cid);
+        const c = this._customers.find(x => x.id === id);
+        const input = document.getElementById('c360-search');
+        if (input && c) input.value = c.name;
+        // 패널 닫고 해당 고객 360 열기
+        const p = document.getElementById('c360-filter');
+        const fbtn = document.getElementById('c360-filter-btn');
+        if (p) p.setAttribute('hidden', '');
+        if (fbtn) fbtn.classList.remove('on');
+        this._select(id);
       })
     );
   },
 
   // 현재 필터 상태로 거른+정렬한 고객 목록 (콤보박스·카운트 공용)
   _filteredCustomers() {
-    const f = this._fstate || { sort: 'weighted', grades: new Set(), risks: new Set(), biz: new Set() };
+    const f = this._fstate || { sort: 'weighted', grade: '', risk: '', biz: '' };
     const list = this._customers.filter(c => {
-      if (f.grades.size && !f.grades.has(c.health_grade)) return false;
-      if (f.risks.has('capa') && !c.has_capa_short) return false;
-      if (f.risks.has('quality') && !(c.open_quality > 0)) return false;
-      if (f.biz.size && !(c.business_types || []).some(b => f.biz.has(b))) return false;
+      if (f.grade && c.health_grade !== f.grade) return false;
+      if (f.risk === 'capa' && !c.has_capa_short) return false;
+      if (f.risk === 'quality' && !(c.open_quality > 0)) return false;
+      if (f.biz && !(c.business_types || []).includes(f.biz)) return false;
       return true;
     });
     return list.sort((a, b) =>

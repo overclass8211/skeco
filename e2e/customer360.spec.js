@@ -11,7 +11,11 @@ const { loginAsAdmin } = require('./helpers/auth');
 const CID = 970360;
 const LIST = {
   success: true,
-  data: [{ id: CID, name: 'E2E360고객', industry: '반도체', region: '국내', country: '대한민국', open_deals: 2, pipeline_amount: 9000000000 }],
+  data: [
+    { id: CID, name: 'E2E360고객', industry: '반도체', region: '국내', country: '대한민국', open_deals: 2, pipeline_amount: 9000000000, weighted: 5500000000, health_grade: 'B+', has_capa_short: true, open_quality: 1, business_types: ['식각가스'] },
+    { id: 970361, name: 'E2E파운드리', industry: '반도체', region: '국내', country: '대한민국', open_deals: 1, pipeline_amount: 3000000000, weighted: 2000000000, health_grade: 'A', has_capa_short: false, open_quality: 0, business_types: ['Wet Chemical'] },
+    { id: 970362, name: 'E2E디스플레이', industry: '디스플레이', region: '국내', country: '대한민국', open_deals: 0, pipeline_amount: 0, weighted: 0, health_grade: 'B+', has_capa_short: false, open_quality: 2, business_types: ['포토소재'] },
+  ],
 };
 const DETAIL = {
   success: true,
@@ -191,4 +195,29 @@ test('고객·제품 360뷰 — 소재 카드(연결 딜 1건) 클릭 시 해당
   // 카드 본문 클릭 → 연결된 영업딜(#leads/555) 로 직행 (탭 이동 아님)
   await card.click();
   await expect.poll(() => page.evaluate(() => location.hash), { timeout: 5000 }).toBe('#leads/555');
+});
+
+test('고객·제품 360뷰 — 고급필터(고객지원 스타일) 적용 + 결과 행 클릭', async ({ page }) => {
+  await page.goto('/#customer360');
+  await page.waitForSelector('#c360-filter-btn', { timeout: 15000 });
+
+  // 고급필터 패널 열기 → 라벨드 컨트롤(고객지원 스타일)
+  await page.locator('#c360-filter-btn').click();
+  await expect(page.locator('#cf-grade')).toBeVisible();
+  await expect(page.locator('#cf-apply')).toBeVisible();
+  await expect(page.locator('#cf-reset')).toBeVisible();
+
+  // Health 등급 B+ 적용 → 결과 2곳(E2E360고객·E2E디스플레이), A 등급 제외
+  await page.selectOption('#cf-grade', 'B+');
+  await page.locator('#cf-apply').click();
+  await expect(page.locator('#c360-fresults .c360-fitem')).toHaveCount(2);
+  await expect(page.locator('#c360-fresults')).toContainText('E2E360고객');
+  await expect(page.locator('#c360-fresults')).not.toContainText('E2E파운드리'); // A 등급 제외
+
+  // 결과 행 클릭 → 해당 고객 360 열림 + 패널 닫힘
+  await page.locator('#c360-fresults .c360-fitem').first().click();
+  await expect.poll(() => page.evaluate(() => location.hash), { timeout: 5000 }).toBe(
+    '#customer360/970360'
+  );
+  await expect(page.locator('#c360-filter')).toBeHidden();
 });
