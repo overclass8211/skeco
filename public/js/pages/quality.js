@@ -8,7 +8,7 @@
 // =============================================================
 const QualityPage = {
   _view: 'cases', // 'cases' | 'docs'
-  _filter: { status: 'unresolved', type: '', severity: '', q: '', customer_id: '', mine: false, sla: '' },
+  _filter: { status: 'unresolved', type: '', severity: '', priority: '', q: '', customer_id: '', mine: false, sla: '' },
   _docFilter: { doc_type: '', status: '', q: '', customer_id: '' },
   _cases: [],
   _docs: [],
@@ -152,61 +152,61 @@ const QualityPage = {
     this._load();
   },
 
-  // ── 필터 (뷰별) ──────────────────────────────────────────────
+  // ── 필터 (뷰별) — 검색·내담당은 인라인, 컬럼 필터는 우상단 FilterPopover ──
   _renderFilters() {
     const el = document.getElementById('ql-filters');
-    const opt = (val, label, cur) =>
-      `<option value="${val}"${val === cur ? ' selected' : ''}>${label}</option>`;
-    const custOpts = cur =>
-      this._customers.map(c => opt(String(c.id), esc(c.name), cur)).join('');
+    const custOptions = [{ value: '', label: '고객사 전체' }].concat(
+      this._customers.map(c => ({ value: String(c.id), label: c.name }))
+    );
 
     if (this._view === 'cases') {
       const f = this._filter;
       el.innerHTML = `
-        <select id="qf-status">
-          ${opt('unresolved', '미해결(전체)', f.status)}${Object.entries(this._ST).map(([k, v]) => opt(k, v, f.status)).join('')}${opt('', '전체', f.status)}
-        </select>
-        <select id="qf-type">${opt('', '유형 전체', f.type)}${this._TYPES.map(t => opt(t, t, f.type)).join('')}</select>
-        <select id="qf-sev">${opt('', '심각도 전체', f.severity)}${Object.entries(this._SEV).map(([k, v]) => opt(k, v, f.severity)).join('')}</select>
-        <select id="qf-cust">${opt('', '고객사 전체', f.customer_id)}${custOpts(f.customer_id)}</select>
-        <select id="qf-sla">${opt('', 'SLA 전체', f.sla)}${opt('overdue', 'SLA 초과만', f.sla)}</select>
         <input type="text" id="qf-q" placeholder="제목·케이스번호 검색" value="${esc(f.q)}">
         <label class="ql-chk"><input type="checkbox" id="qf-mine"${f.mine ? ' checked' : ''}> 내 담당만</label>
+        <span style="margin-left:auto">${FilterPopover.renderButton('qf-flt')}</span>
       `;
-      const reload = () => {
-        f.status = document.getElementById('qf-status').value;
-        f.type = document.getElementById('qf-type').value;
-        f.severity = document.getElementById('qf-sev').value;
-        f.customer_id = document.getElementById('qf-cust').value;
-        f.sla = document.getElementById('qf-sla').value;
-        f.mine = document.getElementById('qf-mine').checked;
-        this._load();
-      };
-      ['qf-status', 'qf-type', 'qf-sev', 'qf-cust', 'qf-sla'].forEach(id =>
-        document.getElementById(id).addEventListener('change', reload)
-      );
-      document.getElementById('qf-mine').addEventListener('change', reload);
       this._bindSearch('qf-q', v => (f.q = v));
+      document.getElementById('qf-mine').addEventListener('change', e => {
+        f.mine = e.target.checked;
+        this._load();
+      });
+      FilterPopover.attach({
+        buttonId: 'qf-flt',
+        fields: [
+          { key: 'status', label: '상태', type: 'select', options: [{ value: 'unresolved', label: '미해결(전체)' }, ...Object.entries(this._ST).map(([k, v]) => ({ value: k, label: v })), { value: '', label: '전체' }] },
+          { key: 'type', label: '유형', type: 'select', options: [{ value: '', label: '전체' }, ...this._TYPES.map(t => ({ value: t, label: t }))] },
+          { key: 'severity', label: '심각도', type: 'select', options: [{ value: '', label: '전체' }, ...Object.entries(this._SEV).map(([k, v]) => ({ value: k, label: v }))] },
+          { key: 'priority', label: '우선순위', type: 'select', options: [{ value: '', label: '전체' }, ...Object.entries(this._PRIO).map(([k, v]) => ({ value: k, label: v }))] },
+          { key: 'customer_id', label: '고객사', type: 'select', options: custOptions },
+          { key: 'sla', label: 'SLA', type: 'select', options: [{ value: '', label: '전체' }, { value: 'overdue', label: 'SLA 초과만' }] },
+        ],
+        values: { status: f.status, type: f.type, severity: f.severity, priority: f.priority || '', customer_id: f.customer_id, sla: f.sla },
+        onApply: v => {
+          Object.assign(f, v);
+          this._load();
+        },
+      });
     } else {
       const f = this._docFilter;
       el.innerHTML = `
-        <select id="df-status">
-          ${opt('', '상태 전체', f.status)}${opt('attention', '주의(만료·임박)', f.status)}${opt('expired', '만료', f.status)}${opt('expiring', '임박(≤30일)', f.status)}
-        </select>
-        <select id="df-type">${opt('', '문서 전체', f.doc_type)}${this._DOC_TYPES.map(t => opt(t, t, f.doc_type)).join('')}</select>
-        <select id="df-cust">${opt('', '고객사 전체', f.customer_id)}${custOpts(f.customer_id)}</select>
         <input type="text" id="df-q" placeholder="문서번호·소재 검색" value="${esc(f.q)}">
+        <span style="margin-left:auto">${FilterPopover.renderButton('df-flt')}</span>
       `;
-      const reload = () => {
-        f.status = document.getElementById('df-status').value;
-        f.doc_type = document.getElementById('df-type').value;
-        f.customer_id = document.getElementById('df-cust').value;
-        this._load();
-      };
-      ['df-status', 'df-type', 'df-cust'].forEach(id =>
-        document.getElementById(id).addEventListener('change', reload)
-      );
       this._bindSearch('df-q', v => (f.q = v));
+      FilterPopover.attach({
+        buttonId: 'df-flt',
+        fields: [
+          { key: 'status', label: '만료 상태', type: 'select', options: [{ value: '', label: '전체' }, { value: 'attention', label: '주의(만료·임박)' }, { value: 'expired', label: '만료' }, { value: 'expiring', label: '임박(≤30일)' }] },
+          { key: 'doc_type', label: '문서유형', type: 'select', options: [{ value: '', label: '전체' }, ...this._DOC_TYPES.map(t => ({ value: t, label: t }))] },
+          { key: 'customer_id', label: '고객사', type: 'select', options: custOptions },
+        ],
+        values: { status: f.status, doc_type: f.doc_type, customer_id: f.customer_id },
+        onApply: v => {
+          Object.assign(f, v);
+          this._load();
+        },
+      });
     }
   },
 
@@ -236,6 +236,7 @@ const QualityPage = {
       if (f.status) qs.set('status', f.status);
       if (f.type) qs.set('type', f.type);
       if (f.severity) qs.set('severity', f.severity);
+      if (f.priority) qs.set('priority', f.priority);
       if (f.customer_id) qs.set('customer_id', f.customer_id);
       if (f.sla) qs.set('sla', f.sla);
       if (f.q) qs.set('q', f.q);

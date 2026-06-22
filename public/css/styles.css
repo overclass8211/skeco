@@ -2782,6 +2782,38 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
    적용: customers / leads / quotes / proposals / contracts
    특징: 슬라이딩 인디케이터, OCI Red 강조, 호버 마이크로 인터랙션
    ────────────────────────────────────────────────────────── */
+/* ===== FilterPopover (공용 컬럼 필터) ===== */
+.flt-wrap { position: relative; display: inline-block; }
+.flt-btn {
+  display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.flt-btn:hover, .flt-btn.on, .flt-btn.open { border-color: var(--oci-red); color: var(--oci-red); }
+.flt-badge {
+  background: var(--oci-red); color: #fff; font-size: 10px; font-weight: 700;
+  min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 8px; padding: 0 4px;
+}
+.flt-panel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; min-width: 360px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  box-shadow: 0 10px 32px rgba(0,0,0,.16); padding: 14px;
+}
+.flt-grid { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.flt-field { display: flex; flex-direction: column; gap: 3px; }
+.flt-field > label { font-size: 11px; color: var(--text-3); }
+.flt-field select, .flt-field input {
+  height: 32px; border: 1px solid var(--border); border-radius: 6px; padding: 0 9px;
+  font-size: 13px; background: var(--surface); color: var(--text-1); min-width: 140px;
+}
+.flt-dr { display: flex; gap: 4px; align-items: center; }
+.flt-dr input { min-width: 130px; }
+.flt-dr > span { color: var(--text-3); }
+.flt-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+.flt-actions button { height: 32px; padding: 0 14px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.flt-reset { border: 1px solid var(--border); background: var(--surface); color: var(--text-2); }
+.flt-apply { border: 1px solid var(--oci-red); background: var(--oci-red); color: #fff; }
+
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--border, #e5e7eb);

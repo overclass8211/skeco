@@ -98,6 +98,11 @@ test('전사 품질관리 — KPI + 목록 + 상세 모달', async ({ page }) =>
   await expect(page.locator('#ql-list thead')).toContainText('SLA');
   await expect(page.locator('#ql-list tbody tr').first()).toContainText('초과');
 
+  // 우상단 필터 버튼 → 컬럼 필터 팝오버(상태/유형/심각도/우선순위/고객사/SLA)
+  await page.locator('#qf-flt').click();
+  await expect(page.locator('.flt-panel select[data-fk="priority"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+
   // 행 클릭 → 상세 모달 (워크플로우 필드 + 이관 + 처리내용 + 이력)
   await page.locator('#ql-list tbody tr').first().click();
   await expect(page.locator('#modal-overlay')).toContainText('품질 케이스');
@@ -140,8 +145,10 @@ test('전사 품질관리 — 문서 만료 뷰 전환 + 만료 상태 표시', 
   await expect(page.locator('#ql-list tbody')).toContainText('만료');
   await expect(page.locator('#ql-list .ql-d-expired')).toHaveCount(1);
 
-  // 문서 필터(상태) 노출
-  await expect(page.locator('#df-status')).toBeVisible();
+  // 필터 버튼(우상단) → 팝오버에 문서 상태 필터 노출
+  await page.locator('#df-flt').click();
+  await expect(page.locator('.flt-panel select[data-fk="status"]')).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // 문서 행 클릭 → 그 문서가 있는 화면(고객360 공급 자격 탭)으로 직행
   await page.locator('#ql-list tbody tr[data-cust]').first().click();
