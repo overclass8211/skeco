@@ -296,7 +296,7 @@ const CustomersPage = {
                       <button class="ai-gen-btn"
                         data-action="ai-brief" data-feature="ai.intelligence"
                         data-id="${c.id}" data-name="${esc(c.name).replace(/"/g, '&quot;')}">
-                        AI 브리핑
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M10 1.5l1.8 6.7 6.7 1.8-6.7 1.8L10 18.5l-1.8-6.7L1.5 10l6.7-1.8z"/></svg>AI 브리핑
                       </button>
                       ${this._briefBadgeHtml(c.id)}
                     </div>
@@ -461,7 +461,7 @@ const CustomersPage = {
               </div>
               <button class="ai-gen-btn" style="width:100%;justify-content:center"
                 data-action="ai-brief" data-id="${c.id}" data-name="${esc(c.name).replace(/"/g, '&quot;')}">
-                AI 브리핑 생성
+                <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M10 1.5l1.8 6.7 6.7 1.8-6.7 1.8L10 18.5l-1.8-6.7L1.5 10l6.7-1.8z"/></svg>AI 브리핑 생성
               </button>
             </div>
           </div>
@@ -576,18 +576,20 @@ const CustomersPage = {
 
   _briefBadgeHtml(id) {
     const info = this._getBriefedInfo(id);
+    const spark = '<svg viewBox="0 0 20 20" fill="currentColor" width="11" height="11"><path d="M10 1.5l1.8 6.7 6.7 1.8-6.7 1.8L10 18.5l-1.8-6.7L1.5 10l6.7-1.8z"/></svg>';
     return info
-      ? `<span class="brief-done-badge ${info.cls}" data-brief-id="${id}">${info.label}</span>`
+      ? `<span class="brief-done-badge ${info.cls}" data-brief-id="${id}">${spark}${info.label}</span>`
       : `<span class="brief-done-badge" data-brief-id="${id}" style="display:none"></span>`;
   },
 
   _refreshBriefBadge(id) {
     const info = this._getBriefedInfo(id);
+    const spark = '<svg viewBox="0 0 20 20" fill="currentColor" width="11" height="11"><path d="M10 1.5l1.8 6.7 6.7 1.8-6.7 1.8L10 18.5l-1.8-6.7L1.5 10l6.7-1.8z"/></svg>';
     // 테이블 배지
     document.querySelectorAll(`[data-brief-id="${id}"]`).forEach(el => {
       if (info) {
         el.className = `brief-done-badge ${info.cls}`;
-        el.textContent = `${info.label}`;
+        el.innerHTML = `${spark}${esc(info.label)}`;
         el.style.display = '';
       }
     });

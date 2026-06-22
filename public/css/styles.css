@@ -1695,8 +1695,10 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   border: 1px solid; line-height: 1.5;
   transition: opacity .2s;
 }
+.brief-done-badge svg { flex-shrink: 0; }
+/* AI 브리핑 완료 — 별(✦) 톤(금색)으로, '시퍼런 네모' 제거 */
 .brief-badge-fresh {
-  color: #1565c0; background: #e3f2fd; border-color: #90caf9;
+  color: #b45309; background: #fff7ed; border-color: #fed7aa;
 }
 .brief-badge-today {
   color: #2e7d32; background: #e8f5e9; border-color: #a5d6a7;
@@ -1710,7 +1712,7 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   padding: 3px 0 5px; color: #2e7d32;
   border-bottom: 1px dashed var(--border); margin-bottom: 6px;
 }
-[data-theme="dark"] .brief-badge-fresh { color:#90caf9; background:rgba(33,150,243,.12); border-color:#1565c0; }
+[data-theme="dark"] .brief-badge-fresh { color:#fbbf77; background:rgba(245,158,11,.12); border-color:#b45309; }
 [data-theme="dark"] .brief-badge-today { color:#81c784; background:rgba(76,175,80,.12);  border-color:#2e7d32; }
 [data-theme="dark"] .brief-done-chip   { color:#81c784; }
 
