@@ -82,7 +82,12 @@ const FilterPopover = (() => {
 
     const activeCount = () =>
       fields.reduce((n, f) => {
-        if (f.type === 'daterange') return n + (values[f.fromKey || 'from'] ? 1 : 0) + (values[f.toKey || 'to'] ? 1 : 0);
+        if (f.type === 'daterange')
+          return n + (values[f.fromKey || 'from'] || values[f.toKey || 'to'] ? 1 : 0);
+        if (f.type === 'select') {
+          const neutral = (f.options && f.options[0] && f.options[0].value) || '';
+          return n + (values[f.key] && String(values[f.key]) !== String(neutral) ? 1 : 0);
+        }
         return n + (values[f.key] ? 1 : 0);
       }, 0);
     const refreshBadge = () => {

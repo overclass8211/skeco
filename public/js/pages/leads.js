@@ -25,51 +25,7 @@ const LeadsPage = {
       <div id="leads-kpi-bar"></div>
       <div class="filter-bar">
         <input type="text" class="search-input" id="leads-search" data-placeholder-label="leads.search_placeholder" placeholder="고객사, 프로젝트명, 메모 검색...">
-
-        <select class="filter-select" id="leads-stage">
-          <option value="" data-label="common.all">전체 단계</option>
-          <option value="lead" data-label="stages.lead">발굴/니즈파악</option>
-          <option value="review" data-label="stages.review">샘플 평가</option>
-          <option value="proposal" data-label="stages.proposal">Spec-in/승인</option>
-          <option value="bidding" data-label="stages.bidding">가격 협의</option>
-          <option value="negotiation" data-label="stages.negotiation">공급계약</option>
-          <option value="won" data-label="stages.won">양산/정기수주</option>
-          <option value="lost" data-label="stages.lost">실주</option>
-          <option value="dropped" data-label="stages.dropped">드롭</option>
-        </select>
-
-        <select class="filter-select" id="leads-business-type">
-          <option value="" data-label="common.all">전체 사업유형</option>
-          <option value="식각가스">식각가스</option>
-          <option value="프리커서">프리커서</option>
-          <option value="Wet Chemical">Wet Chemical</option>
-          <option value="디스플레이소재">디스플레이소재</option>
-          <option value="포토소재">포토소재</option>
-          <option value="통합서비스">통합서비스</option>
-        </select>
-
-        <select class="filter-select" id="leads-region">
-          <option value="" data-label="region.all">국내/해외</option>
-          <option value="국내" data-label="region.domestic">국내</option>
-          <option value="해외" data-label="region.overseas">해외</option>
-        </select>
-
-        <select class="filter-select" id="leads-assigned">
-          <option value="" data-label="common.all_assignees">전체 담당자</option>
-        </select>
-
-        <div class="filter-date-group">
-          <select class="filter-select" id="leads-date-field" style="width:90px">
-            <option value="close" data-label="leads.expected_close_date">마감일</option>
-            <option value="updated" data-label="common.updated_at">수정일</option>
-            <option value="created" data-label="common.created_at">등록일</option>
-          </select>
-          <input type="date" class="filter-date" id="leads-date-from" data-title-label="common.start_date" title="시작일">
-          <span class="text-muted" style="font-size:11px">~</span>
-          <input type="date" class="filter-date" id="leads-date-to" data-title-label="common.end_date" title="종료일">
-          <button class="btn btn-ghost btn-sm" id="leads-date-clear" data-title-label="common.clear_date" title="날짜 초기화" style="display:none">✕</button>
-        </div>
-
+        <span style="flex:1"></span>
         <button class="btn btn-primary" id="leads-open-form-btn" data-label="leads.new_button">+ 영업딜 등록</button>
       </div>
 
@@ -103,6 +59,8 @@ const LeadsPage = {
               <span data-label="common.excel_import">📂 엑셀 가져오기</span>
               <input type="file" id="leads-import-input" accept=".xlsx,.xls" style="display:none">
             </label>
+            <!-- 컬럼 필터 (공용 FilterPopover) -->
+            ${FilterPopover.renderButton('leads-flt')}
             <!-- v6.0.0: 5개 모듈 통일 뷰 토글 -->
             ${ViewToggle.render({ currentView: this._view })}
           </div>
@@ -119,10 +77,6 @@ const LeadsPage = {
 
     const team = await API.team.list();
     this.team = team.data;
-    const sel = document.getElementById('leads-assigned');
-    sel.innerHTML =
-      '<option value="">전체 담당자</option>' +
-      this.team.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
 
     // v6.0.0: ViewToggle 바인딩 (목록/카드 전환)
     if (typeof ViewToggle !== 'undefined') {
@@ -167,41 +121,44 @@ const LeadsPage = {
       }, 300)
     );
 
-    // 드롭다운 필터들
-    const selectMap = {
-      'leads-stage': 'stage',
-      'leads-business-type': 'business_type',
-      'leads-region': 'region',
-      'leads-assigned': 'assigned_to',
-      'leads-date-field': 'date_field',
-    };
-    Object.entries(selectMap).forEach(([id, key]) => {
-      document.getElementById(id).addEventListener('change', e => {
-        this.filters[key] = e.target.value;
+    // 컬럼 필터 — 공용 FilterPopover (우상단)
+    const stageOpts = [
+      { value: '', label: '전체 단계' },
+      { value: 'lead', label: '발굴/니즈파악' },
+      { value: 'review', label: '샘플 평가' },
+      { value: 'proposal', label: 'Spec-in/승인' },
+      { value: 'bidding', label: '가격 협의' },
+      { value: 'negotiation', label: '공급계약' },
+      { value: 'won', label: '양산/정기수주' },
+      { value: 'lost', label: '실주' },
+      { value: 'dropped', label: '드롭' },
+    ];
+    const bizOpts = [{ value: '', label: '전체 사업유형' }].concat(
+      ['식각가스', '프리커서', 'Wet Chemical', '디스플레이소재', '포토소재', '통합서비스'].map(b => ({ value: b, label: b }))
+    );
+    this._flt = FilterPopover.attach({
+      buttonId: 'leads-flt',
+      fields: [
+        { key: 'stage', label: '단계', type: 'select', options: stageOpts },
+        { key: 'business_type', label: '사업유형', type: 'select', options: bizOpts },
+        { key: 'region', label: '구분', type: 'select', options: [{ value: '', label: '국내/해외' }, { value: '국내', label: '국내' }, { value: '해외', label: '해외' }] },
+        { key: 'assigned_to', label: '담당자', type: 'select', options: [{ value: '', label: '전체 담당자' }, ...this.team.map(t => ({ value: String(t.id), label: t.name }))] },
+        { key: 'date_field', label: '날짜 기준', type: 'select', options: [{ value: 'close', label: '마감일' }, { value: 'updated', label: '수정일' }, { value: 'created', label: '등록일' }] },
+        { key: '', label: '기간', type: 'daterange', fromKey: 'date_from', toKey: 'date_to' },
+      ],
+      values: {
+        stage: this.filters.stage || '',
+        business_type: this.filters.business_type || '',
+        region: this.filters.region || '',
+        assigned_to: this.filters.assigned_to || '',
+        date_field: this.filters.date_field || 'close',
+        date_from: this.filters.date_from || '',
+        date_to: this.filters.date_to || '',
+      },
+      onApply: v => {
+        Object.assign(this.filters, v);
         this.loadData();
-      });
-    });
-
-    // 날짜 range
-    document.getElementById('leads-date-from').addEventListener('change', e => {
-      this.filters.date_from = e.target.value;
-      document.getElementById('leads-date-clear').style.display =
-        this.filters.date_from || this.filters.date_to ? '' : 'none';
-      this.loadData();
-    });
-    document.getElementById('leads-date-to').addEventListener('change', e => {
-      this.filters.date_to = e.target.value;
-      document.getElementById('leads-date-clear').style.display =
-        this.filters.date_from || this.filters.date_to ? '' : 'none';
-      this.loadData();
-    });
-    document.getElementById('leads-date-clear').addEventListener('click', () => {
-      this.filters.date_from = '';
-      this.filters.date_to = '';
-      document.getElementById('leads-date-from').value = '';
-      document.getElementById('leads-date-to').value = '';
-      document.getElementById('leads-date-clear').style.display = 'none';
-      this.loadData();
+      },
     });
 
     // Ctrl+V 전역 붙여넣기 핸들러 등록
@@ -278,7 +235,7 @@ const LeadsPage = {
         STAGES[this.filters.stage]?.label || this.filters.stage,
         () => {
           this.filters.stage = '';
-          document.getElementById('leads-stage').value = '';
+          this._flt?.setValues({ stage: '' });
         },
       ]);
     if (this.filters.business_type)
@@ -287,7 +244,7 @@ const LeadsPage = {
         this.filters.business_type,
         () => {
           this.filters.business_type = '';
-          document.getElementById('leads-business-type').value = '';
+          this._flt?.setValues({ business_type: '' });
         },
       ]);
     if (this.filters.region)
@@ -296,7 +253,7 @@ const LeadsPage = {
         this.filters.region,
         () => {
           this.filters.region = '';
-          document.getElementById('leads-region').value = '';
+          this._flt?.setValues({ region: '' });
         },
       ]);
     if (this.filters.assigned_to) {
@@ -306,7 +263,7 @@ const LeadsPage = {
         member?.name || this.filters.assigned_to,
         () => {
           this.filters.assigned_to = '';
-          document.getElementById('leads-assigned').value = '';
+          this._flt?.setValues({ assigned_to: '' });
         },
       ]);
     }
@@ -318,9 +275,7 @@ const LeadsPage = {
         () => {
           this.filters.date_from = '';
           this.filters.date_to = '';
-          document.getElementById('leads-date-from').value = '';
-          document.getElementById('leads-date-to').value = '';
-          document.getElementById('leads-date-clear').style.display = 'none';
+          this._flt?.setValues({ date_from: '', date_to: '' });
         },
       ]);
     }

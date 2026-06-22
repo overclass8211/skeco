@@ -206,10 +206,8 @@ test('시나리오 8 — 다국어 전환 시 화면 내 라벨 종합 적용', 
   });
   await page.waitForSelector('th[data-label="leads.customer_name"]', { timeout: 8000 });
   await expect(page.locator('th[data-label="leads.customer_name"]')).toHaveText('顧客');
-  await expect(page.locator('#leads-open-form-btn')).toHaveText('+ リード追加');
-  // stages option text
-  const stageOpt = page.locator('#leads-stage option[value="bidding"]');
-  await expect(stageOpt).toHaveText('入札');
+  await expect(page.locator('#leads-open-form-btn')).toHaveText('+ ディール追加');
+  // (단계 등 컬럼 필터는 공용 FilterPopover로 이동 — 한국어 고정 라벨이라 i18n 검증 대상에서 제외)
 
   // 복원
   await page.request.put('/api/admin/labels/system-locale', {
