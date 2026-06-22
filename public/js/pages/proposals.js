@@ -7,6 +7,7 @@
 const ProposalsPage = (() => {
   // ── 모듈 상태 ────────────────────────────────────────────
   let _list = [];
+  const _prFilter = { status: '' };
   let _editing = null;
   let _leadsCache = [];
   let _quotesCache = [];
@@ -172,14 +173,11 @@ const ProposalsPage = (() => {
       <div id="pr-kpi-bar"></div>
       <div class="filter-bar">
         <input class="search-input" id="pr-search" placeholder="제안명·고객사·번호 검색...">
-        <select class="filter-select" id="pr-status">
-          <option value="">전체 상태</option>
-          ${Object.entries(STATUS_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
-        </select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2)">
           <input type="checkbox" id="pr-due-soon"> 마감임박 (7일)
         </label>
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+          ${FilterPopover.renderButton('pr-flt')}
           <!-- v6.0.0: 5개 모듈 통일 뷰 토글 (ViewToggle 컴포넌트) -->
           ${ViewToggle.render({ currentView: _viewMode === 'table' ? 'list' : _viewMode })}
           <button class="btn btn-primary" id="pr-new-btn">+ 제안 등록</button>
@@ -192,8 +190,18 @@ const ProposalsPage = (() => {
 
     document.getElementById('pr-new-btn').addEventListener('click', () => _openModal(null));
     document.getElementById('pr-search').addEventListener('input', _debounce(_reload, 250));
-    document.getElementById('pr-status').addEventListener('change', _reload);
     document.getElementById('pr-due-soon').addEventListener('change', _reload);
+    FilterPopover.attach({
+      buttonId: 'pr-flt',
+      fields: [
+        { key: 'status', label: '상태', type: 'select', options: [{ value: '', label: '전체 상태' }, ...Object.entries(STATUS_LABEL).map(([k, v]) => ({ value: k, label: v }))] },
+      ],
+      values: { status: _prFilter.status },
+      onApply: v => {
+        _prFilter.status = v.status;
+        _reload();
+      },
+    });
     // v6.0.0: ViewToggle 컴포넌트 바인딩 ('list' 는 내부적으로 'table' 과 동일)
     ViewToggle.bind(
       document.querySelector('.filter-bar .view-toggle'),
@@ -244,7 +252,7 @@ const ProposalsPage = (() => {
 
   async function _reload() {
     const search = document.getElementById('pr-search')?.value || '';
-    const status = document.getElementById('pr-status')?.value || '';
+    const status = _prFilter.status || '';
     const dueSoon = document.getElementById('pr-due-soon')?.checked ? 1 : '';
     const wrap = document.getElementById('pr-list-wrap');
     if (!wrap) return;

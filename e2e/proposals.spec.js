@@ -21,7 +21,10 @@ test('제안 페이지 진입 → [+ 제안 등록] 버튼 + 목록 영역 표�
   await expect(page.locator('#pr-new-btn')).toBeVisible();
   await expect(page.locator('#pr-new-btn')).toContainText('제안 등록');
   await expect(page.locator('#pr-search')).toBeVisible();
-  await expect(page.locator('#pr-status')).toBeVisible();
+  // 상태 필터는 우상단 FilterPopover 안으로 이동
+  await page.locator('#pr-flt').click();
+  await expect(page.locator('.flt-panel select[data-fk="status"]')).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.locator('#pr-due-soon')).toBeVisible();
   await expect(page.locator('#pr-list-wrap')).toBeVisible();
 });
