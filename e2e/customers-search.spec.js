@@ -17,17 +17,18 @@ test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
 });
 
-test('고객사 — 전량 로드(limit=9999) + 이름 뒤쪽 고객(두산에너빌리티) 검색', async ({ page }) => {
+test('고객사 — 전량 로드(limit=9999) + 이름 뒤쪽 고객(키파운드리) 검색', async ({ page }) => {
   // (1) 전량 로드 요청 확인 — 네비게이션 전에 리스너 설치
   const reqP = page.waitForRequest(/\/api\/customers\?.*\blimit=9999\b/, { timeout: 15000 });
   await page.goto('/#customers');
   await reqP;
 
-  // 목록 렌더 대기 (검색 전 실고객 표시 — '에너지' 포함 고객 다수)
+  // 목록 렌더 대기 (검색 전 실고객 표시 — 표에 행이 채워짐)
+  // (지역·산업군 필터는 우상단 FilterPopover로 이동 → 로드 시점 본문엔 표 행으로 확인)
   await page.waitForSelector('#cust-search', { timeout: 10000 });
-  await expect(page.locator('#content')).toContainText('에너지', { timeout: 10000 });
+  await expect(page.locator('#customers-view-container tbody tr').first()).toBeVisible({ timeout: 10000 });
 
-  // (2) 이름 정렬상 뒤쪽 고객 검색 → 표시되어야 함
-  await page.fill('#cust-search', '두산에너빌리티');
-  await expect(page.locator('#content')).toContainText('두산에너빌리티', { timeout: 5000 });
+  // (2) 이름 정렬상 뒤쪽 고객 검색 → 표시되어야 함 (SK 반도체 데이터의 후순위 고객)
+  await page.fill('#cust-search', '키파운드리');
+  await expect(page.locator('#content')).toContainText('키파운드리', { timeout: 5000 });
 });

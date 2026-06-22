@@ -31,16 +31,9 @@ const CustomersPage = {
       <div id="cust-kpi-bar"></div>
       <div class="filter-bar">
         <input class="search-input" id="cust-search" data-placeholder-label="customers.search_placeholder" placeholder="고객사명, 담당자 검색...">
-        <select class="filter-select" id="cust-region">
-          <option value="" data-label="common.all">전체 지역</option>
-          <option value="국내" data-label="region.domestic">국내</option>
-          <option value="해외" data-label="region.overseas">해외</option>
-        </select>
-        <select class="filter-select" id="cust-industry">
-          <option value="" data-label="common.all">전체 산업군</option>
-        </select>
 
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          ${FilterPopover.renderButton('cust-flt')}
           <button class="btn btn-ghost btn-sm" id="cp-paste-btn-cust"
                   data-feature="data.bulk_paste"
                   title="Excel·Word에서 복사한 표를 붙여넣기로 일괄 등록 (Ctrl+V)" data-label="common.paste_register">
@@ -113,10 +106,9 @@ const CustomersPage = {
       const btn = e.target.closest('.view-toggle-btn');
       if (btn) this.switchView(btn.dataset.view);
     });
-    // filter inputs
+    // filter inputs — 검색은 인라인, 지역·산업군은 우상단 FilterPopover
+    if (!this._filters) this._filters = { region: '', industry: '' };
     document.getElementById('cust-search')?.addEventListener('input', () => this.applyFilter());
-    document.getElementById('cust-region')?.addEventListener('change', () => this.applyFilter());
-    document.getElementById('cust-industry')?.addEventListener('change', () => this.applyFilter());
 
     this._bindPasteShortcut();
     await this.loadData();
@@ -135,13 +127,22 @@ const CustomersPage = {
       this.data = res.data;
       this._allData = res.data;
 
-      // 산업군 드롭다운 동적 생성
-      const industryEl = document.getElementById('cust-industry');
-      if (industryEl) {
+      // 지역·산업군 컬럼 필터 — 공용 FilterPopover (산업군은 데이터 기반 동적, 1회 attach)
+      if (!this._flt && typeof FilterPopover !== 'undefined' && document.getElementById('cust-flt')) {
         const industries = [...new Set(this.data.map(c => c.industry).filter(Boolean))].sort();
-        industryEl.innerHTML =
-          '<option value="">전체 산업군</option>' +
-          industries.map(i => `<option value="${esc(i)}">${esc(i)}</option>`).join('');
+        this._flt = FilterPopover.attach({
+          buttonId: 'cust-flt',
+          fields: [
+            { key: 'region', label: '지역', type: 'select', options: [{ value: '', label: '전체 지역' }, { value: '국내', label: '국내' }, { value: '해외', label: '해외' }] },
+            { key: 'industry', label: '산업군', type: 'select', options: [{ value: '', label: '전체 산업군' }, ...industries.map(i => ({ value: i, label: i }))] },
+          ],
+          values: { region: this._filters.region, industry: this._filters.industry },
+          onApply: v => {
+            this._filters.region = v.region;
+            this._filters.industry = v.industry;
+            this.applyFilter();
+          },
+        });
       }
 
       this.applyFilter();
@@ -152,8 +153,8 @@ const CustomersPage = {
 
   applyFilter() {
     const search = (document.getElementById('cust-search')?.value || '').toLowerCase();
-    const region = document.getElementById('cust-region')?.value || '';
-    const industry = document.getElementById('cust-industry')?.value || '';
+    const region = this._filters?.region || '';
+    const industry = this._filters?.industry || '';
     const filtered = this.data.filter(
       c =>
         (!search ||
@@ -203,8 +204,8 @@ const CustomersPage = {
     if (!data.length) {
       const hasFilter =
         document.getElementById('cust-search')?.value ||
-        document.getElementById('cust-region')?.value ||
-        document.getElementById('cust-industry')?.value;
+        this._filters?.region ||
+        this._filters?.industry;
       const presetKey = hasFilter ? 'filter' : 'customers';
       const html =
         typeof EmptyState !== 'undefined'
@@ -382,8 +383,8 @@ const CustomersPage = {
     if (!data.length) {
       const hasFilter =
         document.getElementById('cust-search')?.value ||
-        document.getElementById('cust-region')?.value ||
-        document.getElementById('cust-industry')?.value;
+        this._filters?.region ||
+        this._filters?.industry;
       const presetKey = hasFilter ? 'filter' : 'customers';
       const html =
         typeof EmptyState !== 'undefined'
@@ -794,8 +795,8 @@ const CustomersPage = {
 
   _buildExportPath() {
     const search = document.getElementById('cust-search')?.value || '';
-    const region = document.getElementById('cust-region')?.value || '';
-    const industry = document.getElementById('cust-industry')?.value || '';
+    const region = this._filters?.region || '';
+    const industry = this._filters?.industry || '';
     const qs = new URLSearchParams();
     if (search) qs.set('search', search);
     if (region) qs.set('region', region);
