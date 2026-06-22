@@ -18,6 +18,7 @@ const { handleError } = require('../middleware/errorHandler');
 const { validateId } = require('../middleware/validate');
 const { requireLevel } = require('../middleware/rbac');
 const { getUserId } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 const { getRoleInfo } = require('../services/authService');
 const { genAI, MODEL_FAST, SAFETY_SETTINGS } = require('../services/gemini');
 
@@ -2546,8 +2547,73 @@ router.put('/documents/:id', requireLevel(1), validateId, async (req, res) => {
 
 router.delete('/documents/:id', requireLevel(1), validateId, async (req, res) => {
   try {
+    // 첨부 실파일도 함께 정리
+    const [[doc]] = await pool.query('SELECT file_path FROM quality_documents WHERE id=?', [
+      req.params.id,
+    ]);
     await pool.query('DELETE FROM quality_documents WHERE id=?', [req.params.id]);
+    if (doc && doc.file_path) {
+      try {
+        require('node:fs').unlinkSync(doc.file_path);
+      } catch (_) {
+        /* 이미 없음 */
+      }
+    }
     res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 품질 문서 첨부 업로드 (단일 파일) — 기존 파일 교체 ─────────
+const decodeName = n => {
+  try {
+    return Buffer.from(n, 'latin1').toString('utf8');
+  } catch (_) {
+    return n;
+  }
+};
+router.post(
+  '/documents/:id/file',
+  requireLevel(1),
+  validateId,
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      const f = req.file;
+      if (!f) return res.status(400).json({ success: false, error: '업로드할 파일 없음' });
+      const [[cur]] = await pool.query('SELECT file_path FROM quality_documents WHERE id=?', [
+        req.params.id,
+      ]);
+      if (!cur) return res.status(404).json({ success: false, error: '문서 없음' });
+      await pool.query(
+        'UPDATE quality_documents SET file_path=?, file_name=?, file_size=? WHERE id=?',
+        [f.path, decodeName(f.originalname), f.size || null, req.params.id]
+      );
+      // 기존 파일 교체 시 이전 파일 제거
+      if (cur.file_path && cur.file_path !== f.path) {
+        try {
+          require('node:fs').unlinkSync(cur.file_path);
+        } catch (_) {
+          /* noop */
+        }
+      }
+      res.json({ success: true, data: { file_name: decodeName(f.originalname) } });
+    } catch (err) {
+      handleError(res, err);
+    }
+  }
+);
+// ── 품질 문서 첨부 다운로드 ───────────────────────────────────
+router.get('/documents/:id/file', validateId, async (req, res) => {
+  try {
+    const [[d]] = await pool.query(
+      'SELECT file_path, file_name FROM quality_documents WHERE id=?',
+      [req.params.id]
+    );
+    if (!d || !d.file_path)
+      return res.status(404).json({ success: false, error: '첨부 파일 없음' });
+    res.download(d.file_path, d.file_name || 'document');
   } catch (err) {
     handleError(res, err);
   }

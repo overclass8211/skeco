@@ -1065,6 +1065,20 @@ async function initTables() {
       INDEX idx_qd_type (doc_type)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // 품질 문서 첨부파일 보강 (file_url=외부URL 유지, file_path=업로드 파일) — 멱등
+    for (const col of [
+      'ADD COLUMN file_path VARCHAR(500) DEFAULT NULL',
+      'ADD COLUMN file_name VARCHAR(255) DEFAULT NULL',
+      'ADD COLUMN file_size INT DEFAULT NULL',
+    ]) {
+      try {
+        await pool.query(`ALTER TABLE quality_documents ${col}`);
+      } catch (e) {
+        if (!String(e.message).includes('Duplicate'))
+          console.warn('⚠ quality_documents 컬럼:', e.message);
+      }
+    }
+
     // 고객 만족도(NPS/CSAT) — Account Health '관계·만족도' 축의 선행지표 원천
     //   survey_type: NPS(0~10) | CSAT(1~5).  Health 산식은 최근값을 0~100 으로 정규화해 반영.
     await pool.query(`CREATE TABLE IF NOT EXISTS customer_satisfaction (

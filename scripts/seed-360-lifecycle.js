@@ -436,6 +436,41 @@ async function enrichQuality(conn, counts) {
       counts.docs += 1;
     }
 
+    // ── 품질 문서 첨부 샘플 파일 — 다운로드 시연용 (멱등) ──
+    counts.docFiles = 0;
+    {
+      const fs = require('fs');
+      const path = require('path');
+      const upDir = path.join(__dirname, '..', 'public', 'uploads', 'seed-samples');
+      fs.mkdirSync(upDir, { recursive: true });
+      const mkPdf = title => {
+        const content = `BT /F1 18 Tf 60 760 Td (${title}) Tj ET`;
+        return `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n5 0 obj<</Length ${Buffer.byteLength(content)}>>stream\n${content}\nendstream endobj\ntrailer<</Root 1 0 R>>\n%%EOF`;
+      };
+      const samples = {
+        CoA: { p: path.join(upDir, 'sample-coa.pdf'), title: 'SK ecoplant materials - CoA (Certificate of Analysis) Sample', name: '성적서_샘플.pdf' },
+        MSDS: { p: path.join(upDir, 'sample-msds.pdf'), title: 'SK ecoplant materials - MSDS Sample', name: 'MSDS_샘플.pdf' },
+      };
+      for (const s of Object.values(samples)) {
+        if (!fs.existsSync(s.p)) fs.writeFileSync(s.p, mkPdf(s.title));
+      }
+      // 첨부 없는 데모 문서 일부에 샘플 첨부 (유형별 최대 6건)
+      for (const [type, s] of Object.entries(samples)) {
+        const [rows] = await conn.query(
+          'SELECT id FROM quality_documents WHERE doc_type=? AND file_path IS NULL ORDER BY id ASC LIMIT 6',
+          [type]
+        );
+        const sz = fs.statSync(s.p).size;
+        for (const r of rows) {
+          await conn.query(
+            'UPDATE quality_documents SET file_path=?, file_name=?, file_size=? WHERE id=?',
+            [s.p, s.name, sz, r.id]
+          );
+          counts.docFiles += 1;
+        }
+      }
+    }
+
     // ── 고객 만족도(NPS/CSAT) 데모 — Health 관계·만족도 축 시연용 (멱등) ──
     //   대표 고객 일부에 최근 NPS/CSAT 부여(높음/보통/낮음 분산). 이미 있으면 건너뜀.
     counts.satisfaction = 0;
@@ -534,7 +569,7 @@ async function enrichQuality(conn, counts) {
     console.log(`  · 사업장: ${counts.sites} · 담당자: ${counts.contacts} · 샘플: ${counts.samples} 신규`);
     console.log(`  · 생산예측(production_forecasts): ${counts.prodForecasts} 신규`);
     console.log(`  · 수금 스케줄(payment_schedules): ${counts.payments} 신규`);
-    console.log(`  · 품질 문서(quality_documents): ${counts.docs} 신규`);
+    console.log(`  · 품질 문서(quality_documents): ${counts.docs} 신규 · 첨부 샘플 ${counts.docFiles}건`);
     console.log(`  · 고객 만족도(customer_satisfaction): ${counts.satisfaction} 신규`);
     console.log(`  · 소속 고객(동일사명 담당자): ${counts.members} 신규`);
     console.log(`  · 국내 주소 채움: ${counts.address} 행`);

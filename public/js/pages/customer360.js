@@ -1534,17 +1534,23 @@ const Customer360Page = {
     const docs = this._qualityDocs || [];
     const docTable = docs.length
       ? `<table class="data-table" style="font-size:12px"><thead><tr>
-          <th>유형</th><th>문서번호</th><th>소재</th><th>발행일</th><th>유효기한</th><th></th>
+          <th>유형</th><th>문서번호</th><th>소재</th><th>발행일</th><th>유효기한</th><th>첨부</th><th></th>
         </tr></thead><tbody>
         ${docs
           .map(d => {
             const expired = d.valid_until && String(d.valid_until).slice(0, 10) < new Date().toISOString().slice(0, 10);
+            const fileCell = d.file_path
+              ? `<a class="lc-mini" href="/api/customer360/documents/${d.id}/file" target="_blank" rel="noopener" title="${esc(d.file_name || '다운로드')}">📎 다운로드</a>`
+              : d.file_url
+                ? `<a class="lc-mini" href="${esc(d.file_url)}" target="_blank" rel="noopener" title="외부 링크">🔗 링크</a>`
+                : '<span style="color:var(--text-3)">-</span>';
             return `<tr>
             <td><span class="pill pill-info">${esc(d.doc_type)}</span></td>
             <td class="mono">${esc(d.doc_no || '-')}</td>
             <td>${esc(d.material_name ? d.material_name.split(' · ')[0] : '-')}</td>
             <td>${d.issued_at ? String(d.issued_at).slice(0, 10) : '-'}</td>
             <td style="${expired ? 'color:var(--oci-red)' : ''}">${d.valid_until ? String(d.valid_until).slice(0, 10) : '-'}${expired ? ' (만료)' : ''}</td>
+            <td>${fileCell}</td>
             <td style="text-align:right"><button class="lc-mini" data-doc-edit="${d.id}">수정</button><button class="lc-mini" data-doc-del="${d.id}" style="color:var(--oci-red)">삭제</button></td>
           </tr>`;
           })
@@ -1589,7 +1595,11 @@ const Customer360Page = {
             <div class="form-row"><label class="form-label">발행/제공일</label><input class="form-input" id="d-issued" type="date" value="${d && d.issued_at ? String(d.issued_at).slice(0, 10) : ''}"></div>
             <div class="form-row"><label class="form-label">유효기한</label><input class="form-input" id="d-valid" type="date" value="${d && d.valid_until ? String(d.valid_until).slice(0, 10) : ''}"></div>
           </div>
-          <div class="form-row"><label class="form-label">파일 링크</label><input class="form-input" id="d-url" value="${d ? esc(d.file_url || '') : ''}" placeholder="https://..."></div>
+          <div class="form-row"><label class="form-label">파일 첨부 (CoA/MSDS PDF 등)</label>
+            ${d && d.file_name ? `<div style="font-size:12px;margin-bottom:5px">📎 <a href="/api/customer360/documents/${d.id}/file" target="_blank" rel="noopener">${esc(d.file_name)}</a> <span style="color:var(--text-3)">(새 파일 선택 시 교체)</span></div>` : ''}
+            <input class="form-input" id="d-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.hwp">
+          </div>
+          <div class="form-row"><label class="form-label">외부 링크 (선택)</label><input class="form-input" id="d-url" value="${d ? esc(d.file_url || '') : ''}" placeholder="https://... (사내 파일 대신 외부 URL)"></div>
         </div>`,
       footer: `<button class="btn btn-ghost" id="d-cancel">취소</button><button class="btn btn-primary" id="d-save">저장</button>`,
       bind: { '#d-cancel': () => Modal.close(), '#d-save': () => this._saveDoc(d) },
@@ -1606,8 +1616,19 @@ const Customer360Page = {
       file_url: v('d-url') || null,
     };
     try {
+      let docId = d ? d.id : null;
       if (d) await API.put(`/customer360/documents/${d.id}`, payload);
-      else await API.post(`/customer360/${this._custId}/documents`, payload);
+      else {
+        const r = await API.post(`/customer360/${this._custId}/documents`, payload);
+        docId = r && r.data ? r.data.id : null;
+      }
+      // 첨부 파일 업로드 (선택 시)
+      const file = document.getElementById('d-file')?.files?.[0];
+      if (file && docId) {
+        const fd = new FormData();
+        fd.append('file', file);
+        await API._upload(`/customer360/documents/${docId}/file`, fd);
+      }
       Toast.success('문서 저장 완료');
       Modal.close();
       this._qualityDocs = null;

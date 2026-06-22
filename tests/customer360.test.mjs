@@ -367,6 +367,33 @@ describe('Customer360 (MVP) API', () => {
     expect(del.status).toBe(200);
   });
 
+  it('후속3: 품질 문서 첨부 업로드 + 다운로드', async () => {
+    const cr = await api()
+      .post(`/api/customer360/${custId}/documents`)
+      .set('X-User-Id', '1')
+      .send({ doc_type: 'CoA', doc_no: '__COA_FILE__', customer_material_id: matId });
+    const docId = cr.body.data.id;
+    // 첨부 없는 상태 → 다운로드 404
+    const noFile = await api().get(`/api/customer360/documents/${docId}/file`).set('X-User-Id', '1');
+    expect(noFile.status).toBe(404);
+    // 멀티파트 업로드
+    const up = await api()
+      .post(`/api/customer360/documents/${docId}/file`)
+      .set('X-User-Id', '1')
+      .attach('file', Buffer.from('%PDF-1.4 test'), '성적서.pdf');
+    expect(up.status).toBe(200);
+    // 목록에 file_path/file_name 반영
+    const list = await api().get(`/api/customer360/${custId}/documents`).set('X-User-Id', '1');
+    const row = list.body.data.find(d => d.id === docId);
+    expect(row.file_name).toBe('성적서.pdf');
+    expect(row.file_path).toBeTruthy();
+    // 다운로드 200 + 첨부 헤더
+    const dl = await api().get(`/api/customer360/documents/${docId}/file`).set('X-User-Id', '1');
+    expect(dl.status).toBe(200);
+    expect(dl.headers['content-disposition']).toContain('attachment');
+    await api().delete(`/api/customer360/documents/${docId}`).set('X-User-Id', '1');
+  });
+
   it('후속3: 품질 응답에 detail_restricted 플래그', async () => {
     const res = await api().get(`/api/customer360/${custId}/quality`).set('X-User-Id', '1');
     expect(res.status).toBe(200);
