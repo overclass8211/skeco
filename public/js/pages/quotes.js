@@ -13,6 +13,7 @@ const QuotesPage = (() => {
   let _sortable = null; // Sortable 인스턴스 (destroy 용)
   // v6.0.0: 뷰 모드 (목록/카드) — localStorage 동기화
   let _view = localStorage.getItem('quotes_view') || 'list';
+  const _filter = { status: '' };
 
   // 기본 컬럼 라벨
   const DEFAULT_COLUMNS = {
@@ -169,14 +170,8 @@ const QuotesPage = (() => {
       <div id="qt-kpi-bar"></div>
       <div class="filter-bar">
         <input class="search-input" id="qt-search" placeholder="견적명·고객명·번호 검색...">
-        <select class="filter-select" id="qt-status">
-          <option value="">전체 상태</option>
-          <option value="draft">초안</option>
-          <option value="sent">발송됨</option>
-          <option value="accepted">수주</option>
-          <option value="rejected">실패</option>
-        </select>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          ${FilterPopover.renderButton('qt-flt')}
           <!-- v6.0.0: 5개 모듈 통일 뷰 토글 -->
           ${ViewToggle.render({ currentView: _view })}
           <button class="btn btn-primary" id="qt-new-btn">+ 견적서 작성</button>
@@ -189,7 +184,17 @@ const QuotesPage = (() => {
 
     document.getElementById('qt-new-btn').addEventListener('click', () => _openModal(null));
     document.getElementById('qt-search').addEventListener('input', _debounce(_reload, 250));
-    document.getElementById('qt-status').addEventListener('change', _reload);
+    FilterPopover.attach({
+      buttonId: 'qt-flt',
+      fields: [
+        { key: 'status', label: '상태', type: 'select', options: [{ value: '', label: '전체 상태' }, { value: 'draft', label: '초안' }, { value: 'sent', label: '발송됨' }, { value: 'accepted', label: '수주' }, { value: 'rejected', label: '실패' }] },
+      ],
+      values: { status: _filter.status },
+      onApply: v => {
+        _filter.status = v.status;
+        _reload();
+      },
+    });
 
     // v6.0.0: ViewToggle 바인딩 (목록/카드 전환)
     if (typeof ViewToggle !== 'undefined') {
@@ -245,7 +250,7 @@ const QuotesPage = (() => {
 
   async function _reload() {
     const search = document.getElementById('qt-search')?.value || '';
-    const status = document.getElementById('qt-status')?.value || '';
+    const status = _filter.status || '';
     const wrap = document.getElementById('qt-list-wrap');
     if (!wrap) return;
     try {
