@@ -348,6 +348,7 @@ app.use('/api/payments', require('./src/routes/payments')); // v8.0.0 SFR-011 �
 app.use('/api/revenue', require('./src/routes/revenue')); // 매출관리 (P2 — payment_schedules 매출 렌즈)
 app.use('/api/forecast', require('./src/routes/forecast')); // 매출 포캐스트 (파이프라인 가중 예측)
 app.use('/api/production-forecasts', require('./src/routes/productionForecasts')); // 생산예측 (Phase B)
+app.use('/api/forecast-sc', require('./src/routes/forecastSupplyChain')); // 반도체 수급 FCST (MI수요→Capa→매출)
 app.use('/api/support', require('./src/routes/support')); // 고객지원(A/S) 모듈 P1
 app.use('/api/quality', require('./src/routes/quality')); // 전사 품질관리 (Quality Inbox)
 // v6.0.0: 읽음 표시 통합 라우터 (lead/project/quote/proposal/contract 공통)

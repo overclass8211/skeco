@@ -629,6 +629,39 @@ async function initTables() {
       UNIQUE KEY uniq_snap (snapshot_month, target_month)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // ── FCST 재설계: 반도체 수급 모델 (MI수요 → Capa → 매출) ──────
+    //   forecast_qty 의미 재정의 = 수요량 / supply_qty 신규 = 출하가능(=MIN(수요,유효Capa))
+    //   expected_revenue 산식 변경 = 공급량 × 판가 (라우트에서 적용)
+    //   demand_source: manual | market_intel / region: 수요 출처 지역
+    for (const col of [
+      'ADD COLUMN supply_qty DECIMAL(15,2) DEFAULT NULL', // 출하가능(산출 캐시)
+      "ADD COLUMN demand_source VARCHAR(20) DEFAULT 'manual'", // manual | market_intel
+      'ADD COLUMN region VARCHAR(40) DEFAULT NULL', // 한국/미국/대만 등
+    ]) {
+      try {
+        await pool.query(`ALTER TABLE production_forecasts ${col}`);
+      } catch (e) {
+        if (!String(e.message).includes('Duplicate'))
+          console.warn('⚠ production_forecasts 컬럼:', e.message);
+      }
+    }
+
+    // 생산 Capa — 제품 × 월 (유효Capa = nameplate × utilization, 산출)
+    await pool.query(`CREATE TABLE IF NOT EXISTS production_capacity (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      product_id    INT NULL,
+      product_name  VARCHAR(150) NOT NULL COMMENT '조인 키 (제품 마스터 부재)',
+      period        CHAR(7) NOT NULL COMMENT 'YYYY-MM',
+      nameplate     DECIMAL(15,2) DEFAULT 0 COMMENT '설비 기준 능력',
+      utilization   DECIMAL(5,4) DEFAULT 0 COMMENT '가동률 0~1 (입력값)',
+      unit          VARCHAR(20) DEFAULT 'L',
+      note          TEXT,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_cap (product_name, period),
+      INDEX idx_cap_period (period)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     // ── leads.stage ENUM → VARCHAR 마이그레이션 (idempotent) ──
     // ENUM은 단계 추가/삭제 불가 → VARCHAR로 변환하여 자유로운 stage_key 허용
     try {
