@@ -308,6 +308,9 @@ const API = {
     capacitySave: body => API.post('/forecast-sc/capacity', body),
     capacityUpdate: (id, body) => API.put(`/forecast-sc/capacity/${id}`, body),
     capacityRemove: id => API.del(`/forecast-sc/capacity/${id}`),
+    demandCreate: body => API.post('/forecast-sc/demand', body),
+    demandUpdate: (id, body) => API.put(`/forecast-sc/demand/${id}`, body),
+    demandRemove: id => API.del(`/forecast-sc/demand/${id}`),
   },
 
   // 활동

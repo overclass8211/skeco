@@ -271,4 +271,83 @@ router.delete('/capacity/:id', async (req, res) => {
   }
 });
 
+// ── 수요 로데이터: 생성 (실무자 입력) ──────────────────────────
+router.post('/demand', async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.customer_name || !b.product_name || !/^\d{4}-\d{2}$/.test(b.period || '')) {
+      return res
+        .status(400)
+        .json({ success: false, error: '고객사·제품·기간(YYYY-MM)은 필수입니다.' });
+    }
+    let customerId = b.customer_id || null;
+    if (!customerId) {
+      const [[c]] = await pool.query('SELECT MIN(id) AS id FROM customers WHERE name=?', [
+        b.customer_name,
+      ]);
+      customerId = c?.id || null;
+    }
+    const qty = Number(b.forecast_qty) || 0;
+    const price = Number(b.unit_price) || 0;
+    const [r] = await pool.query(
+      `INSERT INTO production_forecasts
+        (customer_id, customer_name, product_name, business_type, period,
+         forecast_qty, unit, unit_price, expected_revenue, currency, status, demand_source, region)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        customerId,
+        b.customer_name,
+        b.product_name,
+        b.business_type || null,
+        b.period,
+        qty,
+        b.unit || 'L',
+        price,
+        r2(qty * price),
+        b.currency || 'USD',
+        '예측',
+        b.demand_source || 'manual',
+        b.region || null,
+      ]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 수요 로데이터: 수정 (수요량·판가 인라인 편집) ──────────────
+router.put('/demand/:id', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const sets = [];
+    const params = [];
+    if (b.forecast_qty !== undefined) {
+      sets.push('forecast_qty=?');
+      params.push(Number(b.forecast_qty) || 0);
+    }
+    if (b.unit_price !== undefined) {
+      sets.push('unit_price=?');
+      params.push(Number(b.unit_price) || 0);
+    }
+    if (!sets.length)
+      return res.status(400).json({ success: false, error: '수정할 값이 없습니다.' });
+    params.push(req.params.id);
+    await pool.query(`UPDATE production_forecasts SET ${sets.join(', ')} WHERE id=?`, params);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── 수요 로데이터: 삭제 ────────────────────────────────────────
+router.delete('/demand/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM production_forecasts WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 module.exports = router;
