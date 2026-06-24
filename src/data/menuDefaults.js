@@ -20,6 +20,7 @@ const DEFAULT_ITEMS = [
   { menu_key: 'dashboard', section_key: 'main', display_order: 1, is_system: 0 },
   { menu_key: 'pipeline', section_key: 'main', display_order: 2, is_system: 0 },
   { menu_key: 'forecast', section_key: 'main', display_order: 3, is_system: 0 }, // 매출 포캐스트 (Phase A)
+  { menu_key: 'fcstsc', section_key: 'main', display_order: 6, is_system: 0 }, // 반도체 수급 FCST (Phase 3)
   { menu_key: 'orders', section_key: 'erp', display_order: 1, is_system: 0 },
   { menu_key: 'cost', section_key: 'erp', display_order: 2, is_system: 0 },
   { menu_key: 'leads', section_key: 'sales', display_order: 1, is_system: 0 },

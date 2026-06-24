@@ -14,6 +14,7 @@ const App = {
     cost: { obj: () => CostPage, title: '원가관리', crumb: 'ERP / 원가관리' },
     pipeline: { obj: () => PipelinePage, title: '파이프라인', crumb: '영업관리 / 파이프라인' },
     forecast: { obj: () => ForecastPage, title: '매출 포캐스트', crumb: '메인 / 매출 포캐스트' },
+    fcstsc: { obj: () => FcstScPage, title: '수급 FCST', crumb: '메인 / 수급 FCST' },
     leads: { obj: () => LeadsPage, title: '영업딜', crumb: '영업관리 / 영업딜' },
     projects: { obj: () => ProjectsPage, title: '프로젝트', crumb: '영업관리 / 프로젝트' },
     customers: { obj: () => CustomersPage, title: '고객사', crumb: '영업관리 / 고객사' },

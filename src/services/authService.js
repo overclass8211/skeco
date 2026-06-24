@@ -43,6 +43,7 @@ const ROLE_PAGES = {
     'dashboard',
     'pipeline',
     'forecast', // 매출 포캐스트 (재무 민감 — team_lead 이상)
+    'fcstsc', // 반도체 수급 FCST (재무 민감 — team_lead 이상)
     'leads',
     'customers',
     'calendar',
@@ -69,6 +70,7 @@ const ROLE_PAGES = {
     'dashboard',
     'pipeline',
     'forecast',
+    'fcstsc', // 반도체 수급 FCST (재무 민감 — team_lead 이상)
     'leads',
     'customers',
     'calendar',
@@ -96,6 +98,7 @@ const ROLE_PAGES = {
     'dashboard',
     'pipeline',
     'forecast',
+    'fcstsc', // 반도체 수급 FCST (재무 민감 — team_lead 이상)
     'leads',
     'customers',
     'calendar',

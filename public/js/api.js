@@ -289,6 +289,27 @@ const API = {
     convert: id => API.post(`/production-forecasts/${id}/convert`, {}),
   },
 
+  // 반도체 수급 FCST (MI수요 → 생산Capa → 매출)
+  forecastSC: {
+    monthly: (year) => API.get(`/forecast-sc/monthly?year=${year}`),
+    summary: (year) => API.get(`/forecast-sc/summary?year=${year}`),
+    demand: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+      ).toString();
+      return API.get('/forecast-sc/demand' + (qs ? '?' + qs : ''));
+    },
+    capacity: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+      ).toString();
+      return API.get('/forecast-sc/capacity' + (qs ? '?' + qs : ''));
+    },
+    capacitySave: body => API.post('/forecast-sc/capacity', body),
+    capacityUpdate: (id, body) => API.put(`/forecast-sc/capacity/${id}`, body),
+    capacityRemove: id => API.del(`/forecast-sc/capacity/${id}`),
+  },
+
   // 활동
   activities: {
     create: body => API.post('/activities', body),
