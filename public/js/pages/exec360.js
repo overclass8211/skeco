@@ -338,7 +338,7 @@ const Exec360Page = {
       const rows = (d.materials || [])
         .slice(0, 30)
         .map(
-          m => `<tr>
+          m => `<tr data-cust="${m.customer_id || ''}" title="클릭 시 고객·제품 360뷰로 이동">
             <td><strong>${esc(m.customer_name)}</strong></td>
             <td>${esc((m.material_name || '').split(' · ')[0])}</td>
             <td>${esc(m.business_type || '-')}</td>
@@ -370,7 +370,15 @@ const Exec360Page = {
           </table>
         </div>`;
       const box = document.querySelector('#modal-overlay .modal-body');
-      if (box) box.innerHTML = html;
+      if (box) {
+        box.innerHTML = html;
+        // 소재 행 클릭 → 해당 고객 360뷰 드릴다운
+        box.querySelectorAll('tr[data-cust]').forEach(tr => {
+          if (!tr.dataset.cust) return;
+          tr.classList.add('clickable');
+          tr.addEventListener('click', () => this._goCustomer(tr.dataset.cust));
+        });
+      }
     } catch (e) {
       const box = document.querySelector('#modal-overlay .modal-body');
       if (box)

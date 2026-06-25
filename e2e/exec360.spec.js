@@ -59,7 +59,7 @@ test.beforeEach(async ({ page }) => {
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        data: { stage: gate, label: LBL[gate] || gate, stats: { count: 14, capa_short: 3, open_quality: 2, expected_order: 11830000000 }, materials: [], ai: { diagnosis: '게이트 진단 결과', actions: ['액션1'] } },
+        data: { stage: gate, label: LBL[gate] || gate, stats: { count: 14, capa_short: 3, open_quality: 2, expected_order: 11830000000 }, materials: [{ customer_id: 909, customer_name: 'E2E단계고객', material_name: '식각가스 C4F6 · 평택', business_type: '식각가스', expected_order: 1950000000, capa_short: true, open_quality: 1 }], ai: { diagnosis: '게이트 진단 결과', actions: ['액션1'] } },
       }),
     });
   });
@@ -114,6 +114,13 @@ test('임원 360 요약 — 게이트 분포 클릭 시 진단 모달 (게이트
   // 실패 문구가 아니라 진단/통계가 떠야 함
   await expect(page.locator('#modal-overlay')).not.toContainText('알 수 없는');
   await expect(page.locator('#modal-overlay')).toContainText('게이트 진단 결과');
+
+  // 소재 목록 행 드릴다운 → 고객·제품 360뷰 이동
+  const matRow = page.locator('#modal-overlay .modal-body tr[data-cust="909"]');
+  await expect(matRow).toBeVisible();
+  await expect(matRow).toContainText('E2E단계고객');
+  await matRow.click();
+  await expect(page).toHaveURL(/#customer360\/909/, { timeout: 5000 });
 });
 
 test('임원 360 요약 — KPI 카드 클릭 시 근거 모달', async ({ page }) => {

@@ -2109,7 +2109,7 @@ async function execStageAnalyze(req, res) {
     let rows = [];
     if (matIds.length) {
       [rows] = await pool.query(
-        `SELECT m.id, m.material_name, m.business_type, m.win_probability, c.name AS customer_name,
+        `SELECT m.id, m.customer_id, m.material_name, m.business_type, m.win_probability, c.name AS customer_name,
                 COALESCE(df.demand,0) AS demand, COALESCE(df.capacity,0) AS capacity,
                 COALESCE(df.exp_order,0) AS expected_order, COALESCE(q.openq,0) AS open_quality
            FROM customer_materials m
@@ -2128,6 +2128,7 @@ async function execStageAnalyze(req, res) {
       );
     }
     const materials = rows.map(r => ({
+      customer_id: r.customer_id,
       customer_name: r.customer_name,
       material_name: r.material_name,
       business_type: r.business_type,
