@@ -38,6 +38,7 @@ const SUMMARY = {
 const KPI_LISTS = {
   weighted: { kpi: 'weighted', total: 1, items: [{ customer_id: 777, name: 'E2E임원고객', weighted: 12800000000, active: 5 }] },
   quality: { kpi: 'quality', total: 1, items: [{ customer_id: 777, name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }] },
+  gatedelay: { kpi: 'gatedelay', total: 1, items: [{ customer_id: 909, name: 'E2E지연고객', material: '식각가스 C4F6 · 평택', gate: '실험계획(DOE)', days: 41 }] },
 };
 
 test.beforeEach(async ({ page }) => {
@@ -120,6 +121,21 @@ test('임원 360 요약 — 게이트 분포 클릭 시 진단 모달 (게이트
   await expect(matRow).toBeVisible();
   await expect(matRow).toContainText('E2E단계고객');
   await matRow.click();
+  await expect(page).toHaveURL(/#customer360\/909/, { timeout: 5000 });
+});
+
+test('임원 360 요약 — 지연 게이트 KPI 근거 모달 + 드릴다운', async ({ page }) => {
+  // 🐛 지연 게이트 KPI 클릭 시 근거 모달이 안 뜨던 버그 회귀 방지
+  await page.goto('/#exec360');
+  await page.waitForSelector('.ex-kpi[data-kpi="gatedelay"]', { timeout: 15000 });
+  await page.locator('.ex-kpi[data-kpi="gatedelay"]').click();
+  await expect(page.locator('#modal-overlay')).toContainText('지연 게이트 — 근거', { timeout: 5000 });
+  const row = page.locator('#ex-kpi-list tr[data-cust="909"]');
+  await expect(row).toBeVisible();
+  await expect(row).toContainText('E2E지연고객');
+  await expect(row).toContainText('D+41');
+  // 행 클릭 → 고객 360뷰 드릴다운
+  await row.click();
   await expect(page).toHaveURL(/#customer360\/909/, { timeout: 5000 });
 });
 

@@ -426,6 +426,11 @@ const Exec360Page = {
         lead: `<span style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</span><span>생산 < 수요</span>`,
         formula: '기준: 향후 분기 고객 수요 합계 > 생산 가능량 합계인 계정',
       },
+      gatedelay: {
+        title: '지연 게이트 — 근거',
+        lead: `<span style="color:${k.gate_delay_count ? 'var(--oci-red)' : ''}">${k.gate_delay_count || 0}건</span><span>목표일 경과·미완료</span>`,
+        formula: "기준: 게이트 목표일(target_date)이 오늘 이전인데 아직 완료(done)·생략(skipped)되지 않은 소재 게이트",
+      },
     };
     const m = META[kpi];
     if (!m) return;
@@ -564,6 +569,19 @@ const Exec360Page = {
           4
         ) +
         foot('곳', total)
+      );
+    }
+    if (kpi === 'gatedelay') {
+      const rows = items
+        .map(
+          g =>
+            `<tr data-cust="${g.customer_id || ''}"><td><strong>${esc(g.name)}</strong></td><td>${esc((g.material || '').split(' · ')[0])}</td><td>${esc(g.gate)}</td><td class="text-right" style="color:var(--oci-red);font-weight:700">D+${g.days}</td></tr>`
+        )
+        .join('');
+      return (
+        `<div class="ex-stage-th">지연 게이트 목록 (초과일수 순)</div>` +
+        scroll('<th>고객사</th><th>소재</th><th>게이트</th><th class="text-right">지연</th>', rows, '지연 게이트 없음', 4) +
+        foot('건 지연', total)
       );
     }
     return '';

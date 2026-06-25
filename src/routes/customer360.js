@@ -2402,6 +2402,29 @@ async function execKpiList(req, res) {
         gap: Math.round((Number(r.demand) || 0) - (Number(r.capacity) || 0)),
         unit: Number(r.unit_cnt) === 1 ? r.unit || '' : '',
       }));
+    } else if (kpi === 'gatedelay') {
+      // 지연 게이트 전체 (목표일 경과 & 미완료) — 소재/게이트/초과일수
+      const [defs] = await pool.query(
+        'SELECT gate_key, gate_label FROM plm_gates WHERE is_active=1'
+      );
+      const lbl = new Map(defs.map(d => [d.gate_key, d.gate_label]));
+      const [rows] = await pool.query(
+        `SELECT mg.gate_key, m.material_name, m.customer_id, c.name AS customer_name,
+                DATEDIFF(CURDATE(), mg.target_date) AS days
+           FROM material_gates mg
+           JOIN customer_materials m ON m.id = mg.customer_material_id AND m.status <> 'closed'
+           JOIN customers c ON c.id = m.customer_id
+          WHERE mg.target_date IS NOT NULL AND mg.target_date < CURDATE()
+            AND mg.status NOT IN ('done','skipped')
+          ORDER BY days DESC`
+      );
+      items = rows.map(r => ({
+        customer_id: r.customer_id,
+        name: r.customer_name,
+        material: r.material_name,
+        gate: lbl.get(r.gate_key) || r.gate_key,
+        days: Number(r.days) || 0,
+      }));
     } else {
       return res.status(400).json({ success: false, error: '알 수 없는 KPI' });
     }
