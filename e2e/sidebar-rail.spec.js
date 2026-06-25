@@ -24,8 +24,15 @@ test('사이드바 레일 모드 — 토글/저장/복원', async ({ page }) => 
   const wRail = (await sidebar.boundingBox()).width;
   expect(wRail).toBeLessThan(wExpanded);
   expect(wRail).toBeLessThanOrEqual(80);
-  // 라벨(텍스트) 숨김 — 첫 nav-item 의 라벨 span
-  await expect(page.locator('.sidebar-nav .nav-item').first().locator('span:not(.nav-badge)').first()).toBeHidden();
+  // 라벨(텍스트) 페이드 아웃 — 슬라이딩(opacity 0). display:none 이 아니라 opacity 로 애니메이션
+  await expect
+    .poll(() =>
+      page
+        .locator('.sidebar-nav .nav-item span:not(.nav-badge)')
+        .first()
+        .evaluate(el => getComputedStyle(el).opacity)
+    )
+    .toBe('0');
   // 저장
   expect(await page.evaluate(() => localStorage.getItem('oci_rail'))).toBe('1');
 
