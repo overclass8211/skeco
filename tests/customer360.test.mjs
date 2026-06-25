@@ -259,6 +259,7 @@ describe('Customer360 (MVP) API', () => {
     expect(d.kpis).toHaveProperty('weighted_expected');
     expect(d.kpis).toHaveProperty('open_quality');
     expect(d.kpis).toHaveProperty('capa_short_accounts');
+    expect(d.kpis).toHaveProperty('gate_delay_count'); // PLM 지연 게이트 KPI
     expect(Array.isArray(d.stage_distribution)).toBe(true);
     // 단계 분포 = PLM 게이트 기준 (전면 교체) — 활성 게이트 수만큼, MRD 포함
     expect(d.stage_distribution.length).toBeGreaterThanOrEqual(6);
@@ -267,6 +268,7 @@ describe('Customer360 (MVP) API', () => {
     expect(d.risks).toHaveProperty('capa_short');
     expect(d.risks).toHaveProperty('quality');
     expect(d.risks).toHaveProperty('eval_delay');
+    expect(Array.isArray(d.risks.gate_delay)).toBe(true); // PLM 지연 게이트 목록
     expect(Array.isArray(d.risks.misalign)).toBe(true); // 단계 정합성 불일치
     // /exec-summary 가 /:id 보다 먼저 매칭되어 404/400 이 아님
     expect(res.body.success).toBe(true);

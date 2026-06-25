@@ -1863,29 +1863,54 @@ async function buildExecSummaryData() {
   const LEVEL_ORDER = { high: 0, medium: 1, info: 2 };
   misalign.sort((a, b) => (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9));
 
-  // 단계 분포 = PLM 게이트 기준 (게이트=라이프사이클 단일 소스)
+  // 단계 분포 = PLM 게이트 기준 (게이트=라이프사이클 단일 소스) + 지연 게이트 집계
   const [gDefs] = await pool.query(
     `SELECT gate_key, gate_label FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC`
   );
-  const [openMats] = await pool.query(`SELECT id FROM customer_materials WHERE status<>'closed'`);
+  const gLabelByKey = new Map(gDefs.map(g => [g.gate_key, g.gate_label]));
+  const [openMats] = await pool.query(
+    `SELECT m.id, m.material_name, m.customer_id, c.name AS customer_name
+       FROM customer_materials m LEFT JOIN customers c ON c.id=m.customer_id
+      WHERE m.status<>'closed'`
+  );
   let gateProg = [];
   if (openMats.length) {
     [gateProg] = await pool.query(
-      'SELECT customer_material_id, gate_key, status FROM material_gates WHERE customer_material_id IN (?)',
+      'SELECT customer_material_id, gate_key, status, target_date FROM material_gates WHERE customer_material_id IN (?)',
       [openMats.map(m => m.id)]
     );
   }
   const progByMat = new Map();
+  const gatesByMat = new Map();
   for (const p of gateProg) {
     if (!progByMat.has(p.customer_material_id)) progByMat.set(p.customer_material_id, new Map());
     progByMat.get(p.customer_material_id).set(p.gate_key, p.status);
+    if (!gatesByMat.has(p.customer_material_id)) gatesByMat.set(p.customer_material_id, []);
+    gatesByMat.get(p.customer_material_id).push(p);
   }
   const gKeys = gDefs.map(g => g.gate_key);
   const gateCount = new Map(gKeys.map(k => [k, 0]));
+  const today = new Date();
+  const gateDelayList = [];
   for (const m of openMats) {
     const cur = pickCurrentGateKey(gKeys, progByMat.get(m.id) || new Map());
     if (cur && gateCount.has(cur)) gateCount.set(cur, gateCount.get(cur) + 1);
+    // 지연 게이트: 목표일 경과 + 미완료(done/skipped 제외)
+    for (const g of gatesByMat.get(m.id) || []) {
+      if (!g.target_date || g.status === 'done' || g.status === 'skipped') continue;
+      const td = new Date(g.target_date);
+      if (td < today) {
+        gateDelayList.push({
+          customer_id: m.customer_id,
+          name: m.customer_name || '-',
+          material: m.material_name,
+          gate: gLabelByKey.get(g.gate_key) || g.gate_key,
+          days: Math.round((today - td) / 86400000),
+        });
+      }
+    }
   }
+  gateDelayList.sort((a, b) => b.days - a.days);
   const gateDistribution = gDefs.map(g => ({
     stage: g.gate_key,
     label: g.gate_label,
@@ -1902,6 +1927,7 @@ async function buildExecSummaryData() {
       avg_health: healthGrade(avgScore, healthCfg.thresholds),
       open_quality: Number(qAgg.n) || 0,
       capa_short_accounts: capaShortIds.size,
+      gate_delay_count: gateDelayList.length,
     },
     stage_distribution: gateDistribution,
     top_accounts: topAccounts,
@@ -1924,6 +1950,7 @@ async function buildExecSummaryData() {
         name: e.customer_name,
         material: e.material_name,
       })),
+      gate_delay: gateDelayList.slice(0, 8),
       misalign,
     },
   };

@@ -169,10 +169,11 @@ const Exec360Page = {
       <div class="ex-kpi" data-kpi="health"><div class="l">평균 Health</div><div class="v">${k.avg_health}</div><div class="s">Top 계정 기준</div></div>
       <div class="ex-kpi" data-kpi="quality"><div class="l">품질 오픈</div><div class="v" style="color:${k.open_quality ? 'var(--oci-red)' : ''}">${k.open_quality}건</div><div class="s">VOC/NCR 미해결</div></div>
       <div class="ex-kpi" data-kpi="capa"><div class="l">CAPA 부족 계정</div><div class="v" style="color:${k.capa_short_accounts ? 'var(--oci-red)' : ''}">${k.capa_short_accounts}곳</div><div class="s">생산 < 수요</div></div>
+      <div class="ex-kpi" data-kpi="gatedelay"><div class="l">지연 게이트</div><div class="v" style="color:${k.gate_delay_count ? 'var(--oci-red)' : ''}">${k.gate_delay_count || 0}건</div><div class="s">목표일 경과·미완료</div></div>
     </div>`;
 
     const stageTotal = d.stage_distribution.reduce((a, s) => a + s.count, 0) || 1;
-    const stage = `<div class="ex-sec">공정 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">발굴 → 납품 · 총 ${stageTotal}개 소재 · 단계 클릭 시 AI 진단</span></div>
+    const stage = `<div class="ex-sec">공정 라이프사이클 단계 분포 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">PLM 게이트(MRD → MP) · 총 ${stageTotal}개 소재 · 단계 클릭 시 AI 진단</span></div>
       ${this._renderStageFunnel(d.stage_distribution, stageTotal)}`;
 
     const accounts = `<div class="ex-sec">Top 계정 (가중 예상매출)</div>
@@ -212,6 +213,7 @@ const Exec360Page = {
         ${riskCard('CAPA 부족', '<rect x="3" y="9" width="18" height="11" rx="1"/><path d="M9 9V5h6v4"/>', 'var(--oci-red)', r.capa_short.slice(0, 5).map(x => ({ text: `${x.name} · 부족 ${Math.round(x.gap).toLocaleString('ko-KR')}${x.unit ? ' ' + x.unit : ''}`, cust: x.customer_id })), 'CAPA 부족 없음')}
         ${riskCard('품질 오픈', '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>', '#b45309', r.quality.slice(0, 5).map(q => ({ text: `${q.name} · ${q.title} (${q.severity})`, q: q.customer_id })), '품질 이슈 없음')}
         ${riskCard('평가 지연/진행', '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', 'var(--text-2)', r.eval_delay.slice(0, 5).map(e => ({ text: `${e.name} · ${e.material.split(' · ')[0]}`, cust: e.customer_id })), '평가 지연 없음')}
+        ${riskCard('게이트 지연', '<circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 2"/>', 'var(--oci-red)', (r.gate_delay || []).slice(0, 5).map(g => ({ text: `${g.name} · ${g.material.split(' · ')[0]} · ${g.gate} (D+${g.days})`, cust: g.customer_id })), '지연 게이트 없음')}
         ${riskCard('단계 불일치', '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>', 'var(--oci-red)', (r.misalign || []).slice(0, 5).map(m => ({ text: `${m.name} · ${m.label.split(' — ')[0]}`, cust: m.customer_id })), '영업·공정 단계 정합 양호')}
       </div>`;
 

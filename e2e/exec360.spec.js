@@ -10,7 +10,7 @@ const { loginAsAdmin } = require('./helpers/auth');
 const SUMMARY = {
   success: true,
   data: {
-    kpis: { weighted_expected: 48700000000, active_deals: 36, win_rate: 28, avg_health: 'B+', open_quality: 11, capa_short_accounts: 4 },
+    kpis: { weighted_expected: 48700000000, active_deals: 36, win_rate: 28, avg_health: 'B+', open_quality: 11, capa_short_accounts: 4, gate_delay_count: 7 },
     stage_distribution: [
       { stage: 'discovery', label: '발굴', count: 5 },
       { stage: 'sample', label: '샘플', count: 6 },
@@ -26,6 +26,7 @@ const SUMMARY = {
       capa_short: [{ customer_id: 501, name: 'SK하이닉스', gap: 6000 }],
       quality: [{ customer_id: 502, name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }],
       eval_delay: [{ customer_id: 503, name: 'Intel', material: 'SOC 하드마스크 · PoC' }],
+      gate_delay: [{ customer_id: 505, name: 'SK하이닉스', material: '프리커서 Hf 전구체 · M16', gate: '실험계획(DOE)', days: 42 }],
       misalign: [{ customer_id: 504, name: 'UMC', level: 'medium', label: '수주됐으나 소재 인증이 평가 이하 — 양산·납품 지연 리스크', count: 1 }],
     },
   },
@@ -69,14 +70,18 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
 
   await expect(page.locator('#ex-body')).toContainText('가중 예상매출');
   await expect(page.locator('#ex-body')).toContainText('CAPA 부족 계정');
-  await expect(page.locator('#ex-body .ex-kpi')).toHaveCount(6);
+  await expect(page.locator('#ex-body')).toContainText('지연 게이트'); // PLM 지연 게이트 KPI
+  await expect(page.locator('#ex-body .ex-kpi')).toHaveCount(7);
 
-  // 단계 분포 (6 단계 — 스트림/퍼널 그래픽, 클릭 가능)
+  // 단계 분포 (mock 6 단계 — 스트림/퍼널 그래픽, 클릭 가능)
   await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(6);
 
   // Top 계정 + 리스크
   await expect(page.locator('#ex-body')).toContainText('E2E임원고객');
   await expect(page.locator('#ex-body')).toContainText('순도 편차');
+  // 게이트 지연 리스크 카드 + 항목
+  await expect(page.locator('#ex-body')).toContainText('게이트 지연');
+  await expect(page.locator('#ex-body')).toContainText('실험계획(DOE) (D+42)');
 
   // 드릴다운: 계정 행 클릭 → 고객·제품 360뷰로 이동
   await page.locator('#ex-body tr[data-acct]').first().click();
