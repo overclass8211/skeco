@@ -285,6 +285,30 @@ router.put('/materials/:mid/gates/:key', requireLevel(1), async (req, res) => {
         b.note || null,
       ]
     );
+    // 자동 동기화: 현재 게이트 → 매핑된 lifecycle_stage 로 갱신 (게이트=단일 소스)
+    try {
+      const [defs] = await pool.query(
+        `SELECT gate_key, lifecycle_stage FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC`
+      );
+      const [prog] = await pool.query(
+        'SELECT gate_key, status FROM material_gates WHERE customer_material_id=?',
+        [mid]
+      );
+      const statusByKey = new Map(prog.map(p => [p.gate_key, p.status]));
+      const curKey = pickCurrentGateKey(
+        defs.map(d => d.gate_key),
+        statusByKey
+      );
+      const curDef = defs.find(d => d.gate_key === curKey);
+      if (curDef && curDef.lifecycle_stage) {
+        await pool.query('UPDATE customer_materials SET lifecycle_stage=? WHERE id=?', [
+          curDef.lifecycle_stage,
+          mid,
+        ]);
+      }
+    } catch (_) {
+      /* 동기화 실패는 게이트 저장과 무관 — 무시 */
+    }
     res.json({ success: true });
   } catch (err) {
     handleError(res, err);
@@ -748,6 +772,21 @@ function gateTimeline(defs, prog, now) {
   return { gates, current_gate: cur ? cur.gate_key : null };
 }
 
+// 현재 게이트 키 산출 (순서 + 상태맵) — 게이트=라이프사이클 단일 소스
+//   첫 in_progress, 없으면 마지막 done 다음, 없으면 첫 게이트
+function pickCurrentGateKey(orderedKeys, statusByKey) {
+  if (!orderedKeys.length) return null;
+  let inProg = -1;
+  let lastDone = -1;
+  orderedKeys.forEach((k, i) => {
+    const s = statusByKey.get(k);
+    if (s === 'in_progress' && inProg < 0) inProg = i;
+    if (s === 'done') lastDone = i;
+  });
+  const idx = inProg >= 0 ? inProg : Math.min(lastDone + 1, orderedKeys.length - 1);
+  return orderedKeys[idx];
+}
+
 // ── 영업딜 단계 ↔ 공정 라이프사이클 정합성(불일치) 인사이트 ──
 //   두 축을 공통 0~5 랭크(라이프사이클 기준)로 정규화해 비교. 스키마 변경 없음.
 const SALES_EQUIV_RANK = {
@@ -934,7 +973,11 @@ async function buildLifecycle(customerId) {
       linked_deals: linkedDeals,
       linked_deal_count: linkedDeals.length,
       primary_lead_id: linkedDeals.length === 1 ? linkedDeals[0].id : null,
-      ...gateTimeline(gateDefs, mgByMat.get(m.id) || new Map(), gNow),
+      ...(() => {
+        const gt = gateTimeline(gateDefs, mgByMat.get(m.id) || new Map(), gNow);
+        const curDef = gateDefs.find(d => d.gate_key === gt.current_gate);
+        return { ...gt, current_gate_label: curDef ? curDef.gate_label : null };
+      })(),
     };
   });
 
@@ -1611,53 +1654,44 @@ async function gatherHealthSignals(customerId, customerName) {
   };
 }
 async function buildExecSummaryData() {
-  const [[wAgg], [dealAgg], stageRows, [qAgg], capaRows, acctRows, qTop, evalRows] =
-    await Promise.all([
-      // 전사 가중 예상매출 (진행 딜)
-      pool
-        .query(
-          `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100),0) AS weighted
+  const [[wAgg], [dealAgg], [qAgg], capaRows, acctRows, qTop, evalRows] = await Promise.all([
+    // 전사 가중 예상매출 (진행 딜)
+    pool
+      .query(
+        `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0)/100),0) AS weighted
              FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
             WHERE l.stage NOT IN ('won','lost','dropped')`
-        )
-        .then(r => r[0]),
-      // 진행 딜 수 + 수주/실주 (수주율)
-      pool
-        .query(
-          `SELECT
+      )
+      .then(r => r[0]),
+    // 진행 딜 수 + 수주/실주 (수주율)
+    pool
+      .query(
+        `SELECT
              SUM(CASE WHEN stage NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active,
              SUM(CASE WHEN stage='won' THEN 1 ELSE 0 END) AS won,
              SUM(CASE WHEN stage='lost' THEN 1 ELSE 0 END) AS lost
              FROM leads`
-        )
-        .then(r => r[0]),
-      // 소재 라이프사이클 단계 분포
-      pool
-        .query(
-          `SELECT lifecycle_stage AS s, COUNT(*) AS n FROM customer_materials WHERE status<>'closed' GROUP BY lifecycle_stage`
-        )
-        .then(r => r[0]),
-      // 품질 오픈
-      pool
-        .query(`SELECT COUNT(*) AS n FROM quality_cases WHERE status<>'resolved'`)
-        .then(r => r[0]),
-      // 고객별 분기 수요 vs 생산가능 (CAPA 부족 판정)
-      pool
-        .query(
-          `SELECT customer_id,
+      )
+      .then(r => r[0]),
+    // 품질 오픈
+    pool.query(`SELECT COUNT(*) AS n FROM quality_cases WHERE status<>'resolved'`).then(r => r[0]),
+    // 고객별 분기 수요 vs 생산가능 (CAPA 부족 판정)
+    pool
+      .query(
+        `SELECT customer_id,
                   COALESCE(SUM(customer_forecast),0) AS demand,
                   COALESCE(SUM(production_capacity),0) AS capacity,
                   MIN(unit) AS unit, COUNT(DISTINCT unit) AS unit_cnt
              FROM demand_forecasts
             WHERE month IN (?)
             GROUP BY customer_id`,
-          [FLOW_MONTHS]
-        )
-        .then(r => r[0]),
-      // Top 계정 (가중 예상매출) — 회사명 단위 집계 후 대표 고객 id 매핑(동일사명 중복행 배수집계 방지)
-      pool
-        .query(
-          `SELECT rep.id, agg.customer_name AS name, agg.weighted, agg.active, agg.won
+        [FLOW_MONTHS]
+      )
+      .then(r => r[0]),
+    // Top 계정 (가중 예상매출) — 회사명 단위 집계 후 대표 고객 id 매핑(동일사명 중복행 배수집계 방지)
+    pool
+      .query(
+        `SELECT rep.id, agg.customer_name AS name, agg.weighted, agg.active, agg.won
                FROM (
                  SELECT l.customer_name,
                         COALESCE(SUM(CASE WHEN l.stage NOT IN ('won','lost','dropped')
@@ -1671,27 +1705,27 @@ async function buildExecSummaryData() {
               WHERE agg.weighted > 0 OR agg.active > 0
               ORDER BY agg.weighted DESC
               LIMIT 8`
-        )
-        .then(r => r[0]),
-      // 품질 오픈 Top
-      pool
-        .query(
-          `SELECT q.customer_id, c.name AS customer_name, q.title, q.severity, q.type
+      )
+      .then(r => r[0]),
+    // 품질 오픈 Top
+    pool
+      .query(
+        `SELECT q.customer_id, c.name AS customer_name, q.title, q.severity, q.type
              FROM quality_cases q JOIN customers c ON c.id=q.customer_id
             WHERE q.status<>'resolved'
             ORDER BY FIELD(q.severity,'high','medium','low'), q.opened_at DESC LIMIT 6`
-        )
-        .then(r => r[0]),
-      // 평가 지연(평가/샘플 단계 소재)
-      pool
-        .query(
-          `SELECT c.id AS customer_id, c.name AS customer_name, m.material_name
+      )
+      .then(r => r[0]),
+    // 평가 지연(평가/샘플 단계 소재)
+    pool
+      .query(
+        `SELECT c.id AS customer_id, c.name AS customer_name, m.material_name
              FROM customer_materials m JOIN customers c ON c.id=m.customer_id
             WHERE m.lifecycle_stage IN ('evaluation','sample') AND m.status<>'closed'
             ORDER BY m.updated_at ASC LIMIT 6`
-        )
-        .then(r => r[0]),
-    ]);
+      )
+      .then(r => r[0]),
+  ]);
 
   // CAPA 부족 고객 set
   const capaShortIds = new Set();
@@ -1829,6 +1863,35 @@ async function buildExecSummaryData() {
   const LEVEL_ORDER = { high: 0, medium: 1, info: 2 };
   misalign.sort((a, b) => (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9));
 
+  // 단계 분포 = PLM 게이트 기준 (게이트=라이프사이클 단일 소스)
+  const [gDefs] = await pool.query(
+    `SELECT gate_key, gate_label FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC`
+  );
+  const [openMats] = await pool.query(`SELECT id FROM customer_materials WHERE status<>'closed'`);
+  let gateProg = [];
+  if (openMats.length) {
+    [gateProg] = await pool.query(
+      'SELECT customer_material_id, gate_key, status FROM material_gates WHERE customer_material_id IN (?)',
+      [openMats.map(m => m.id)]
+    );
+  }
+  const progByMat = new Map();
+  for (const p of gateProg) {
+    if (!progByMat.has(p.customer_material_id)) progByMat.set(p.customer_material_id, new Map());
+    progByMat.get(p.customer_material_id).set(p.gate_key, p.status);
+  }
+  const gKeys = gDefs.map(g => g.gate_key);
+  const gateCount = new Map(gKeys.map(k => [k, 0]));
+  for (const m of openMats) {
+    const cur = pickCurrentGateKey(gKeys, progByMat.get(m.id) || new Map());
+    if (cur && gateCount.has(cur)) gateCount.set(cur, gateCount.get(cur) + 1);
+  }
+  const gateDistribution = gDefs.map(g => ({
+    stage: g.gate_key,
+    label: g.gate_label,
+    count: gateCount.get(g.gate_key) || 0,
+  }));
+
   return {
     kpis: {
       weighted_expected: Math.round(Number(wAgg.weighted) || 0),
@@ -1840,11 +1903,7 @@ async function buildExecSummaryData() {
       open_quality: Number(qAgg.n) || 0,
       capa_short_accounts: capaShortIds.size,
     },
-    stage_distribution: STAGE_ORDER.map(k => ({
-      stage: k,
-      label: STAGE_LABELS[k],
-      count: Number((stageRows.find(s => s.s === k) || {}).n) || 0,
-    })),
+    stage_distribution: gateDistribution,
     top_accounts: topAccounts,
     risks: {
       capa_short: capaShortList.map(x => ({

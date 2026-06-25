@@ -260,7 +260,9 @@ describe('Customer360 (MVP) API', () => {
     expect(d.kpis).toHaveProperty('open_quality');
     expect(d.kpis).toHaveProperty('capa_short_accounts');
     expect(Array.isArray(d.stage_distribution)).toBe(true);
-    expect(d.stage_distribution).toHaveLength(6); // 6 라이프사이클 단계
+    // 단계 분포 = PLM 게이트 기준 (전면 교체) — 활성 게이트 수만큼, MRD 포함
+    expect(d.stage_distribution.length).toBeGreaterThanOrEqual(6);
+    expect(d.stage_distribution.map(s => s.stage)).toContain('MRD');
     expect(Array.isArray(d.top_accounts)).toBe(true);
     expect(d.risks).toHaveProperty('capa_short');
     expect(d.risks).toHaveProperty('quality');
