@@ -274,6 +274,19 @@ describe('Customer360 (MVP) API', () => {
     expect(res.body.success).toBe(true);
   });
 
+  it('POST /exec-stage/:gate — 게이트 단계 진단(전면 교체: 게이트 키)', async () => {
+    // 유효 게이트(MRD) → 200 + 라벨/소재배열 (AI 키 없으면 ai=null)
+    const ok = await api().post('/api/customer360/exec-stage/MRD').set('X-User-Id', '1').send({});
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.stage).toBe('MRD');
+    expect(typeof ok.body.data.label).toBe('string');
+    expect(Array.isArray(ok.body.data.materials)).toBe(true);
+    expect(ok.body.data.stats).toHaveProperty('count');
+    // 미존재 게이트 → 400
+    const bad = await api().post('/api/customer360/exec-stage/__NOPE__').set('X-User-Id', '1').send({});
+    expect(bad.status).toBe(400);
+  });
+
   it('exec-summary Top 계정 Health 등급이 상세뷰 등급과 일치 (회귀 방지)', async () => {
     // 🐛 임원360뷰와 고객·제품360뷰의 Health 등급 불일치 버그 회귀 방지
     //   원인: 두 화면이 서로 다른 점수 산식 사용 → computeHealth 단일화로 통일

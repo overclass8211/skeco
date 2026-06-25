@@ -11,13 +11,15 @@ const SUMMARY = {
   success: true,
   data: {
     kpis: { weighted_expected: 48700000000, active_deals: 36, win_rate: 28, avg_health: 'B+', open_quality: 11, capa_short_accounts: 4, gate_delay_count: 7 },
+    // 전면 교체: 단계 분포 = PLM 게이트 기준
     stage_distribution: [
-      { stage: 'discovery', label: '발굴', count: 5 },
-      { stage: 'sample', label: '샘플', count: 6 },
-      { stage: 'evaluation', label: '평가', count: 14 },
-      { stage: 'specin', label: 'Spec-in', count: 5 },
-      { stage: 'massprod', label: '양산', count: 3 },
-      { stage: 'delivery', label: '납품', count: 0 },
+      { stage: 'MRD', label: '시장요구 정의', count: 5 },
+      { stage: 'CRP', label: '컨셉·고객요구', count: 2 },
+      { stage: 'DOE', label: '실험계획(DOE)', count: 14 },
+      { stage: 'ES', label: '엔지니어링 샘플', count: 3 },
+      { stage: 'CS', label: '고객 샘플', count: 2 },
+      { stage: 'QUAL', label: '승인·Spec-in', count: 5 },
+      { stage: 'MP', label: '양산', count: 3 },
     ],
     top_accounts: [
       { id: 990777, name: 'E2E임원고객', weighted: 12800000000, active: 5, won: 1, health_grade: 'A-', risks: [{ level: 'high', label: '품질 1' }] },
@@ -48,6 +50,19 @@ test.beforeEach(async ({ page }) => {
     const data = KPI_LISTS[kpi] || { kpi, total: 0, items: [] };
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
   });
+  // 게이트 단계 AI 진단 (전면 교체: 게이트 키 허용) — 결정적 fixture
+  await page.route('**/api/customer360/exec-stage/**', route => {
+    const gate = route.request().url().split('/exec-stage/')[1].split(/[?#]/)[0];
+    const LBL = { MRD: '시장요구 정의', CRP: '컨셉·고객요구', DOE: '실험계획(DOE)', ES: '엔지니어링 샘플', CS: '고객 샘플', QUAL: '승인·Spec-in', MP: '양산' };
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { stage: gate, label: LBL[gate] || gate, stats: { count: 14, capa_short: 3, open_quality: 2, expected_order: 11830000000 }, materials: [], ai: { diagnosis: '게이트 진단 결과', actions: ['액션1'] } },
+      }),
+    });
+  });
   await page.route('**/api/customer360/health-config', route => {
     const config = {
       version: 2,
@@ -73,8 +88,8 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
   await expect(page.locator('#ex-body')).toContainText('지연 게이트'); // PLM 지연 게이트 KPI
   await expect(page.locator('#ex-body .ex-kpi')).toHaveCount(7);
 
-  // 단계 분포 (mock 6 단계 — 스트림/퍼널 그래픽, 클릭 가능)
-  await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(6);
+  // 단계 분포 (mock 7 게이트 — 스트림/퍼널 그래픽, 클릭 가능)
+  await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(7);
 
   // Top 계정 + 리스크
   await expect(page.locator('#ex-body')).toContainText('E2E임원고객');
@@ -86,6 +101,19 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
   // 드릴다운: 계정 행 클릭 → 고객·제품 360뷰로 이동
   await page.locator('#ex-body tr[data-acct]').first().click();
   await expect(page).toHaveURL(/#customer360/, { timeout: 5000 });
+});
+
+test('임원 360 요약 — 게이트 분포 클릭 시 진단 모달 (게이트 키, 회귀 방지)', async ({ page }) => {
+  // 🐛 전면 교체 후 퍼널 클릭이 게이트 키로 호출되어 "알 수 없는 단계" 400 나던 버그 회귀 방지
+  await page.goto('/#exec360');
+  await page.waitForSelector('#ex-body .ex-fn-col', { timeout: 15000 });
+
+  // DOE(실험계획) 게이트 컬럼 클릭 → 진단 모달
+  await page.locator('#ex-body .ex-fn-col', { hasText: '실험계획' }).first().click();
+  await expect(page.locator('#modal-overlay')).toContainText('실험계획(DOE)', { timeout: 5000 });
+  // 실패 문구가 아니라 진단/통계가 떠야 함
+  await expect(page.locator('#modal-overlay')).not.toContainText('알 수 없는');
+  await expect(page.locator('#modal-overlay')).toContainText('게이트 진단 결과');
 });
 
 test('임원 360 요약 — KPI 카드 클릭 시 근거 모달', async ({ page }) => {

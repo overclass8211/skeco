@@ -2078,28 +2078,55 @@ ${top || '없음'}
 // ── 공정 단계 클릭 → 해당 단계 소재 + AI 진단 (모달) ──────────
 async function execStageAnalyze(req, res) {
   try {
-    const stage = String(req.params.stage || '');
-    if (!STAGE_ORDER.includes(stage)) {
-      return res.status(400).json({ success: false, error: '알 수 없는 단계' });
-    }
-    const [rows] = await pool.query(
-      `SELECT m.id, m.material_name, m.business_type, m.win_probability, c.name AS customer_name,
-              COALESCE(df.demand,0) AS demand, COALESCE(df.capacity,0) AS capacity,
-              COALESCE(df.exp_order,0) AS expected_order, COALESCE(q.openq,0) AS open_quality
-         FROM customer_materials m
-         JOIN customers c ON c.id = m.customer_id
-         LEFT JOIN (SELECT customer_material_id,
-                      SUM(customer_forecast) demand, SUM(production_capacity) capacity,
-                      SUM(expected_revenue * COALESCE(win_probability,0)/100) exp_order
-                    FROM demand_forecasts WHERE month IN (?) GROUP BY customer_material_id) df
-                ON df.customer_material_id = m.id
-         LEFT JOIN (SELECT customer_material_id, COUNT(*) openq FROM quality_cases
-                     WHERE status NOT IN ('resolved','dropped') GROUP BY customer_material_id) q
-                ON q.customer_material_id = m.id
-        WHERE m.lifecycle_stage = ? AND m.status <> 'closed'
-        ORDER BY expected_order DESC, m.id`,
-      [FLOW_MONTHS, stage]
+    const stage = String(req.params.stage || ''); // PLM 게이트 키
+    // 게이트 정의 검증 (전면 교체: 단계 분포 = 게이트)
+    const [gdefs] = await pool.query(
+      `SELECT gate_key, gate_label FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC`
     );
+    const gdef = gdefs.find(g => g.gate_key === stage);
+    if (!gdef) {
+      return res.status(400).json({ success: false, error: '알 수 없는 게이트' });
+    }
+    const stageLabel = gdef.gate_label;
+    // 현재 게이트 = 클릭한 게이트인 소재 id 산출
+    const gKeys = gdefs.map(g => g.gate_key);
+    const [allMats] = await pool.query(`SELECT id FROM customer_materials WHERE status<>'closed'`);
+    let prog = [];
+    if (allMats.length) {
+      [prog] = await pool.query(
+        'SELECT customer_material_id, gate_key, status FROM material_gates WHERE customer_material_id IN (?)',
+        [allMats.map(m => m.id)]
+      );
+    }
+    const byMat = new Map();
+    for (const p of prog) {
+      if (!byMat.has(p.customer_material_id)) byMat.set(p.customer_material_id, new Map());
+      byMat.get(p.customer_material_id).set(p.gate_key, p.status);
+    }
+    const matIds = allMats
+      .filter(m => pickCurrentGateKey(gKeys, byMat.get(m.id) || new Map()) === stage)
+      .map(m => m.id);
+    let rows = [];
+    if (matIds.length) {
+      [rows] = await pool.query(
+        `SELECT m.id, m.material_name, m.business_type, m.win_probability, c.name AS customer_name,
+                COALESCE(df.demand,0) AS demand, COALESCE(df.capacity,0) AS capacity,
+                COALESCE(df.exp_order,0) AS expected_order, COALESCE(q.openq,0) AS open_quality
+           FROM customer_materials m
+           JOIN customers c ON c.id = m.customer_id
+           LEFT JOIN (SELECT customer_material_id,
+                        SUM(customer_forecast) demand, SUM(production_capacity) capacity,
+                        SUM(expected_revenue * COALESCE(win_probability,0)/100) exp_order
+                      FROM demand_forecasts WHERE month IN (?) GROUP BY customer_material_id) df
+                  ON df.customer_material_id = m.id
+           LEFT JOIN (SELECT customer_material_id, COUNT(*) openq FROM quality_cases
+                       WHERE status NOT IN ('resolved','dropped') GROUP BY customer_material_id) q
+                  ON q.customer_material_id = m.id
+          WHERE m.id IN (?) AND m.status <> 'closed'
+          ORDER BY expected_order DESC, m.id`,
+        [FLOW_MONTHS, matIds]
+      );
+    }
     const materials = rows.map(r => ({
       customer_name: r.customer_name,
       material_name: r.material_name,
@@ -2127,9 +2154,9 @@ async function execStageAnalyze(req, res) {
         )
         .join('\n');
       const prompt = `당신은 SK에코플랜트 머티리얼즈(반도체·디스플레이 소재) 영업 임원 보좌역입니다.
-'${STAGE_LABELS[stage]}' 공정 단계의 소재 현황을 임원에게 진단·코칭하세요. 주어진 수치만 사용(추측 금지).
+'${stageLabel}' 공정 게이트의 소재 현황을 임원에게 진단·코칭하세요. 주어진 수치만 사용(추측 금지).
 
-[단계] ${STAGE_LABELS[stage]} · 소재 ${stats.count}개 · CAPA 부족 ${stats.capa_short} · 품질 오픈 ${stats.open_quality} · 분기 예상수주 합 ${won(stats.expected_order)}
+[게이트] ${stageLabel} · 소재 ${stats.count}개 · CAPA 부족 ${stats.capa_short} · 품질 오픈 ${stats.open_quality} · 분기 예상수주 합 ${won(stats.expected_order)}
 [소재]
 ${listTxt || '없음'}
 
@@ -2155,7 +2182,7 @@ ${listTxt || '없음'}
       console.warn('[exec-stage] AI 진단 실패(무시):', e.message);
     }
 
-    res.json({ success: true, data: { stage, label: STAGE_LABELS[stage], stats, materials, ai } });
+    res.json({ success: true, data: { stage, label: stageLabel, stats, materials, ai } });
   } catch (err) {
     handleError(res, err);
   }
