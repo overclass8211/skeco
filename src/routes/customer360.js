@@ -361,6 +361,32 @@ router.put('/materials/:mid/current-gate', requireLevel(1), async (req, res) => 
   }
 });
 
+// 소재 게이트 일정(예정 계획일) 일괄 저장 — 상태는 건드리지 않고 target_date 만 갱신
+//   gates: [{ gate_key, target_date }] (target_date 빈값 → null 로 초기화 허용)
+router.put('/materials/:mid/gate-schedule', requireLevel(1), async (req, res) => {
+  try {
+    const mid = parseInt(req.params.mid, 10);
+    const gates = (req.body && req.body.gates) || [];
+    if (!mid) return res.status(400).json({ success: false, error: 'mid 필수' });
+    if (!Array.isArray(gates))
+      return res.status(400).json({ success: false, error: 'gates 배열 필요' });
+    const [defs] = await pool.query('SELECT gate_key FROM plm_gates WHERE is_active=1');
+    const valid = new Set(defs.map(d => d.gate_key));
+    for (const g of gates) {
+      if (!g || !valid.has(g.gate_key)) continue;
+      await pool.query(
+        `INSERT INTO material_gates (customer_material_id, gate_key, target_date, status)
+         VALUES (?,?,?, 'pending')
+         ON DUPLICATE KEY UPDATE target_date=VALUES(target_date)`,
+        [mid, g.gate_key, g.target_date || null]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
   try {
@@ -923,7 +949,11 @@ async function buildLifecycle(customerId) {
   let mgs = [];
   if (matIds.length) {
     [mgs] = await pool.query(
-      `SELECT customer_material_id, gate_key, target_date, actual_date, status, note
+      // DATE 컬럼은 DATE_FORMAT 으로 문자열화 — mysql2 의 Date 객체 UTC 직렬화로 인한 하루 밀림 방지
+      `SELECT customer_material_id, gate_key,
+              DATE_FORMAT(target_date, '%Y-%m-%d') AS target_date,
+              DATE_FORMAT(actual_date, '%Y-%m-%d') AS actual_date,
+              status, note
          FROM material_gates WHERE customer_material_id IN (?)`,
       [matIds]
     );

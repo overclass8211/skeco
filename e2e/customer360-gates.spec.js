@@ -61,6 +61,15 @@ test('360 공급품목 수정 모달 — 단계 드롭다운이 현재 게이트
 
   // 선택값 = 카드의 현재 게이트 (버그 핵심: 현재 단계로 표시)
   await expect(gateSel).toHaveValue(curKey);
+
+  // 게이트별 예정 계획일 입력 — 게이트 수만큼 날짜 입력 렌더 + 편집 가능
+  const dateInputs = page.locator('.mg-date');
+  await expect(dateInputs.first()).toBeVisible();
+  expect(await dateInputs.count()).toBe(opts.length);
+  // 현재 게이트의 예정일 입력에 값 채우기(편집 가능 확인)
+  const curDate = page.locator(`.mg-date[data-gk="${curKey}"]`);
+  await curDate.fill('2026-12-31');
+  await expect(curDate).toHaveValue('2026-12-31');
 });
 
 test('360 게이트 설정 모달 — 정의 편집 UI (team_lead+)', async ({ page }) => {

@@ -2109,6 +2109,19 @@ const Customer360Page = {
       )
       .join('');
     this._matGateOrig = isEdit ? curGate : null; // 변경 감지용
+    // 게이트별 예정 계획일(target_date) 입력/편집 — 원본 저장(변경분만 전송)
+    const ymd = d => (d ? String(d).slice(0, 10) : '');
+    this._matGateDates = {};
+    const schedRows = gateList
+      .map(g => {
+        const d = ymd(g.target_date);
+        this._matGateDates[g.gate_key] = d;
+        return `<div style="display:flex;align-items:center;gap:6px">
+            <span style="min-width:38px;font-weight:600;font-size:11px;color:var(--text-2)" title="${esc(g.gate_label || g.gate_key)}">${esc(g.gate_key)}</span>
+            <input type="date" class="form-input mg-date" data-gk="${esc(g.gate_key)}" value="${d}" style="flex:1;padding:4px 6px;font-size:12px">
+          </div>`;
+      })
+      .join('');
     Modal.open({
       title: isEdit ? '공급 품목 수정' : '공급 품목 등록',
       width: 520,
@@ -2137,6 +2150,8 @@ const Customer360Page = {
             <div class="form-row"><label class="form-label">수주확률(%)</label>
               <input class="form-input" id="m-prob" type="number" min="0" max="100" value="${mat && mat.win_probability !== null && mat.win_probability !== undefined ? mat.win_probability : ''}"></div>
           </div>
+          <div class="form-row"><label class="form-label">게이트 일정 (예정 계획일)</label>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)">${schedRows}</div></div>
         </div>`,
       footer: `<button class="btn btn-ghost" id="m-cancel">취소</button><button class="btn btn-primary" id="m-save">저장</button>`,
       bind: {
@@ -2172,6 +2187,16 @@ const Customer360Page = {
       } else {
         const r = await API.post('/customer360/materials', { ...payload, customer_id: this._custId });
         mid = r.data && r.data.id;
+      }
+      // 게이트 예정 계획일 — 변경분만 일괄 저장(상태 불변). current-gate 보다 먼저.
+      const schedChanged = [];
+      document.querySelectorAll('.mg-date').forEach(el => {
+        const gk = el.getAttribute('data-gk');
+        const val = (el.value || '').trim();
+        if (val !== (this._matGateDates[gk] || '')) schedChanged.push({ gate_key: gk, target_date: val || null });
+      });
+      if (mid && schedChanged.length) {
+        await API.put(`/customer360/materials/${mid}/gate-schedule`, { gates: schedChanged });
       }
       // 현재 게이트 설정 — 변경됐거나 신규일 때만 (불필요한 게이트 상태 덮어쓰기 방지)
       if (mid && gateKey && gateKey !== this._matGateOrig) {

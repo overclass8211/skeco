@@ -195,6 +195,38 @@ describe('Customer360 (MVP) API', () => {
     }
   });
 
+  it('PUT /materials/:mid/gate-schedule — 게이트 예정일 저장(상태 불변)', async () => {
+    const [defs] = await pool.query(
+      "SELECT gate_key FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC"
+    );
+    const gk = defs[0].gate_key;
+    // 사전: 해당 게이트를 in_progress 로 만들어 상태 보존 확인
+    await pool.query(
+      `INSERT INTO material_gates (customer_material_id, gate_key, status) VALUES (?,?, 'in_progress')
+       ON DUPLICATE KEY UPDATE status='in_progress'`,
+      [matId, gk]
+    );
+    const res = await api()
+      .put(`/api/customer360/materials/${matId}/gate-schedule`)
+      .set('X-User-Id', '1')
+      .send({ gates: [{ gate_key: gk, target_date: '2026-09-30' }] });
+    expect(res.status).toBe(200);
+    const [[row]] = await pool.query(
+      "SELECT DATE_FORMAT(target_date,'%Y-%m-%d') AS td, status FROM material_gates WHERE customer_material_id=? AND gate_key=?",
+      [matId, gk]
+    );
+    expect(row.td).toBe('2026-09-30');
+    expect(row.status).toBe('in_progress'); // 상태는 건드리지 않음
+  });
+
+  it('PUT /materials/:mid/gate-schedule — 배열 아니면 400', async () => {
+    const res = await api()
+      .put(`/api/customer360/materials/${matId}/gate-schedule`)
+      .set('X-User-Id', '1')
+      .send({ gates: 'nope' });
+    expect(res.status).toBe(400);
+  });
+
   it('PUT /materials/:mid/current-gate — 잘못된 게이트 키는 400', async () => {
     const res = await api()
       .put(`/api/customer360/materials/${matId}/current-gate`)
