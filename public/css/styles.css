@@ -3045,6 +3045,24 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   color: var(--oci-red);
 }
 
+/* PLM 게이트 스텝퍼(.ss-gates) — 카드 내 세로 여백 보강 (행간 완화) */
+.ss-gates {
+  padding: 16px 6px 14px;
+}
+.ss-gates .ss-dot {
+  margin-bottom: 10px;
+}
+.ss-gates .ss-label {
+  line-height: 1.5;
+}
+.ss-gates .ss-gate-date {
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.ss-gates .ss-now-chip {
+  margin-top: 5px;
+}
+
 /* Skeleton 로딩 상태 */
 .kpi-card-skeleton {
   cursor: default;

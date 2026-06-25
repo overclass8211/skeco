@@ -18,23 +18,23 @@ test('360 게이트 타임라인 — 소재 카드에 MRD~MP 렌더 + 현재 강
   await page.goto('/#customer360/1');
   await page.reload();
 
-  // 소재 카드 + 게이트 타임라인 렌더 대기
+  // 소재 카드 + 게이트 스텝퍼(기존 ss-stepper 스타일) 렌더 대기
   await expect(page.locator('.lc-card').first()).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('.lc-gates').first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.lc-card .ss-stepper').first()).toBeVisible({ timeout: 10000 });
 
-  // 게이트 키 노출
-  const firstGates = page.locator('.lc-gates').first();
-  await expect(firstGates).toContainText('MRD');
-  await expect(firstGates).toContainText('MP');
+  // 게이트 키 노출 (라벨)
+  const firstStepper = page.locator('.lc-card .ss-stepper').first();
+  await expect(firstStepper).toContainText('MRD');
+  await expect(firstStepper).toContainText('MP');
 
-  // 셀 개수: 소재당 7게이트 → 7의 배수
-  const cells = await page.locator('.lc-gate').count();
-  expect(cells).toBeGreaterThanOrEqual(7);
-  expect(cells % 7).toBe(0);
+  // 스텝 개수: 소재당 7게이트 → 7의 배수
+  const steps = await page.locator('.lc-card .ss-step').count();
+  expect(steps).toBeGreaterThanOrEqual(7);
+  expect(steps % 7).toBe(0);
 
-  // 현재 게이트 강조(파란 링) 최소 1개
-  const highlighted = await page.locator('.lc-gate div[style*="box-shadow"]').count();
-  expect(highlighted).toBeGreaterThanOrEqual(1);
+  // 현재 게이트 강조(ss-now) 최소 1개
+  const nowSteps = await page.locator('.lc-card .ss-step.ss-now').count();
+  expect(nowSteps).toBeGreaterThanOrEqual(1);
 });
 
 test('360 게이트 설정 모달 — 정의 편집 UI (team_lead+)', async ({ page }) => {

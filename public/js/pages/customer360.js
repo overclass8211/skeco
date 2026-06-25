@@ -1026,28 +1026,35 @@ const Customer360Page = {
     }
   },
 
-  // PLM 게이트 타임라인 (목표일·현재게이트·지연) — 6단계 리본 하위 상세
+  // PLM 게이트 라인업 — 기존 라이프사이클 스텝퍼(ss-stepper) 스타일 재사용
+  //   완료=✓(초록) / 현재=번호+빨강 halo+"현재" 칩 / 예정=속빈 원 + 목표일·지연색
   _gateTimeline(m) {
     const gates = m.gates || [];
     if (!gates.length) return '';
-    const col = g => (g.late ? '#E24B4A' : g.status === 'done' ? '#1D9E75' : g.status === 'in_progress' ? '#378ADD' : 'var(--border)');
     const ymd = d => (d ? String(d).slice(2, 7).replace('-', '/') : '');
-    const cells = gates.map(g => {
-      const cur = g.gate_key === m.current_gate;
-      const tip = `${g.gate_label} · ${g.late ? '지연' : g.status === 'done' ? '완료' : g.status === 'in_progress' ? '진행중' : '예정'}` +
-        (g.target_date ? ` · 목표 ${String(g.target_date).slice(0, 10)}` : '') +
-        (g.actual_date ? ` · 완료 ${String(g.actual_date).slice(0, 10)}` : '');
-      const labelColor = g.late ? 'var(--oci-red)' : cur ? '#378ADD' : 'var(--text-2)';
-      return `<div class="lc-gate" title="${esc(tip)}" style="flex:1;min-width:0;text-align:center;position:relative">
-        <div style="width:11px;height:11px;border-radius:50%;background:${col(g)};margin:0 auto;border:2px solid var(--surface);position:relative;z-index:1${cur ? ';box-shadow:0 0 0 3px rgba(55,138,221,0.25)' : ''}"></div>
-        <div style="font-size:10px;margin-top:4px;font-weight:${cur ? 700 : 500};color:${labelColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.gate_key)}</div>
-        <div style="font-size:9px;color:${g.late ? 'var(--oci-red)' : 'var(--text-3)'}">${ymd(g.target_date)}</div>
-      </div>`;
-    }).join('');
-    return `<div class="lc-gates" style="position:relative;display:flex;align-items:flex-start;margin-top:10px">
-      <div style="position:absolute;top:7px;left:6%;right:6%;height:2px;background:var(--border);z-index:0"></div>
-      ${cells}
-    </div>`;
+    const curIdx = gates.findIndex(g => g.gate_key === m.current_gate);
+    const safeIdx = curIdx < 0 ? 0 : curIdx;
+    const steps = gates
+      .map((g, i) => {
+        const now = i === safeIdx;
+        const done = !now && (g.status === 'done' || i < safeIdx);
+        const cls = done ? 'ss-done' : now ? 'ss-now' : 'ss-future';
+        const fill = i <= safeIdx ? ' ss-fill' : '';
+        const sym = done ? '✓' : String(i + 1);
+        const dt = ymd(g.target_date);
+        const dateColor = g.late ? 'var(--oci-red)' : 'var(--text-3)';
+        const tip = `${g.gate_label}${now ? ' (현재)' : ''}${g.late ? ' · 지연' : ''}` +
+          (g.target_date ? ` · 목표 ${String(g.target_date).slice(0, 10)}` : '') +
+          (g.actual_date ? ` · 완료 ${String(g.actual_date).slice(0, 10)}` : '');
+        return `<div class="ss-step ${cls}${fill}" title="${esc(tip)}">
+          <div class="ss-dot" aria-hidden="true">${sym}</div>
+          <div class="ss-label">${esc(g.gate_key)}</div>
+          ${dt ? `<div class="ss-gate-date" style="font-size:9.5px;color:${dateColor}">${dt}</div>` : ''}
+          ${now ? '<div class="ss-now-chip">현재</div>' : ''}
+        </div>`;
+      })
+      .join('');
+    return `<div class="ss-stepper ss-gates" role="progressbar" aria-label="게이트 진행">${steps}</div>`;
   },
 
   _matCard(m) {
@@ -1064,14 +1071,13 @@ const Customer360Page = {
     return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" data-primary-lead="${primary}" title="${cardTitle}">
       <div class="lc-top">
         <span class="lc-name">${esc(m.material_name)}</span>
-        <span class="pill ${stagePill}">${esc(m.lifecycle_label)}</span>
+        <span class="pill ${stagePill}" title="현재 게이트">${esc(m.current_gate_label || m.lifecycle_label)}</span>
         ${badges.join('')}
         <span class="lc-edit">
           <button class="lc-mini" data-fc-mat="${m.id}" title="월 수요 입력">수요 입력</button>
           <button class="lc-mini" data-edit-mat="${m.id}" title="공급 품목 수정">수정</button>
         </span>
       </div>
-      ${this._ribbon(m.lifecycle_index)}
       ${this._gateTimeline(m)}
       <div class="lc-mrow">
         <span>월 수요 <b>${m.monthly_demand ? this._qty(m.monthly_demand, m.demand_unit) : '미정'}</b></span>
