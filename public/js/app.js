@@ -94,6 +94,9 @@ const App = {
       document.body.classList.remove('menu-pending');
     }
 
+    // 레일 모드(접이식 사이드바) 상태 복원 + 툴팁 적용
+    this.initRail();
+
     // 알림 로드 (기능 토글 ON 일 때만)
     if (Features.isEnabled('crm.notifications')) {
       Notifications.load();
@@ -135,6 +138,16 @@ const App = {
           if (lastPage && this.pages[lastPage]) startPage = lastPage;
         } catch (_) {}
       }
+    }
+    // 🐛 fix: 메뉴에서 숨긴 페이지(예: 대시보드 OFF)로는 로그인 랜딩하지 않음.
+    //   applyMenuConfig() 가 위에서 이미 숨김(display:none)을 적용했으므로 여기서 판정 가능.
+    //   nav-item 이 존재하나 숨겨진 경우 → 첫 노출 메뉴로 폴백. (nav-item 없는 딥링크 대상은 영향 없음)
+    const _landingNav = document.querySelector(`.sidebar-nav .nav-item[data-page="${startPage}"]`);
+    if (_landingNav && getComputedStyle(_landingNav).display === 'none') {
+      const _firstVisible = [...document.querySelectorAll('.sidebar-nav .nav-item[data-page]')].find(
+        el => getComputedStyle(el).display !== 'none'
+      );
+      if (_firstVisible) startPage = _firstVisible.dataset.page;
     }
     await this.navigate(startPage, { replace: true });
     // 딥링크/새로고침 — URL 의 상세 파라미터(#page/id/tab) 복원
@@ -218,6 +231,8 @@ const App = {
         this.closeMobileNav();
       } else if (action === 'toggle-nav') {
         this.toggleMobileNav();
+      } else if (action === 'toggle-rail') {
+        this.toggleRail();
       } else if (action === 'open-search') {
         e.preventDefault();
         if (typeof SearchModal !== 'undefined') SearchModal.show();
@@ -585,6 +600,30 @@ const App = {
   closeMobileNav() {
     document.querySelector('.sidebar')?.classList.remove('mobile-open');
     document.getElementById('sidebar-overlay')?.classList.remove('active');
+  },
+
+  // ── 레일 모드(접이식 아이콘 전용 사이드바) ──────────────────
+  toggleRail() {
+    const on = !document.body.classList.contains('sidebar-rail');
+    document.body.classList.toggle('sidebar-rail', on);
+    try {
+      localStorage.setItem('oci_rail', on ? '1' : '0');
+    } catch (_) {}
+    this._applyRailTitles();
+  },
+  // 접힘 상태에서 hover 툴팁 — nav-item 에 라벨을 title 로 부여 (항상 안전)
+  _applyRailTitles() {
+    document.querySelectorAll('.sidebar-nav .nav-item').forEach(el => {
+      const span = [...el.children].find(c => c.tagName === 'SPAN' && !c.classList.contains('nav-badge'));
+      if (span) el.setAttribute('title', span.textContent.trim());
+    });
+  },
+  // 저장된 레일 상태 복원 (init 초기 — 깜박임 최소화)
+  initRail() {
+    try {
+      if (localStorage.getItem('oci_rail') === '1') document.body.classList.add('sidebar-rail');
+    } catch (_) {}
+    this._applyRailTitles();
   },
 
   // 모바일 여부 판단 + 햄버거 버튼 표시

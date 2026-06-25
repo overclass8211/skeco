@@ -213,6 +213,42 @@ body.app-ready #app-boot { opacity: 0; pointer-events: none; }
   border-top: 1px solid var(--border);
   padding: 10px 12px;
 }
+
+/* ── 레일 모드(접이식 아이콘 전용 사이드바) ─────────────────── */
+.rail-toggle { display: inline-flex; }
+.sidebar { transition: width 0.18s ease; }
+body.sidebar-rail .sidebar { width: 64px; }
+body.sidebar-rail .nav-item {
+  justify-content: center;
+  gap: 0;
+  padding: 9px 0;
+  margin: 2px 8px;
+}
+body.sidebar-rail .nav-item > span:not(.nav-badge) { display: none; }
+body.sidebar-rail .nav-section-title { display: none; }
+body.sidebar-rail .nav-section { padding: 3px 0; border-top: 1px solid var(--border); }
+body.sidebar-rail .nav-section:first-child { border-top: none; }
+/* 배지는 작은 점으로 축약 */
+body.sidebar-rail .nav-badge {
+  position: absolute; top: 4px; right: 10px;
+  min-width: 8px; width: 8px; height: 8px; padding: 0;
+  font-size: 0; line-height: 0; border-radius: 50%;
+}
+body.sidebar-rail .nav-badge.ai-badge { font-size: 0; }
+/* 로고 영역 압축 */
+body.sidebar-rail .sidebar-logo { justify-content: center; padding: 8px 0; gap: 0; }
+body.sidebar-rail .sidebar-logo .logo-img { max-width: 34px; height: 30px; }
+body.sidebar-rail .logo-divider, body.sidebar-rail .logo-sub { display: none; }
+/* 푸터(사용자 배지) — 로그아웃 아이콘만 */
+body.sidebar-rail .sidebar-footer { padding: 10px 6px; }
+body.sidebar-rail .ubadge { justify-content: center; }
+body.sidebar-rail .ubadge-info { display: none; }
+body.sidebar-rail .btn-logout span { display: none; }
+@media (max-width: 768px) {
+  .rail-toggle { display: none; }
+  body.sidebar-rail .sidebar { width: var(--sidebar-w); } /* 모바일은 레일 미적용 */
+}
+
 .ubadge {
   display: flex;
   align-items: center;
