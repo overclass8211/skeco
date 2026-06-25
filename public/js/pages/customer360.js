@@ -2089,11 +2089,26 @@ const Customer360Page = {
   },
 
   // ── 편집 모달 ─────────────────────────────────────────────
-  _openMaterialModal(mat) {
+  async _openMaterialModal(mat) {
     const isEdit = !!mat;
-    const stageOpts = this._STAGES.map(
-      ([k, l]) => `<option value="${k}" ${mat && mat.lifecycle_stage === k ? 'selected' : ''}>${l}</option>`
-    ).join('');
+    // 게이트=단일 소스: 단계 드롭다운을 PLM 게이트로 구성 (레거시 6단계 제거)
+    //   편집: 소재의 gates(라벨 포함) 사용 / 신규: 활성 게이트 정의 조회
+    let gateList = (mat && mat.gates) || [];
+    if (!gateList.length) {
+      try {
+        gateList = (await API.get('/customer360/gates')).data || [];
+      } catch (_) {
+        gateList = [];
+      }
+    }
+    const curGate = (mat && mat.current_gate) || (gateList[0] && gateList[0].gate_key) || '';
+    const stageOpts = gateList
+      .map(
+        g =>
+          `<option value="${esc(g.gate_key)}" ${g.gate_key === curGate ? 'selected' : ''}>${esc(g.gate_label || g.gate_key)}</option>`
+      )
+      .join('');
+    this._matGateOrig = isEdit ? curGate : null; // 변경 감지용
     Modal.open({
       title: isEdit ? '공급 품목 수정' : '공급 품목 등록',
       width: 520,
@@ -2109,8 +2124,8 @@ const Customer360Page = {
               <input class="form-input" id="m-fab" value="${mat ? esc(mat.fab_line || '') : ''}" placeholder="평택 P3 식각"></div>
           </div>
           <div class="form-row-3">
-            <div class="form-row"><label class="form-label">라이프사이클 단계</label>
-              <select class="form-input" id="m-stage">${stageOpts}</select></div>
+            <div class="form-row"><label class="form-label">현재 게이트(단계)</label>
+              <select class="form-input" id="m-gate">${stageOpts}</select></div>
             <div class="form-row"><label class="form-label">월 수요</label>
               <input class="form-input" id="m-demand" type="number" value="${mat && mat.monthly_demand ? mat.monthly_demand : ''}"></div>
             <div class="form-row"><label class="form-label">단위</label>
@@ -2138,19 +2153,30 @@ const Customer360Page = {
       Toast.error('소재명을 입력하세요');
       return;
     }
+    // 단계는 게이트(단일 소스)로 별도 관리 — payload 에 lifecycle_stage 미포함
     const payload = {
       material_name: name,
       business_type: v('m-biz') || null,
       fab_line: v('m-fab') || null,
-      lifecycle_stage: v('m-stage'),
       monthly_demand: v('m-demand') || null,
       demand_unit: v('m-unit') || 'kg',
       expected_mp_date: v('m-mp') || null,
       win_probability: v('m-prob') || null,
     };
+    const gateKey = v('m-gate');
     try {
-      if (mat) await API.put(`/customer360/materials/${mat.id}`, payload);
-      else await API.post('/customer360/materials', { ...payload, customer_id: this._custId });
+      let mid;
+      if (mat) {
+        await API.put(`/customer360/materials/${mat.id}`, payload);
+        mid = mat.id;
+      } else {
+        const r = await API.post('/customer360/materials', { ...payload, customer_id: this._custId });
+        mid = r.data && r.data.id;
+      }
+      // 현재 게이트 설정 — 변경됐거나 신규일 때만 (불필요한 게이트 상태 덮어쓰기 방지)
+      if (mid && gateKey && gateKey !== this._matGateOrig) {
+        await API.put(`/customer360/materials/${mid}/current-gate`, { gate_key: gateKey });
+      }
       Toast.success(mat ? '공급 품목 수정 완료' : '공급 품목 등록 완료');
       Modal.close();
       await this._reload();

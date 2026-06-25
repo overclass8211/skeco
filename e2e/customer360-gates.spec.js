@@ -37,6 +37,32 @@ test('360 게이트 타임라인 — 소재 카드에 MRD~MP 렌더 + 현재 강
   expect(nowSteps).toBeGreaterThanOrEqual(1);
 });
 
+test('360 공급품목 수정 모달 — 단계 드롭다운이 현재 게이트로 표시 (회귀)', async ({ page }) => {
+  // 🐛 모달의 "단계" 드롭다운이 레거시 6단계를 써서 현재 게이트와 어긋나던 버그 방지.
+  //    이제 게이트(MRD~MP) 기반 + 카드의 현재 게이트가 선택되어야 함.
+  await page.goto('/#customer360/1');
+  await page.reload();
+  const firstCard = page.locator('.lc-card').first();
+  await expect(firstCard).toBeVisible({ timeout: 15000 });
+
+  // 카드의 현재 게이트 키(.ss-now .ss-label) 읽기
+  const curKey = (await firstCard.locator('.ss-step.ss-now .ss-label').first().textContent()).trim();
+  expect(curKey).toBeTruthy();
+
+  // 수정 버튼 → 모달
+  await firstCard.locator('[data-edit-mat]').click();
+  const gateSel = page.locator('#m-gate');
+  await expect(gateSel).toBeVisible({ timeout: 5000 });
+
+  // 드롭다운은 게이트 기반(MRD~MP) — 레거시 6단계가 아님
+  const opts = await gateSel.locator('option').evaluateAll(els => els.map(e => e.value));
+  expect(opts).toContain('MRD');
+  expect(opts).toContain('MP');
+
+  // 선택값 = 카드의 현재 게이트 (버그 핵심: 현재 단계로 표시)
+  await expect(gateSel).toHaveValue(curKey);
+});
+
 test('360 게이트 설정 모달 — 정의 편집 UI (team_lead+)', async ({ page }) => {
   await page.goto('/#customer360/1');
   await page.reload();

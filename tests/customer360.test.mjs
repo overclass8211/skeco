@@ -49,6 +49,7 @@ afterAll(async () => {
   }
   if (matId) {
     await pool.query('DELETE FROM demand_forecasts WHERE customer_material_id=?', [matId]);
+    await pool.query('DELETE FROM material_gates WHERE customer_material_id=?', [matId]);
     await pool.query('DELETE FROM customer_materials WHERE id=?', [matId]);
   }
   if (leadId) await pool.query('DELETE FROM leads WHERE id=?', [leadId]);
@@ -159,6 +160,47 @@ describe('Customer360 (MVP) API', () => {
     expect(res.status).toBe(200);
     const [[row]] = await pool.query('SELECT lifecycle_stage FROM customer_materials WHERE id=?', [matId]);
     expect(row.lifecycle_stage).toBe('massprod');
+  });
+
+  it('PUT /materials/:mid/current-gate — 현재 게이트 일괄 설정 + lifecycle_stage 동기화', async () => {
+    // 활성 게이트 정의 (display_order 순)
+    const [defs] = await pool.query(
+      "SELECT gate_key, lifecycle_stage FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC"
+    );
+    expect(defs.length).toBeGreaterThan(2);
+    const midIdx = Math.floor(defs.length / 2);
+    const target = defs[midIdx];
+
+    const res = await api()
+      .put(`/api/customer360/materials/${matId}/current-gate`)
+      .set('X-User-Id', '1')
+      .send({ gate_key: target.gate_key });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // 이전=done / 선택=in_progress / 이후=pending
+    const [rows] = await pool.query(
+      'SELECT gate_key, status FROM material_gates WHERE customer_material_id=?',
+      [matId]
+    );
+    const byKey = new Map(rows.map(r => [r.gate_key, r.status]));
+    defs.forEach((d, i) => {
+      const exp = i < midIdx ? 'done' : i === midIdx ? 'in_progress' : 'pending';
+      expect(byKey.get(d.gate_key)).toBe(exp);
+    });
+    // lifecycle_stage 동기화 (매핑 있을 때만)
+    if (target.lifecycle_stage) {
+      const [[m]] = await pool.query('SELECT lifecycle_stage FROM customer_materials WHERE id=?', [matId]);
+      expect(m.lifecycle_stage).toBe(target.lifecycle_stage);
+    }
+  });
+
+  it('PUT /materials/:mid/current-gate — 잘못된 게이트 키는 400', async () => {
+    const res = await api()
+      .put(`/api/customer360/materials/${matId}/current-gate`)
+      .set('X-User-Id', '1')
+      .send({ gate_key: '__NOPE__' });
+    expect(res.status).toBe(400);
   });
 
   it('POST /forecasts — 월 upsert', async () => {

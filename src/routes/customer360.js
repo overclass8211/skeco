@@ -315,6 +315,52 @@ router.put('/materials/:mid/gates/:key', requireLevel(1), async (req, res) => {
   }
 });
 
+// 소재의 현재 게이트(=라이프사이클 단계) 일괄 설정 — 게이트=단일 소스
+//   선택 게이트: in_progress / 이전: done / 이후: pending (목표·완료일은 보존)
+//   pickCurrentGateKey 가 선택 게이트를 현재로 산출 → lifecycle_stage 자동 동기화
+router.put('/materials/:mid/current-gate', requireLevel(1), async (req, res) => {
+  try {
+    const mid = parseInt(req.params.mid, 10);
+    const key = ((req.body && req.body.gate_key) || '').trim();
+    if (!mid || !key) return res.status(400).json({ success: false, error: 'mid, gate_key 필수' });
+    const [defs] = await pool.query(
+      `SELECT gate_key, lifecycle_stage FROM plm_gates WHERE is_active=1
+        ORDER BY display_order ASC, gate_key ASC`
+    );
+    const keys = defs.map(d => d.gate_key);
+    const idx = keys.indexOf(key);
+    if (idx < 0) return res.status(400).json({ success: false, error: '알 수 없는 게이트' });
+    // 기존 진척(목표일·완료일·메모) 보존하며 상태만 일괄 세팅
+    const [prog] = await pool.query(
+      'SELECT gate_key, target_date, actual_date, note FROM material_gates WHERE customer_material_id=?',
+      [mid]
+    );
+    const pByKey = new Map(prog.map(p => [p.gate_key, p]));
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const status = i < idx ? 'done' : i === idx ? 'in_progress' : 'pending';
+      const p = pByKey.get(k) || {};
+      await pool.query(
+        `INSERT INTO material_gates (customer_material_id, gate_key, target_date, actual_date, status, note)
+         VALUES (?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE status=VALUES(status)`,
+        [mid, k, p.target_date || null, p.actual_date || null, status, p.note || null]
+      );
+    }
+    // lifecycle_stage 동기화 (매핑 있을 때만)
+    const curDef = defs.find(d => d.gate_key === key);
+    if (curDef && curDef.lifecycle_stage) {
+      await pool.query('UPDATE customer_materials SET lifecycle_stage=? WHERE id=?', [
+        curDef.lifecycle_stage,
+        mid,
+      ]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
   try {
