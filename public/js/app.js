@@ -141,13 +141,21 @@ const App = {
     }
     // 🐛 fix: 메뉴에서 숨긴 페이지(예: 대시보드 OFF)로는 로그인 랜딩하지 않음.
     //   applyMenuConfig() 가 위에서 이미 숨김(display:none)을 적용했으므로 여기서 판정 가능.
-    //   nav-item 이 존재하나 숨겨진 경우 → 첫 노출 메뉴로 폴백. (nav-item 없는 딥링크 대상은 영향 없음)
+    //   숨겨진 경우 폴백 우선순위: 임원 360 요약(exec360) → 첫 노출 메뉴.
+    const _isVisible = pid => {
+      const el = document.querySelector(`.sidebar-nav .nav-item[data-page="${pid}"]`);
+      return el && getComputedStyle(el).display !== 'none';
+    };
     const _landingNav = document.querySelector(`.sidebar-nav .nav-item[data-page="${startPage}"]`);
     if (_landingNav && getComputedStyle(_landingNav).display === 'none') {
-      const _firstVisible = [...document.querySelectorAll('.sidebar-nav .nav-item[data-page]')].find(
-        el => getComputedStyle(el).display !== 'none'
-      );
-      if (_firstVisible) startPage = _firstVisible.dataset.page;
+      if (_isVisible('exec360')) {
+        startPage = 'exec360';
+      } else {
+        const _firstVisible = [...document.querySelectorAll('.sidebar-nav .nav-item[data-page]')].find(
+          el => getComputedStyle(el).display !== 'none'
+        );
+        if (_firstVisible) startPage = _firstVisible.dataset.page;
+      }
     }
     await this.navigate(startPage, { replace: true });
     // 딥링크/새로고침 — URL 의 상세 파라미터(#page/id/tab) 복원
