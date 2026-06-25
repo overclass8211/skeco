@@ -35,8 +35,11 @@ test('계약 페이지 진입 → 헤더 + 필터 + 목록 영역 표시', async
   await expect(page.locator('#ct-new-btn')).toBeVisible();
   await expect(page.locator('#ct-new-btn')).toContainText('새 계약');
   await expect(page.locator('#ct-search')).toBeVisible();
-  await expect(page.locator('#ct-filter-status')).toBeVisible();
-  await expect(page.locator('#ct-filter-type')).toBeVisible();
+  // 필터는 우상단 FilterPopover로 이동 — 버튼 클릭 시 상태/유형 select 노출
+  await page.locator('#ct-flt').click();
+  await expect(page.locator('.flt-panel select[data-fk="status"]')).toBeVisible();
+  await expect(page.locator('.flt-panel select[data-fk="contract_type"]')).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.locator('#ct-list-wrap')).toBeVisible();
 });
 
@@ -87,17 +90,23 @@ test('[+ 새 계약] 클릭 → 모달 열림 + 필수 필드(계약명) + [➕ 
   await page.waitForSelector('#ct-new-btn', { timeout: 15000 });
   await page.click('#ct-new-btn');
 
-  // 모달 폼 필드 확인
-  await page.waitForSelector('#ct-f-title', { timeout: 5000 });
+  // 새 계약 클릭 → 모드 chooser (계약서 받음 / 빈 양식부터) → 빈 양식 선택
+  // 모달 슬라이드인 애니메이션으로 actionability 불안정 → force 클릭
+  await page.waitForSelector('#ct-mode-blank', { timeout: 5000 });
+  await page.click('#ct-mode-blank', { force: true });
+
+  // 모달 폼 필드 확인 (chooser close → 폼 재오픈)
+  await page.waitForSelector('#ct-f-title', { timeout: 10000 });
   await expect(page.locator('#ct-f-title')).toBeVisible();
   await expect(page.locator('#ct-f-contract_type')).toBeVisible();
   await expect(page.locator('#ct-f-status')).toBeVisible();
   await expect(page.locator('#ct-f-customer_name')).toBeVisible();
   await expect(page.locator('#ct-f-currency')).toBeVisible();
 
-  // 자동 채번된 계약번호 (readonly)
-  await expect(page.locator('#ct-f-contract_no')).toHaveValue('C-2026-0001');
+  // 자동 채번된 계약번호 (readonly) — 실서버 채번 포맷 C-YYYY-NNN
+  await expect(page.locator('#ct-f-contract_no')).toHaveValue(/^C-\d{4}-\d+$/);
 
-  // 등록 버튼
-  await expect(page.locator('text=➕ 등록')).toBeVisible();
+  // 등록 버튼 (신규 → "등록", id 기준 — 이모지 표기 변경에 견고)
+  await expect(page.locator('#ct-save-btn')).toBeVisible();
+  await expect(page.locator('#ct-save-btn')).toHaveText('등록');
 });

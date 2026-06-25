@@ -87,8 +87,10 @@ test('KPI 카드 4개 표시 + 만료 임박 카드 클릭 시 필터 적용', a
   await expect(page.locator('.kpi-card', { hasText: '초안' })).toContainText('5');
 
   // 만료 임박 카드 클릭 → status=approved 필터 자동 적용
+  // 필터는 우상단 FilterPopover로 이동 → 버튼 클릭해 패널 열고 select 값 확인
   await firstCard.click();
-  await expect(page.locator('#ct-filter-status')).toHaveValue('approved');
+  await page.locator('#ct-flt').click();
+  await expect(page.locator('.flt-panel select[data-fk="status"]')).toHaveValue('approved');
 });
 
 test('[+ 새 계약] 클릭 → 모드 chooser 모달 (계약서 받음 vs 빈 양식부터)', async ({ page }) => {

@@ -12,6 +12,7 @@
 const ContractsPage = (() => {
   let _list = [];
   const _filters = { search: '', status: '', contract_type: '' };
+  let _flt = null;
   // v6.0.0: 뷰 모드 (목록/카드) — localStorage 동기화
   let _view = localStorage.getItem('contracts_view') || 'list';
 
@@ -127,17 +128,10 @@ const ContractsPage = (() => {
       <div id="ct-kpi-wrap" style="margin-bottom:14px"></div>
 
       <!-- 필터 -->
-      <div class="filter-bar" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <div class="filter-bar" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <input class="form-input" id="ct-search" placeholder="🔎 계약번호/제목/고객사 검색"
           style="flex:1;min-width:240px" value="${esc(_filters.search)}">
-        <select class="form-input" id="ct-filter-status" style="width:140px">
-          <option value="">전체 상태</option>
-          ${Object.entries(STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${_filters.status === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
-        </select>
-        <select class="form-input" id="ct-filter-type" style="width:160px">
-          <option value="">전체 유형</option>
-          ${Object.entries(CONTRACT_TYPE_LABELS).map(([k, v]) => `<option value="${k}" ${_filters.contract_type === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
-        </select>
+        ${FilterPopover.renderButton('ct-flt')}
         <button class="btn btn-ghost" id="ct-refresh-btn">새로고침</button>
       </div>
 
@@ -175,8 +169,7 @@ const ContractsPage = (() => {
     const overdue = d.overdue || 0;
     const setStatusFilter = status => {
       _filters.status = status;
-      const sel = document.getElementById('ct-filter-status');
-      if (sel) sel.value = status;
+      _flt?.setValues({ status });
       _refreshList();
     };
     KpiBar.render({
@@ -290,13 +283,19 @@ const ContractsPage = (() => {
         _refreshList();
       }, 300);
     });
-    document.getElementById('ct-filter-status').addEventListener('change', e => {
-      _filters.status = e.target.value;
-      _refreshList();
-    });
-    document.getElementById('ct-filter-type').addEventListener('change', e => {
-      _filters.contract_type = e.target.value;
-      _refreshList();
+    // 상태·유형 컬럼 필터 — 공용 FilterPopover (우상단)
+    _flt = FilterPopover.attach({
+      buttonId: 'ct-flt',
+      fields: [
+        { key: 'status', label: '상태', type: 'select', options: [{ value: '', label: '전체 상태' }, ...Object.entries(STATUS_LABELS).map(([k, v]) => ({ value: k, label: v }))] },
+        { key: 'contract_type', label: '유형', type: 'select', options: [{ value: '', label: '전체 유형' }, ...Object.entries(CONTRACT_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))] },
+      ],
+      values: { status: _filters.status, contract_type: _filters.contract_type },
+      onApply: v => {
+        _filters.status = v.status;
+        _filters.contract_type = v.contract_type;
+        _refreshList();
+      },
     });
   }
 
@@ -622,7 +621,8 @@ const ContractsPage = (() => {
       // 신규 — 자동채번 미리보기
       try {
         const r = await API.contracts.nextContractNo();
-        entity = { contract_no: r?.data?.next_contract_no, status: 'draft' };
+        // API 응답 필드는 data.contract_no (자동채번 미리보기) — 과거 next_contract_no 오타로 미리보기 공백 버그
+        entity = { contract_no: r?.data?.contract_no, status: 'draft' };
       } catch (_) {
         entity = { status: 'draft' };
       }
