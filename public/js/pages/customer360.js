@@ -939,6 +939,30 @@ const Customer360Page = {
     `;
   },
 
+  // PLM 게이트 타임라인 (목표일·현재게이트·지연) — 6단계 리본 하위 상세
+  _gateTimeline(m) {
+    const gates = m.gates || [];
+    if (!gates.length) return '';
+    const col = g => (g.late ? '#E24B4A' : g.status === 'done' ? '#1D9E75' : g.status === 'in_progress' ? '#378ADD' : 'var(--border)');
+    const ymd = d => (d ? String(d).slice(2, 7).replace('-', '/') : '');
+    const cells = gates.map(g => {
+      const cur = g.gate_key === m.current_gate;
+      const tip = `${g.gate_label} · ${g.late ? '지연' : g.status === 'done' ? '완료' : g.status === 'in_progress' ? '진행중' : '예정'}` +
+        (g.target_date ? ` · 목표 ${String(g.target_date).slice(0, 10)}` : '') +
+        (g.actual_date ? ` · 완료 ${String(g.actual_date).slice(0, 10)}` : '');
+      const labelColor = g.late ? 'var(--oci-red)' : cur ? '#378ADD' : 'var(--text-2)';
+      return `<div class="lc-gate" title="${esc(tip)}" style="flex:1;min-width:0;text-align:center;position:relative">
+        <div style="width:11px;height:11px;border-radius:50%;background:${col(g)};margin:0 auto;border:2px solid var(--surface);position:relative;z-index:1${cur ? ';box-shadow:0 0 0 3px rgba(55,138,221,0.25)' : ''}"></div>
+        <div style="font-size:10px;margin-top:4px;font-weight:${cur ? 700 : 500};color:${labelColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.gate_key)}</div>
+        <div style="font-size:9px;color:${g.late ? 'var(--oci-red)' : 'var(--text-3)'}">${ymd(g.target_date)}</div>
+      </div>`;
+    }).join('');
+    return `<div class="lc-gates" style="position:relative;display:flex;align-items:flex-start;margin-top:10px">
+      <div style="position:absolute;top:7px;left:6%;right:6%;height:2px;background:var(--border);z-index:0"></div>
+      ${cells}
+    </div>`;
+  },
+
   _matCard(m) {
     const stagePill = m.lifecycle_stage === 'massprod' || m.lifecycle_stage === 'specin' ? 'pill-info' : 'pill-mut';
     const badges = [];
@@ -961,6 +985,7 @@ const Customer360Page = {
         </span>
       </div>
       ${this._ribbon(m.lifecycle_index)}
+      ${this._gateTimeline(m)}
       <div class="lc-mrow">
         <span>월 수요 <b>${m.monthly_demand ? this._qty(m.monthly_demand, m.demand_unit) : '미정'}</b></span>
         <span>예상 양산 <b>${m.expected_mp_date ? String(m.expected_mp_date).slice(0, 7) : '미정'}</b></span>

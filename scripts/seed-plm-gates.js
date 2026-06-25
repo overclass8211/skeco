@@ -8,10 +8,10 @@ require('dotenv').config();
 const pool = require('../src/db');
 
 const STAGE_ORDER = ['discovery', 'sample', 'evaluation', 'specin', 'massprod', 'delivery'];
-// YYYY-MM 기준월에서 n개월 더한 'YYYY-MM-15'
-function monthPlus(baseYM, n) {
-  const [y, m] = baseYM.split('-').map(Number);
-  const d = new Date(y, m - 1 + n, 15);
+// 현재월 기준 n개월 가감한 'YYYY-MM-15'
+const NOW = new Date();
+function monthFromNow(n) {
+  const d = new Date(NOW.getFullYear(), NOW.getMonth() + n, 15);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`;
 }
 
@@ -36,16 +36,17 @@ function monthPlus(baseYM, n) {
     let inserted = 0;
     for (const mat of mats) {
       const matIdx = Math.max(0, STAGE_ORDER.indexOf(mat.lifecycle_stage));
-      // 소재마다 시작월을 약간 분산 (id 기반, 결정적)
-      const baseYM = monthPlus('2025-09', (mat.id % 6)).slice(0, 7);
-      let firstAtCurrent = true;
+      // 현재 게이트 = 게이트 순서상 매핑 stage 가 소재 stage 이상인 첫 게이트 (단조 보장)
+      let curIdx = gates.findIndex(g => Math.max(0, STAGE_ORDER.indexOf(g.lifecycle_stage)) >= matIdx);
+      if (curIdx === -1) curIdx = gates.length; // 전부 완료
+      // 소재별 진척 약간 분산 (id 기반 ±1개월), 현재 게이트 ≈ 현재월
+      const jitter = (mat.id % 3) - 1;
       const rows = [];
       gates.forEach((g, i) => {
-        const gIdx = Math.max(0, STAGE_ORDER.indexOf(g.lifecycle_stage));
+        const target = monthFromNow((i - curIdx) * 2 + jitter); // 완료=과거, 현재≈지금, 예정=미래
         let status, actual = null;
-        const target = monthPlus(baseYM, i * 2);
-        if (gIdx < matIdx) { status = 'done'; actual = target; }
-        else if (gIdx === matIdx && firstAtCurrent) { status = 'in_progress'; firstAtCurrent = false; }
+        if (i < curIdx) { status = 'done'; actual = target; }
+        else if (i === curIdx) status = 'in_progress';
         else status = 'pending';
         rows.push([mat.id, g.gate_key, target, actual, status]);
       });
