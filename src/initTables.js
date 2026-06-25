@@ -662,6 +662,43 @@ async function initTables() {
       INDEX idx_cap_period (period)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    // ── PLM 스테이지-게이트: 게이트 정의(설정형) + 소재별 게이트 진척 ──
+    //   plm_gates: 사용자가 단계 추가/수정/순서/매핑 변경 가능 (코드 고정 아님)
+    //   material_gates: 소재별 게이트 목표일/실적일/상태 (FLAX 타임라인)
+    await pool.query(`CREATE TABLE IF NOT EXISTS plm_gates (
+      gate_key        VARCHAR(20) PRIMARY KEY,
+      gate_label      VARCHAR(60) NOT NULL,
+      display_order   INT DEFAULT 0,
+      lifecycle_stage VARCHAR(20) NULL COMMENT '기존 6단계 매핑(back-compat)',
+      is_active       TINYINT(1) DEFAULT 1,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS material_gates (
+      id                   INT AUTO_INCREMENT PRIMARY KEY,
+      customer_material_id INT NOT NULL,
+      gate_key             VARCHAR(20) NOT NULL,
+      target_date          DATE NULL COMMENT '목표일',
+      actual_date          DATE NULL COMMENT '실제 완료일',
+      status               VARCHAR(20) DEFAULT 'pending' COMMENT 'pending|in_progress|done|skipped',
+      note                 TEXT,
+      created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_mg (customer_material_id, gate_key),
+      INDEX idx_mg_mat (customer_material_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    // 게이트 정의 시드 (INSERT IGNORE — 기존 사용자 수정 보존)
+    {
+      const { DEFAULT_GATES } = require('./data/plmGateDefaults');
+      for (const g of DEFAULT_GATES) {
+        await pool.query(
+          `INSERT IGNORE INTO plm_gates (gate_key, gate_label, display_order, lifecycle_stage, is_active)
+           VALUES (?, ?, ?, ?, 1)`,
+          [g.gate_key, g.gate_label, g.display_order, g.lifecycle_stage]
+        );
+      }
+    }
+
     // ── leads.stage ENUM → VARCHAR 마이그레이션 (idempotent) ──
     // ENUM은 단계 추가/삭제 불가 → VARCHAR로 변환하여 자유로운 stage_key 허용
     try {

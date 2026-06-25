@@ -196,6 +196,101 @@ router.get('/exec-kpi/:kpi', execKpiList); // KPI 근거 전체 목록 — /:id 
 router.get('/health-config', healthConfigGet); // Health 기준 조회 (전원)
 router.put('/health-config', requireLevel(2), healthConfigSave); // Health 기준 저장 (team_lead+)
 
+// ── PLM 게이트 정의 (설정형 — 사용자가 단계 추가/수정/순서/매핑 변경) ──
+//   조회는 전원, 변경은 team_lead+ (/:id 보다 먼저 등록 — 경로 충돌 방지)
+router.get('/gates', async (req, res) => {
+  try {
+    const where = req.query.all === '1' ? '' : 'WHERE is_active=1';
+    const [rows] = await pool.query(
+      `SELECT gate_key, gate_label, display_order, lifecycle_stage, is_active
+         FROM plm_gates ${where} ORDER BY display_order ASC, gate_key ASC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+router.post('/gates', requireLevel(2), async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.gate_key || !b.gate_label) {
+      return res.status(400).json({ success: false, error: 'gate_key·gate_label은 필수입니다.' });
+    }
+    await pool.query(
+      `INSERT INTO plm_gates (gate_key, gate_label, display_order, lifecycle_stage, is_active)
+       VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE gate_label=VALUES(gate_label), display_order=VALUES(display_order),
+         lifecycle_stage=VALUES(lifecycle_stage), is_active=VALUES(is_active)`,
+      [
+        b.gate_key,
+        b.gate_label,
+        Number(b.display_order) || 0,
+        b.lifecycle_stage || null,
+        b.is_active === undefined ? 1 : b.is_active ? 1 : 0,
+      ]
+    );
+    res.json({ success: true, data: { gate_key: b.gate_key } });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+router.put('/gates/:key', requireLevel(2), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const sets = [];
+    const params = [];
+    for (const f of ['gate_label', 'display_order', 'lifecycle_stage', 'is_active']) {
+      if (b[f] !== undefined) {
+        sets.push(`${f}=?`);
+        params.push(
+          f === 'display_order' ? Number(b[f]) || 0 : f === 'is_active' ? (b[f] ? 1 : 0) : b[f]
+        );
+      }
+    }
+    if (!sets.length)
+      return res.status(400).json({ success: false, error: '수정할 값이 없습니다.' });
+    params.push(req.params.key);
+    await pool.query(`UPDATE plm_gates SET ${sets.join(', ')} WHERE gate_key=?`, params);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+router.delete('/gates/:key', requireLevel(2), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM plm_gates WHERE gate_key=?', [req.params.key]);
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 소재별 게이트 진척 업서트 (목표일/실적일/상태 인라인 편집)
+router.put('/materials/:mid/gates/:key', requireLevel(1), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const mid = parseInt(req.params.mid, 10);
+    if (!mid) return res.status(400).json({ success: false, error: '소재 ID 오류' });
+    await pool.query(
+      `INSERT INTO material_gates (customer_material_id, gate_key, target_date, actual_date, status, note)
+       VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE target_date=VALUES(target_date), actual_date=VALUES(actual_date),
+         status=VALUES(status), note=VALUES(note)`,
+      [
+        mid,
+        req.params.key,
+        b.target_date || null,
+        b.actual_date || null,
+        b.status || 'pending',
+        b.note || null,
+      ]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
   try {
@@ -623,6 +718,36 @@ const STAGE_LABELS = {
 const STAGE_ORDER = ['discovery', 'sample', 'evaluation', 'specin', 'massprod', 'delivery'];
 const FLOW_MONTHS = ['2026-07', '2026-08', '2026-09'];
 
+// PLM 게이트 타임라인 산출 — 정의(defs) + 소재 진척맵(prog) → gates[] + current_gate
+//   지연(late) = 미완료 게이트의 목표일 경과 / current = 첫 in_progress, 없으면 마지막 done 다음
+function gateTimeline(defs, prog, now) {
+  const today = now || new Date();
+  const gates = (defs || []).map(d => {
+    const p = (prog && prog.get(d.gate_key)) || {};
+    const status = p.status || 'pending';
+    const target = p.target_date || null;
+    const late = status !== 'done' && status !== 'skipped' && target && new Date(target) < today;
+    return {
+      gate_key: d.gate_key,
+      gate_label: d.gate_label,
+      lifecycle_stage: d.lifecycle_stage || null,
+      target_date: target,
+      actual_date: p.actual_date || null,
+      status,
+      late: !!late,
+    };
+  });
+  let cur = gates.find(g => g.status === 'in_progress');
+  if (!cur && gates.length) {
+    let lastDone = -1;
+    gates.forEach((g, i) => {
+      if (g.status === 'done') lastDone = i;
+    });
+    cur = gates[Math.min(lastDone + 1, gates.length - 1)];
+  }
+  return { gates, current_gate: cur ? cur.gate_key : null };
+}
+
 // ── 영업딜 단계 ↔ 공정 라이프사이클 정합성(불일치) 인사이트 ──
 //   두 축을 공통 0~5 랭크(라이프사이클 기준)로 정규화해 비교. 스키마 변경 없음.
 const SALES_EQUIV_RANK = {
@@ -704,6 +829,26 @@ async function buildLifecycle(customerId) {
        FROM quality_cases WHERE customer_id=? ORDER BY FIELD(status,'received','registered','assigned','in_progress','on_hold','resolved','dropped'), opened_at DESC`,
     [customerId]
   );
+
+  // PLM 게이트: 정의(설정형) + 소재별 진척
+  const [gateDefs] = await pool.query(
+    `SELECT gate_key, gate_label, display_order, lifecycle_stage
+       FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC`
+  );
+  let mgs = [];
+  if (matIds.length) {
+    [mgs] = await pool.query(
+      `SELECT customer_material_id, gate_key, target_date, actual_date, status, note
+         FROM material_gates WHERE customer_material_id IN (?)`,
+      [matIds]
+    );
+  }
+  const mgByMat = new Map();
+  for (const g of mgs) {
+    if (!mgByMat.has(g.customer_material_id)) mgByMat.set(g.customer_material_id, new Map());
+    mgByMat.get(g.customer_material_id).set(g.gate_key, g);
+  }
+  const gNow = new Date();
 
   // 소재↔딜 소프트 링크(무스키마 휴리스틱): 같은 고객 + business_type 매칭으로 진행 딜 추정.
   // leads 는 customer_name 으로 연결되므로 고객명을 조회해 사업유형별로 그룹핑.
@@ -789,6 +934,7 @@ async function buildLifecycle(customerId) {
       linked_deals: linkedDeals,
       linked_deal_count: linkedDeals.length,
       primary_lead_id: linkedDeals.length === 1 ? linkedDeals[0].id : null,
+      ...gateTimeline(gateDefs, mgByMat.get(m.id) || new Map(), gNow),
     };
   });
 
