@@ -21,9 +21,9 @@ test('사이드바 레일 모드 — 토글/저장/복원', async ({ page }) => 
   // 접기
   await page.locator('#rail-toggle').click();
   await expect(page.locator('body')).toHaveClass(/sidebar-rail/);
-  const wRail = (await sidebar.boundingBox()).width;
-  expect(wRail).toBeLessThan(wExpanded);
-  expect(wRail).toBeLessThanOrEqual(80);
+  // 슬라이딩 전환(0.32s) 완료 후 폭이 좁아짐 — 애니메이션 종료까지 poll
+  await expect.poll(async () => Math.round((await sidebar.boundingBox()).width)).toBeLessThanOrEqual(80);
+  expect((await sidebar.boundingBox()).width).toBeLessThan(wExpanded);
   // 라벨(텍스트) 페이드 아웃 — 슬라이딩(opacity 0). display:none 이 아니라 opacity 로 애니메이션
   await expect
     .poll(() =>
