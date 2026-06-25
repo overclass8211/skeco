@@ -36,3 +36,29 @@ test('360 게이트 타임라인 — 소재 카드에 MRD~MP 렌더 + 현재 강
   const highlighted = await page.locator('.lc-gate div[style*="box-shadow"]').count();
   expect(highlighted).toBeGreaterThanOrEqual(1);
 });
+
+test('360 게이트 설정 모달 — 정의 편집 UI (team_lead+)', async ({ page }) => {
+  await page.goto('/#customer360/1');
+  await page.reload();
+  await expect(page.locator('.lc-card').first()).toBeVisible({ timeout: 15000 });
+
+  // 설정 버튼(admin 로그인 → 노출) → 모달
+  await page.locator('#c360-gate-cfg').click();
+  await expect(page.locator('#gc-body')).toBeVisible({ timeout: 5000 });
+  const before = await page.locator('#gc-body tr[data-grow]').count();
+  expect(before).toBeGreaterThanOrEqual(7);
+  // 게이트 키는 input value → 텍스트가 아닌 값으로 검증
+  const keys = await page.locator('#gc-body .gc-key').evaluateAll(els => els.map(e => e.value));
+  expect(keys).toContain('MRD');
+
+  // 게이트 추가 → 행 +1 (저장은 안 함 — UI 검증)
+  await page.locator('#gc-add').click();
+  await expect(page.locator('#gc-body tr[data-grow]')).toHaveCount(before + 1);
+
+  // 삭제(✕) → 다시 원래 개수
+  await page.locator('#gc-body tr[data-grow]').last().locator('.gc-del').click();
+  await expect(page.locator('#gc-body tr[data-grow]')).toHaveCount(before);
+
+  await page.locator('#gc-cancel').click();
+  await expect(page.locator('#gc-body')).toHaveCount(0);
+});

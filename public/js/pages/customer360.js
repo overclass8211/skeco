@@ -720,6 +720,7 @@ const Customer360Page = {
     }
     if (t === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
+      el.querySelector('#c360-gate-cfg')?.addEventListener('click', () => this._openGateConfig());
       el.querySelectorAll('[data-edit-mat]').forEach(b =>
         b.addEventListener('click', e => {
           e.stopPropagation();
@@ -929,6 +930,7 @@ const Customer360Page = {
       <div class="c360-sec">분기 공급 리스크 (3개월)</div>
       ${flow}
       <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 영업기회</span>
+        ${['team_lead', 'executive', 'admin', 'superadmin'].includes(App.currentUser?.role) ? '<button class="btn btn-sm" id="c360-gate-cfg" style="margin-right:6px" title="PLM 게이트 단계 설정">⚙ 게이트 설정</button>' : ''}
         <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 공급 품목 등록</button>
       </div>
       ${board}
@@ -937,6 +939,91 @@ const Customer360Page = {
       <div class="c360-sec">AI 추천 다음 액션</div>
       ${actions}
     `;
+  },
+
+  // PLM 게이트 정의 관리 (설정형 — 단계 추가/수정/순서/매핑/활성) team_lead+
+  async _openGateConfig() {
+    let gates;
+    try {
+      gates = (await API.get('/customer360/gates?all=1')).data || [];
+    } catch (e) {
+      Toast.error('게이트 로드 실패: ' + (e.message || e));
+      return;
+    }
+    this._gateOrigKeys = gates.map(g => g.gate_key);
+    const stageOpts = cur =>
+      `<option value="">(없음)</option>` +
+      this._STAGES.map(([k, l]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${l}</option>`).join('');
+    const row = g => `<tr data-grow>
+        <td><input class="form-input gc-ord" type="number" style="width:54px" value="${g ? g.display_order : 99}"></td>
+        <td><input class="form-input gc-key" style="width:84px" value="${g ? esc(g.gate_key) : ''}" ${g ? 'readonly' : ''} placeholder="KEY"></td>
+        <td><input class="form-input gc-label" value="${g ? esc(g.gate_label) : ''}" placeholder="라벨"></td>
+        <td><select class="form-input gc-stage" style="min-width:96px">${stageOpts(g ? g.lifecycle_stage : '')}</select></td>
+        <td style="text-align:center"><input type="checkbox" class="gc-active" ${!g || g.is_active ? 'checked' : ''}></td>
+        <td style="text-align:center"><button type="button" class="btn btn-sm gc-del" title="삭제">✕</button></td>
+      </tr>`;
+    Modal.open({
+      title: 'PLM 게이트 설정',
+      width: 660,
+      body: `<div style="max-height:60vh;overflow:auto">
+          <table class="data-table" style="font-size:12.5px;width:100%">
+            <thead><tr><th style="width:54px">순서</th><th>키</th><th>라벨</th><th>매핑(6단계)</th><th>활성</th><th></th></tr></thead>
+            <tbody id="gc-body">${gates.map(g => row(g)).join('')}</tbody>
+          </table>
+          <button type="button" class="btn btn-sm" id="gc-add" style="margin-top:8px">+ 게이트 추가</button>
+          <div style="font-size:11px;color:var(--text-3);margin-top:6px">순서=표시순 · 키=고유 식별자(영문, 기존은 변경 불가) · 매핑=기존 6단계 연동 · 저장 시 일괄 적용</div>
+        </div>`,
+      footer: `<button class="btn btn-ghost" id="gc-cancel">취소</button><button class="btn btn-primary" id="gc-save">저장</button>`,
+      bind: {
+        '#gc-cancel': () => Modal.close(),
+        '#gc-save': () => this._saveGateConfig(),
+        '#gc-add': () =>
+          document.getElementById('gc-body').insertAdjacentHTML('beforeend', row(null)),
+      },
+      onOpen: () => {
+        document.getElementById('gc-body')?.addEventListener('click', e => {
+          const del = e.target.closest('.gc-del');
+          if (del) del.closest('tr').remove();
+        });
+      },
+    });
+  },
+
+  async _saveGateConfig() {
+    const rows = [...document.querySelectorAll('#gc-body tr[data-grow]')];
+    const items = [];
+    for (const tr of rows) {
+      const key = (tr.querySelector('.gc-key').value || '').trim();
+      const label = (tr.querySelector('.gc-label').value || '').trim();
+      if (!key || !label) {
+        Toast.error('키·라벨은 필수입니다');
+        return;
+      }
+      items.push({
+        gate_key: key,
+        gate_label: label,
+        display_order: Number(tr.querySelector('.gc-ord').value) || 0,
+        lifecycle_stage: tr.querySelector('.gc-stage').value || null,
+        is_active: tr.querySelector('.gc-active').checked ? 1 : 0,
+      });
+    }
+    const keys = items.map(i => i.gate_key);
+    if (new Set(keys).size !== keys.length) {
+      Toast.error('게이트 키가 중복되었습니다');
+      return;
+    }
+    try {
+      const remaining = new Set(keys);
+      for (const k of this._gateOrigKeys || []) {
+        if (!remaining.has(k)) await API.del('/customer360/gates/' + encodeURIComponent(k));
+      }
+      for (const it of items) await API.post('/customer360/gates', it);
+      Toast.success('게이트 설정 저장됨');
+      Modal.close();
+      if (this._custId) await this._select(this._custId, { route: 'none' });
+    } catch (e) {
+      Toast.error('저장 실패: ' + (e.message || e));
+    }
   },
 
   // PLM 게이트 타임라인 (목표일·현재게이트·지연) — 6단계 리본 하위 상세
