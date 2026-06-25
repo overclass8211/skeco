@@ -155,48 +155,47 @@ body.app-ready #app-boot { opacity: 0; pointer-events: none; }
 }
 @keyframes appBootSpin { to { transform: rotate(360deg); } }
 
-.nav-section { padding: 6px 0; }
+.nav-section { padding: 4px 0; }
 .nav-section-title {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--text-4);
-  font-weight: 500;
-  padding: 6px 16px;
-  letter-spacing: 0.6px;
+  font-weight: 600;
+  padding: 10px 18px 4px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
+  opacity: 0.8;
 }
+/* 모던 리파인: pill 형태(좌우 인셋·라운드) + 통일 라인 아이콘 */
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  font-size: 13px;
+  gap: 11px;
+  margin: 1px 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
   color: var(--text-2);
   cursor: pointer;
   position: relative;
-  transition: background 0.12s;
+  border-radius: 10px;
+  transition: background 0.14s ease, color 0.14s ease;
 }
 .nav-item svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 .nav-item:hover {
   background: var(--surface-3);
   color: var(--text-1);
 }
+.nav-item:hover svg { opacity: 1; }
 .nav-item.active {
   background: var(--red-light);
   color: var(--oci-red);
-  font-weight: 500;
+  font-weight: 600;
 }
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--oci-red);
-}
+.nav-item.active::before { display: none; } /* 좌측 바 제거 — pill 배경으로 대체 */
 .nav-item.active svg { opacity: 1; }
 .nav-badge {
   margin-left: auto;
