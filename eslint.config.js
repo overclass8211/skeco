@@ -60,7 +60,7 @@ const spaGlobals = {
   Exec360Page: 'readonly',
   QualityPage: 'readonly',
   /* @scaffold:page-globals — 신규 페이지 전역 자동 삽입 지점 (scaffold-page.js) */
-  ProjectsPage: 'readonly', CustomersPage: 'readonly', CalendarPage: 'readonly',
+  ProjectsPage: 'readonly', ProcessLifecyclePage: 'readonly', CustomersPage: 'readonly', CalendarPage: 'readonly',
   TeamPage: 'readonly', BoardPage: 'readonly', MeetingPage: 'readonly',
   MeetingListPage: 'readonly', AdminPage: 'readonly', SettingsPage: 'readonly',
   ReportsPage: 'readonly', ReportBuilderPage: 'readonly', CostPage: 'readonly',

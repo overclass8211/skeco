@@ -270,6 +270,27 @@ describe('Customer360 (MVP) API', () => {
     expect(res.status).toBe(400);
   });
 
+  it('GET /gate-board — 전사 공정 라이프사이클 집계(게이트 컬럼·행·KPI)', async () => {
+    const res = await api().get('/api/customer360/gate-board').set('X-User-Id', '1');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const d = res.body.data;
+    expect(Array.isArray(d.gates)).toBe(true);
+    expect(d.gates.length).toBeGreaterThanOrEqual(3);
+    expect(Array.isArray(d.rows)).toBe(true);
+    expect(d.kpis).toBeTruthy();
+    expect(typeof d.kpis.total).toBe('number');
+    expect(d.kpis.total).toBe(d.rows.length);
+    // 테스트 소재가 보드에 포함 + 행 구조 검증
+    const row = d.rows.find(r => r.material_id === matId);
+    expect(row).toBeTruthy();
+    expect(row.customer_id).toBe(custId);
+    expect(Array.isArray(row.gates)).toBe(true);
+    expect(row.gates.length).toBe(d.gates.length);
+    expect(row).toHaveProperty('current_gate');
+    expect(row).toHaveProperty('delayed');
+  });
+
   it('POST /forecasts — 월 upsert', async () => {
     const res = await api()
       .post('/api/customer360/forecasts')

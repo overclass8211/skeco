@@ -141,7 +141,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openDetail(page) {
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' }); // cold-start 해시 라우터 경합 회피
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
   await page.locator('tr[data-proj-id="9"] td').nth(1).click(); // 이름 셀 클릭 (체크박스 회피)

@@ -425,6 +425,91 @@ router.put('/materials/:mid/gate-schedule', requireLevel(1), async (req, res) =>
   }
 });
 
+// ── 전사 공정 라이프사이클 보드 — 고객×소재 전 건의 게이트 진척 집계 ──
+//   (라우트 순서: 숫자 /:id 보다 먼저)
+router.get('/gate-board', async (req, res) => {
+  try {
+    const [defs] = await pool.query(
+      `SELECT gate_key, gate_label, display_order FROM plm_gates WHERE is_active=1
+        ORDER BY display_order ASC, gate_key ASC`
+    );
+    const gateKeys = defs.map(d => d.gate_key);
+    const [mats] = await pool.query(
+      `SELECT m.id, m.material_name, m.business_type, m.fab_line, m.customer_id, c.name AS customer_name
+         FROM customer_materials m JOIN customers c ON c.id = m.customer_id
+        WHERE m.status <> 'closed'
+        ORDER BY c.name ASC, m.material_name ASC`
+    );
+    const ids = mats.map(m => m.id);
+    let prog = [];
+    if (ids.length) {
+      [prog] = await pool.query(
+        `SELECT customer_material_id, gate_key,
+                DATE_FORMAT(target_date,'%Y-%m-%d') AS target_date,
+                DATE_FORMAT(actual_date,'%Y-%m-%d') AS actual_date, status
+           FROM material_gates WHERE customer_material_id IN (?)`,
+        [ids]
+      );
+    }
+    const byMat = new Map();
+    for (const p of prog) {
+      if (!byMat.has(p.customer_material_id)) byMat.set(p.customer_material_id, new Map());
+      byMat.get(p.customer_material_id).set(p.gate_key, p);
+    }
+    const [[{ today }]] = await pool.query("SELECT DATE_FORMAT(CURDATE(),'%Y-%m-%d') AS today");
+    const thisMonth = today.slice(0, 7);
+    let delayedCnt = 0;
+    let dueMonthCnt = 0;
+    const rows = mats.map(m => {
+      const pmap = byMat.get(m.id) || new Map();
+      const gates = defs.map(d => {
+        const p = pmap.get(d.gate_key) || {};
+        const status = p.status || 'pending';
+        const late =
+          status !== 'done' && status !== 'skipped' && p.target_date && p.target_date < today;
+        return {
+          gate_key: d.gate_key,
+          status,
+          target_date: p.target_date || null,
+          actual_date: p.actual_date || null,
+          late: !!late,
+        };
+      });
+      const curKey = pickCurrentGateKey(gateKeys, new Map(gates.map(g => [g.gate_key, g.status])));
+      const curDef = defs.find(d => d.gate_key === curKey);
+      const delayed = gates.some(g => g.late);
+      const curGate = gates.find(g => g.gate_key === curKey);
+      const dueThisMonth =
+        !!curGate && curGate.target_date && curGate.target_date.slice(0, 7) === thisMonth;
+      if (delayed) delayedCnt++;
+      if (dueThisMonth) dueMonthCnt++;
+      return {
+        customer_id: m.customer_id,
+        customer_name: m.customer_name,
+        material_id: m.id,
+        material_name: m.material_name,
+        business_type: m.business_type,
+        fab_line: m.fab_line,
+        current_gate: curKey,
+        current_gate_label: curDef ? curDef.gate_label : null,
+        delayed,
+        due_this_month: dueThisMonth,
+        gates,
+      };
+    });
+    res.json({
+      success: true,
+      data: {
+        gates: defs.map(d => ({ gate_key: d.gate_key, gate_label: d.gate_label })),
+        rows,
+        kpis: { total: rows.length, delayed: delayedCnt, due_this_month: dueMonthCnt },
+      },
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // ── 단일 고객 통합 360 ───────────────────────────────────────
 router.get('/:id', validateId, async (req, res) => {
   try {

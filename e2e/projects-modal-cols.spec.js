@@ -34,7 +34,7 @@ async function mock(page) {
 }
 
 async function gotoList(page) {
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
 }

@@ -92,7 +92,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('신규 폼 — 확장 메타 필드 렌더 + 단계 옵션 로드', async ({ page }) => {
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.waitForSelector('#proj-open-form-btn', { timeout: 20000 });
   await page.click('#proj-open-form-btn');
   await page.waitForSelector('#p-code', { timeout: 10000 });
@@ -105,7 +105,7 @@ test('신규 폼 — 확장 메타 필드 렌더 + 단계 옵션 로드', async 
 });
 
 test('영업리드 선택 → 메타 자동 채움 + 계약 자동 연결 + 저장 페이로드', async ({ page }) => {
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.waitForSelector('#proj-open-form-btn', { timeout: 20000 });
   await page.click('#proj-open-form-btn');
   await page.waitForSelector('#p-lead', { timeout: 10000 });

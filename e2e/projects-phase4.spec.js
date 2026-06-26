@@ -96,7 +96,7 @@ test.beforeEach(async ({ page }) => {
 test('목록 진척바 + 지연 배지', async ({ page }) => {
   await mockApis(page);
   await loginAsAdmin(page);
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' }); // cold-start 해시 라우터 경합 회피
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
   const row = page.locator('tr[data-proj-id="9"]');
@@ -107,7 +107,7 @@ test('목록 진척바 + 지연 배지', async ({ page }) => {
 test('컬럼 선택기 — 관련 영업리드/연결 계약 추가 + 활성화 시 목록 표시', async ({ page }) => {
   await mockApis(page);
   await loginAsAdmin(page);
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
 
@@ -126,7 +126,7 @@ test('컬럼 선택기 — 관련 영업리드/연결 계약 추가 + 활성화 
 test('상세 — 마일스톤 목표 vs 실제 + Gap + 일정표 + 수금 연계', async ({ page }) => {
   await mockApis(page);
   await loginAsAdmin(page);
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
   await page.locator('tr[data-proj-id="9"] td').nth(1).click();
@@ -174,7 +174,7 @@ test('상세 — 마일스톤 목표 vs 실제 + Gap + 일정표 + 수금 연계
 test('방어 — /milestones 실패해도 상세(메타·수금)는 표시', async ({ page }) => {
   await mockApis(page, { milestonesFails: true });
   await loginAsAdmin(page);
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
   await page.locator('tr[data-proj-id="9"] td').nth(1).click();

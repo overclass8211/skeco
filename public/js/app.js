@@ -17,7 +17,10 @@ const App = {
     fcstsc: { obj: () => FcstScPage, title: '수급 FCST', crumb: '메인 / 수급 FCST' },
     fcstmng: { obj: () => FcstMngPage, title: '수급 FCST 관리', crumb: '메인 / 수급 FCST 관리' },
     leads: { obj: () => LeadsPage, title: '영업딜', crumb: '영업관리 / 영업딜' },
-    projects: { obj: () => ProjectsPage, title: '프로젝트', crumb: '영업관리 / 프로젝트' },
+    // 메뉴 재정의: '프로젝트' 슬롯 → 전사 공정 라이프사이클 보드
+    projects: { obj: () => ProcessLifecyclePage, title: '공정 라이프사이클', crumb: '영업관리 / 공정 라이프사이클' },
+    // 레거시 프로젝트(EPC 단계 트래커) — 메뉴에서 내렸으나 URL(#projects-legacy)로 보존
+    'projects-legacy': { obj: () => ProjectsPage, title: '프로젝트(레거시)', crumb: '영업관리 / 프로젝트(레거시)' },
     customers: { obj: () => CustomersPage, title: '고객사', crumb: '영업관리 / 고객사' },
     calendar: { obj: () => CalendarPage, title: '영업 캘린더', crumb: '영업관리 / 캘린더' },
     quotes: { obj: () => QuotesPage, title: '견적서', crumb: '영업관리 / 견적서' },

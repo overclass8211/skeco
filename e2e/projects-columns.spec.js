@@ -72,7 +72,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function gotoProjects(page) {
-  await page.goto('/#projects');
+  await page.goto('/#projects-legacy');
   await page.reload({ waitUntil: 'domcontentloaded' }); // cold-start 해시 라우터 경합 회피
   await page.waitForSelector('tr[data-proj-id="9"]', { timeout: 20000 });
 }
