@@ -178,15 +178,19 @@ describe('Customer360 (MVP) API', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
-    // 이전=done / 선택=in_progress / 이후=pending
+    // 이전=done / 선택=in_progress / 이후=pending + 이전 게이트 실제일 자동 채움(오늘)
     const [rows] = await pool.query(
-      'SELECT gate_key, status FROM material_gates WHERE customer_material_id=?',
+      "SELECT gate_key, status, DATE_FORMAT(actual_date,'%Y-%m-%d') AS actual_date FROM material_gates WHERE customer_material_id=?",
       [matId]
     );
+    const [[{ today }]] = await pool.query("SELECT DATE_FORMAT(CURDATE(),'%Y-%m-%d') AS today");
     const byKey = new Map(rows.map(r => [r.gate_key, r.status]));
+    const actByKey = new Map(rows.map(r => [r.gate_key, r.actual_date]));
     defs.forEach((d, i) => {
       const exp = i < midIdx ? 'done' : i === midIdx ? 'in_progress' : 'pending';
       expect(byKey.get(d.gate_key)).toBe(exp);
+      if (i < midIdx) expect(actByKey.get(d.gate_key)).toBe(today); // 이전 게이트 실제일 = 오늘
+      else expect(actByKey.get(d.gate_key)).toBeFalsy(); // 현재·이후 실제일 해제
     });
     // lifecycle_stage 동기화 (매핑 있을 때만)
     if (target.lifecycle_stage) {
@@ -217,6 +221,37 @@ describe('Customer360 (MVP) API', () => {
     );
     expect(row.td).toBe('2026-09-30');
     expect(row.status).toBe('in_progress'); // 상태는 건드리지 않음
+  });
+
+  it('PUT /materials/:mid/gate-schedule — 실제일 입력 = 완료(done), 비우면 pending', async () => {
+    const [defs] = await pool.query(
+      "SELECT gate_key FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC"
+    );
+    const gk = defs[0].gate_key;
+    // 실제일 입력 → done + actual 저장
+    const set = await api()
+      .put(`/api/customer360/materials/${matId}/gate-schedule`)
+      .set('X-User-Id', '1')
+      .send({ gates: [{ gate_key: gk, actual_date: '2026-03-15' }] });
+    expect(set.status).toBe(200);
+    let [[row]] = await pool.query(
+      "SELECT DATE_FORMAT(actual_date,'%Y-%m-%d') AS ad, status FROM material_gates WHERE customer_material_id=? AND gate_key=?",
+      [matId, gk]
+    );
+    expect(row.ad).toBe('2026-03-15');
+    expect(row.status).toBe('done');
+    // 실제일 비움 → pending + actual NULL
+    const clr = await api()
+      .put(`/api/customer360/materials/${matId}/gate-schedule`)
+      .set('X-User-Id', '1')
+      .send({ gates: [{ gate_key: gk, actual_date: null }] });
+    expect(clr.status).toBe(200);
+    [[row]] = await pool.query(
+      'SELECT actual_date, status FROM material_gates WHERE customer_material_id=? AND gate_key=?',
+      [matId, gk]
+    );
+    expect(row.actual_date).toBeNull();
+    expect(row.status).toBe('pending');
   });
 
   it('PUT /materials/:mid/gate-schedule — 배열 아니면 400', async () => {

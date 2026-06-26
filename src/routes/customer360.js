@@ -330,21 +330,26 @@ router.put('/materials/:mid/current-gate', requireLevel(1), async (req, res) => 
     const keys = defs.map(d => d.gate_key);
     const idx = keys.indexOf(key);
     if (idx < 0) return res.status(400).json({ success: false, error: '알 수 없는 게이트' });
-    // 기존 진척(목표일·완료일·메모) 보존하며 상태만 일괄 세팅
+    // 기존 진척(목표일·완료일·메모) 보존 — DATE_FORMAT 으로 문자열화(UTC 밀림 방지)
     const [prog] = await pool.query(
-      'SELECT gate_key, target_date, actual_date, note FROM material_gates WHERE customer_material_id=?',
+      `SELECT gate_key, DATE_FORMAT(target_date,'%Y-%m-%d') AS target_date,
+              DATE_FORMAT(actual_date,'%Y-%m-%d') AS actual_date, note
+         FROM material_gates WHERE customer_material_id=?`,
       [mid]
     );
+    const [[{ today }]] = await pool.query("SELECT DATE_FORMAT(CURDATE(),'%Y-%m-%d') AS today");
     const pByKey = new Map(prog.map(p => [p.gate_key, p]));
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
       const status = i < idx ? 'done' : i === idx ? 'in_progress' : 'pending';
       const p = pByKey.get(k) || {};
+      // 이전(done): 실제일 비어 있으면 오늘로 자동 채움 / 현재·이후: 실제일·완료 해제
+      const actual = i < idx ? p.actual_date || today : null;
       await pool.query(
         `INSERT INTO material_gates (customer_material_id, gate_key, target_date, actual_date, status, note)
          VALUES (?,?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE status=VALUES(status)`,
-        [mid, k, p.target_date || null, p.actual_date || null, status, p.note || null]
+         ON DUPLICATE KEY UPDATE status=VALUES(status), actual_date=VALUES(actual_date)`,
+        [mid, k, p.target_date || null, actual, status, p.note || null]
       );
     }
     // lifecycle_stage 동기화 (매핑 있을 때만)
@@ -361,8 +366,9 @@ router.put('/materials/:mid/current-gate', requireLevel(1), async (req, res) => 
   }
 });
 
-// 소재 게이트 일정(예정 계획일) 일괄 저장 — 상태는 건드리지 않고 target_date 만 갱신
-//   gates: [{ gate_key, target_date }] (target_date 빈값 → null 로 초기화 허용)
+// 소재 게이트 일정(예정 계획일·실제 진행일) 일괄 저장 — 변경된 필드만 반영
+//   gates: [{ gate_key, target_date?, actual_date? }] (키가 있는 필드만 갱신)
+//   actual_date 입력 = 해당 게이트 '완료(done)' / 비우면 'pending' (실제일=완료 단일 규칙)
 router.put('/materials/:mid/gate-schedule', requireLevel(1), async (req, res) => {
   try {
     const mid = parseInt(req.params.mid, 10);
@@ -372,14 +378,46 @@ router.put('/materials/:mid/gate-schedule', requireLevel(1), async (req, res) =>
       return res.status(400).json({ success: false, error: 'gates 배열 필요' });
     const [defs] = await pool.query('SELECT gate_key FROM plm_gates WHERE is_active=1');
     const valid = new Set(defs.map(d => d.gate_key));
+    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
     for (const g of gates) {
       if (!g || !valid.has(g.gate_key)) continue;
+      const hasT = has(g, 'target_date');
+      const hasA = has(g, 'actual_date');
+      if (!hasT && !hasA) continue;
+      const t = g.target_date || null;
+      const a = g.actual_date || null;
+      const status = a ? 'done' : 'pending'; // 실제일 입력 = 완료
+      const upd = [];
+      if (hasT) upd.push('target_date=VALUES(target_date)');
+      if (hasA) upd.push('actual_date=VALUES(actual_date)', 'status=VALUES(status)');
       await pool.query(
-        `INSERT INTO material_gates (customer_material_id, gate_key, target_date, status)
-         VALUES (?,?,?, 'pending')
-         ON DUPLICATE KEY UPDATE target_date=VALUES(target_date)`,
-        [mid, g.gate_key, g.target_date || null]
+        `INSERT INTO material_gates (customer_material_id, gate_key, target_date, actual_date, status)
+         VALUES (?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE ${upd.join(', ')}`,
+        [mid, g.gate_key, t, a, status]
       );
+    }
+    // 실제일 변경으로 현재 게이트가 바뀔 수 있으므로 lifecycle_stage 재동기화
+    try {
+      const [d2] = await pool.query(
+        `SELECT gate_key, lifecycle_stage FROM plm_gates WHERE is_active=1 ORDER BY display_order ASC, gate_key ASC`
+      );
+      const [pr] = await pool.query(
+        'SELECT gate_key, status FROM material_gates WHERE customer_material_id=?',
+        [mid]
+      );
+      const curKey = pickCurrentGateKey(
+        d2.map(d => d.gate_key),
+        new Map(pr.map(p => [p.gate_key, p.status]))
+      );
+      const cd = d2.find(d => d.gate_key === curKey);
+      if (cd && cd.lifecycle_stage)
+        await pool.query('UPDATE customer_materials SET lifecycle_stage=? WHERE id=?', [
+          cd.lifecycle_stage,
+          mid,
+        ]);
+    } catch (_) {
+      /* 동기화 실패는 저장과 무관 */
     }
     res.json({ success: true });
   } catch (err) {

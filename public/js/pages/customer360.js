@@ -1046,15 +1046,26 @@ const Customer360Page = {
         const cls = done ? 'ss-done' : now ? 'ss-now' : 'ss-future';
         const fill = i <= safeIdx ? ' ss-fill' : '';
         const sym = done ? '✓' : String(i + 1);
-        const dt = ymd(g.target_date);
         const dateColor = g.late ? 'var(--oci-red)' : 'var(--text-3)';
+        // 완료 게이트: 실제일(+지연일수) / 그 외: 예정일
+        let dateBlock = '';
+        if (done && g.actual_date) {
+          const gap =
+            g.target_date && g.actual_date
+              ? Math.round((new Date(g.actual_date) - new Date(g.target_date)) / 86400000)
+              : null;
+          const lateTag = gap && gap > 0 ? ` <span style="color:var(--oci-red)">+${gap}d</span>` : '';
+          dateBlock = `<div class="ss-gate-date" style="font-size:9.5px;color:var(--text-3)" title="실제 진행일">${ymd(g.actual_date)}${lateTag}</div>`;
+        } else if (g.target_date) {
+          dateBlock = `<div class="ss-gate-date" style="font-size:9.5px;color:${dateColor}" title="예정 계획일">${ymd(g.target_date)}</div>`;
+        }
         const tip = `${g.gate_label}${now ? ' (현재)' : ''}${g.late ? ' · 지연' : ''}` +
-          (g.target_date ? ` · 목표 ${String(g.target_date).slice(0, 10)}` : '') +
-          (g.actual_date ? ` · 완료 ${String(g.actual_date).slice(0, 10)}` : '');
+          (g.target_date ? ` · 예정 ${String(g.target_date).slice(0, 10)}` : '') +
+          (g.actual_date ? ` · 실제 ${String(g.actual_date).slice(0, 10)}` : '');
         return `<div class="ss-step ${cls}${fill}" title="${esc(tip)}">
           <div class="ss-dot" aria-hidden="true">${sym}</div>
           <div class="ss-label">${esc(g.gate_key)}</div>
-          ${dt ? `<div class="ss-gate-date" style="font-size:9.5px;color:${dateColor}">${dt}</div>` : ''}
+          ${dateBlock}
           ${now ? '<div class="ss-now-chip">현재</div>' : ''}
         </div>`;
       })
@@ -2114,22 +2125,29 @@ const Customer360Page = {
       )
       .join('');
     this._matGateOrig = isEdit ? curGate : null; // 변경 감지용
-    // 게이트별 예정 계획일(target_date) 입력/편집 — 원본 저장(변경분만 전송)
+    // 게이트별 예정 계획일(target)·실제 진행일(actual) 입력/편집 — 원본 저장(변경분만 전송)
     const ymd = d => (d ? String(d).slice(0, 10) : '');
     this._matGateDates = {};
+    const schedHead = `<div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--text-3);font-weight:600">
+        <span style="min-width:40px"></span>
+        <span style="flex:1">예정 계획일</span>
+        <span style="flex:1">실제 진행일</span>
+      </div>`;
     const schedRows = gateList
       .map(g => {
-        const d = ymd(g.target_date);
-        this._matGateDates[g.gate_key] = d;
+        const t = ymd(g.target_date);
+        const a = ymd(g.actual_date);
+        this._matGateDates[g.gate_key] = { t, a };
         return `<div style="display:flex;align-items:center;gap:6px">
-            <span style="min-width:38px;font-weight:600;font-size:11px;color:var(--text-2)" title="${esc(g.gate_label || g.gate_key)}">${esc(g.gate_key)}</span>
-            <input type="date" class="form-input mg-date" data-gk="${esc(g.gate_key)}" value="${d}" style="flex:1;padding:4px 6px;font-size:12px">
+            <span style="min-width:40px;font-weight:600;font-size:11px;color:var(--text-2)" title="${esc(g.gate_label || g.gate_key)}">${esc(g.gate_key)}</span>
+            <input type="date" class="form-input mg-target" data-gk="${esc(g.gate_key)}" value="${t}" style="flex:1;padding:4px 6px;font-size:12px" title="예정 계획일">
+            <input type="date" class="form-input mg-actual" data-gk="${esc(g.gate_key)}" value="${a}" style="flex:1;padding:4px 6px;font-size:12px" title="실제 진행일(입력=완료)">
           </div>`;
       })
       .join('');
     Modal.open({
       title: isEdit ? '공급 품목 수정' : '공급 품목 등록',
-      width: 520,
+      width: 560,
       compact: true,
       body: `
         <div class="form-grid">
@@ -2155,8 +2173,8 @@ const Customer360Page = {
             <div class="form-row"><label class="form-label">수주확률(%)</label>
               <input class="form-input" id="m-prob" type="number" min="0" max="100" value="${mat && mat.win_probability !== null && mat.win_probability !== undefined ? mat.win_probability : ''}"></div>
           </div>
-          <div class="form-row"><label class="form-label">게이트 일정 (예정 계획일)</label>
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)">${schedRows}</div></div>
+          <div class="form-row"><label class="form-label">게이트 일정 <span style="font-size:11px;font-weight:400;color:var(--text-3)">— 실제 진행일 입력 시 해당 단계 완료 처리</span></label>
+            <div style="display:flex;flex-direction:column;gap:5px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)">${schedHead}${schedRows}</div></div>
         </div>`,
       footer: `<button class="btn btn-ghost" id="m-cancel">취소</button><button class="btn btn-primary" id="m-save">저장</button>`,
       bind: {
@@ -2193,19 +2211,26 @@ const Customer360Page = {
         const r = await API.post('/customer360/materials', { ...payload, customer_id: this._custId });
         mid = r.data && r.data.id;
       }
-      // 게이트 예정 계획일 — 변경분만 일괄 저장(상태 불변). current-gate 보다 먼저.
-      const schedChanged = [];
-      document.querySelectorAll('.mg-date').forEach(el => {
-        const gk = el.getAttribute('data-gk');
-        const val = (el.value || '').trim();
-        if (val !== (this._matGateDates[gk] || '')) schedChanged.push({ gate_key: gk, target_date: val || null });
-      });
-      if (mid && schedChanged.length) {
-        await API.put(`/customer360/materials/${mid}/gate-schedule`, { gates: schedChanged });
-      }
-      // 현재 게이트 설정 — 변경됐거나 신규일 때만 (불필요한 게이트 상태 덮어쓰기 방지)
+      // ① 현재 게이트(경계) 먼저 — 변경/신규 시 (이전=완료+실제일 자동, 이후=초기화)
       if (mid && gateKey && gateKey !== this._matGateOrig) {
         await API.put(`/customer360/materials/${mid}/current-gate`, { gate_key: gateKey });
+      }
+      // ② 게이트 예정·실제일 변경분만 — 명시 입력이 경계 설정을 override (변경된 필드만 전송)
+      const byKey = {};
+      const orig = this._matGateDates || {};
+      document.querySelectorAll('.mg-target').forEach(el => {
+        const gk = el.getAttribute('data-gk');
+        const val = (el.value || '').trim();
+        if (val !== ((orig[gk] && orig[gk].t) || '')) (byKey[gk] = byKey[gk] || { gate_key: gk }).target_date = val || null;
+      });
+      document.querySelectorAll('.mg-actual').forEach(el => {
+        const gk = el.getAttribute('data-gk');
+        const val = (el.value || '').trim();
+        if (val !== ((orig[gk] && orig[gk].a) || '')) (byKey[gk] = byKey[gk] || { gate_key: gk }).actual_date = val || null;
+      });
+      const schedChanged = Object.values(byKey);
+      if (mid && schedChanged.length) {
+        await API.put(`/customer360/materials/${mid}/gate-schedule`, { gates: schedChanged });
       }
       Toast.success(mat ? '공급 품목 수정 완료' : '공급 품목 등록 완료');
       Modal.close();
