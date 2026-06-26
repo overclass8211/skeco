@@ -1,7 +1,7 @@
 /**
  * 고객·제품 360뷰 (MVP) API 테스트
  *   - GET /api/customer360/customers — 선택기 목록(+빠른 KPI)
- *   - GET /api/customer360/:id        — 헤더/요약/소재·제품/영업기회/타임라인/브리핑
+ *   - GET /api/customer360/:id        — 헤더/요약/소재·제품/영업딜/타임라인/브리핑
  *   - 가중 예상매출 = expected_amount × 단계 확률
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

@@ -6,7 +6,7 @@
 //   헤더(Health/가중매출/리스크) + "지금 이 계정은" 내러티브
 //   [라이프사이클] 소재별 발굴→샘플→평가→Spec-in→양산→납품 보드
 //                 + 수요→생산(CAPA)→수주 흐름 + 품질 + AI 추천 액션
-//   [영업기회] [활동] [AI 브리핑]
+//   [영업딜] [활동] [AI 브리핑]
 // 편집: 소재 추가/수정, 월 Forecast 입력 (manager+)
 // 데이터: /api/customer360/customers, /:id, POST/PUT materials, POST forecasts
 // =============================================================
@@ -27,6 +27,11 @@ const Customer360Page = {
   _FC_MONTHS: ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'],
   _fcData: null,
   _cmpVer: null,
+
+  // 워드 사전(다국어) 헬퍼 — Labels 미로드 시 한글 fallback
+  _L(key, fallback) {
+    return typeof Labels !== 'undefined' ? Labels.get(key, fallback) : fallback;
+  },
 
   _ic: {
     deal: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
@@ -629,13 +634,13 @@ const Customer360Page = {
       <div class="c360-narr">${this._svg('bulb', 16)}<span>${this._narrative()}</span></div>
       <div class="c360-tabs">
         ${[
-          ['lifecycle', '현황'],
-          ['qualification', '공급 자격'],
-          ['commercial', '상거래'],
-          ['relationship', '관계'],
-          ['brief', 'AI 브리핑'],
+          ['lifecycle', 'customer360.tab_lifecycle', '현황'],
+          ['qualification', 'customer360.tab_qualification', '공급 자격'],
+          ['commercial', 'customer360.tab_commercial', '영업·매출'],
+          ['relationship', 'customer360.tab_relationship', '관계'],
+          ['brief', 'customer360.tab_brief', 'AI 브리핑'],
         ]
-          .map(([k, l]) => `<button class="c360-tab ${this._tab === k ? 'active' : ''}" data-tab="${k}">${l}</button>`)
+          .map(([k, lk, l]) => `<button class="c360-tab ${this._tab === k ? 'active' : ''}" data-tab="${k}" data-label="${lk}">${this._L(lk, l)}</button>`)
           .join('')}
       </div>
       <div id="c360-tab-body"></div>
@@ -669,9 +674,9 @@ const Customer360Page = {
       lifecycle: () => this._tabLifecycle(),
       // ② 공급 자격 — 샘플/평가 + 품질
       qualification: () => sec('샘플 / 평가', this._tabSamples()) + sec('품질', this._tabQuality()),
-      // ③ 상거래 — 영업기회 + 포캐스트 + 계약/매출/수금
+      // ③ 영업·매출 — 영업딜 + 포캐스트 + 계약/매출/수금
       commercial: () =>
-        sec('영업기회', this._tabDeals()) +
+        sec(this._L('customer360.sec_deals', '영업딜'), this._tabDeals()) +
         sec('포캐스트', this._tabForecast()) +
         sec('계약 / 매출 / 수금', this._tabRevenue()),
       // ④ 관계 — 만족도(NPS/CSAT) + 조직 + 활동
@@ -687,7 +692,7 @@ const Customer360Page = {
 
   _bindTab(el) {
     const t = this._tab;
-    // ③ 상거래 = 영업기회 + 포캐스트 + 계약/매출/수금
+    // ③ 영업·매출 = 영업딜 + 포캐스트 + 계약/매출/수금
     if (t === 'commercial') {
       el.querySelectorAll('tr[data-lead-id]').forEach(tr =>
         tr.addEventListener('click', () => {
@@ -735,7 +740,7 @@ const Customer360Page = {
           this._openForecastModal(mat);
         })
       );
-      // KPI 카드(진행딜/견적/제안/계약) → 상거래 탭 드릴다운
+      // KPI 카드(진행딜/견적/제안/계약) → 영업·매출 탭 드릴다운
       el.querySelectorAll('.c360-kpi[data-ctab]').forEach(c =>
         c.addEventListener('click', () => this._gotoTab(c.dataset.ctab))
       );
@@ -743,7 +748,7 @@ const Customer360Page = {
       el.querySelectorAll('.c360-qrow').forEach(tr =>
         tr.addEventListener('click', () => this._gotoQuality())
       );
-      // 소재 카드 본문 → 연결 딜 1건이면 해당 딜 직행, 아니면 상거래(영업기회) 탭.
+      // 소재 카드 본문 → 연결 딜 1건이면 해당 딜 직행, 아니면 영업·매출(영업딜) 탭.
       // 편집은 '수정' 버튼으로.
       el.querySelectorAll('[data-mat-card]').forEach(card =>
         card.addEventListener('click', e => {
@@ -756,7 +761,7 @@ const Customer360Page = {
           }
         })
       );
-      // AI 추천 액션 카드 → 바로가기(상거래/공급자격 탭 또는 품질관리)
+      // AI 추천 액션 카드 → 바로가기(영업·매출/공급자격 탭 또는 품질관리)
       el.querySelectorAll('.c360-act2[data-anav]').forEach(c =>
         c.addEventListener('click', () => {
           const t = c.dataset.anav;
@@ -929,7 +934,7 @@ const Customer360Page = {
       ${kpis}
       <div class="c360-sec">분기 공급 리스크 (3개월)</div>
       ${flow}
-      <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 영업기회</span>
+      <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 영업딜</span>
         ${['team_lead', 'executive', 'admin', 'superadmin'].includes(App.currentUser?.role) ? '<button class="btn btn-sm" id="c360-gate-cfg" style="margin-right:6px" title="PLM 게이트 단계 설정">⚙ 게이트 설정</button>' : ''}
         <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 공급 품목 등록</button>
       </div>
@@ -1062,12 +1067,12 @@ const Customer360Page = {
     const badges = [];
     if (m.capa_short) badges.push(`<span class="pill pill-danger">CAPA 부족</span>`);
     if (m.open_quality) badges.push(`<span class="pill pill-warn">품질 ${m.open_quality}건</span>`);
-    // 소프트 링크 딜 배지: 1건 → 해당 딜 직행 / 여러건 → 영업기회 탭
+    // 소프트 링크 딜 배지: 1건 → 해당 딜 직행 / 여러건 → 영업·매출 탭
     const dealCount = m.linked_deal_count || 0;
     const primary = m.primary_lead_id || '';
     if (dealCount === 1) badges.push(`<span class="pill pill-info" title="연결된 영업딜로 이동">딜 ▶</span>`);
-    else if (dealCount > 1) badges.push(`<span class="pill pill-mut" title="${dealCount}개 영업딜 — 영업기회 탭">딜 ${dealCount}</span>`);
-    const cardTitle = dealCount === 1 ? '연결된 영업딜 상세로 이동' : '영업기회(상거래)로 이동';
+    else if (dealCount > 1) badges.push(`<span class="pill pill-mut" title="${dealCount}개 영업딜 — 영업·매출 탭">딜 ${dealCount}</span>`);
+    const cardTitle = dealCount === 1 ? '연결된 영업딜 상세로 이동' : '영업·매출 탭으로 이동';
     return `<div class="lc-card lc-card-link" data-mat-card="${m.id}" data-primary-lead="${primary}" title="${cardTitle}">
       <div class="lc-top">
         <span class="lc-name">${esc(m.material_name)}</span>
@@ -1091,7 +1096,7 @@ const Customer360Page = {
 
   _tabDeals() {
     const deals = this._data.deals;
-    if (!deals.length) return '<div class="c360-empty">영업기회가 없습니다.</div>';
+    if (!deals.length) return '<div class="c360-empty">영업딜이 없습니다.</div>';
     return `<table class="data-table">
       <thead><tr><th>프로젝트</th><th>사업유형</th><th>단계</th><th class="text-right">예상매출</th><th class="text-right">확률</th><th class="text-right">가중</th><th>마감</th><th>담당</th></tr></thead>
       <tbody>

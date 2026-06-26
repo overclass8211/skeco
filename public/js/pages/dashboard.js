@@ -41,7 +41,7 @@ const DashboardPage = {
       <div class="grid-65 mb-3">
         <div class="card">
           <div class="card-header" style="flex-wrap:wrap;gap:8px">
-            <div class="card-title" id="monthly-chart-title" style="margin-right:auto" data-label="dashboard.monthly_chart_title">월별 영업기회 추이</div>
+            <div class="card-title" id="monthly-chart-title" style="margin-right:auto" data-label="dashboard.monthly_chart_title">월별 영업딜 추이</div>
             <div style="display:flex;gap:3px;align-items:center">
               ${[
                 { key: 'annual', label: '연간' },
@@ -351,7 +351,7 @@ const DashboardPage = {
   renderMetrics(d) {
     const L = (k, fb) => (typeof Labels !== 'undefined' ? Labels.get(k, fb) : fb);
     const unitCount = L('units.count', '건');
-    const newOppLabel = L('dashboard.new_opportunities', '신규 영업기회');
+    const newOppLabel = L('dashboard.new_opportunities', '신규 영업딜');
     const pipeLabel = L('dashboard.year_pipeline', '파이프라인');
     const wonLabel = L('dashboard.year_won', '수주 금액');
     const cumulativeLabel = L('dashboard.year_cumulative', '누적');
@@ -435,7 +435,7 @@ const DashboardPage = {
           .filter(d => d.yr === y && ELEC.includes(d.business_type))
           .reduce((s, d) => s + d.count, 0)
       );
-      if (titleEl) titleEl.textContent = '연도별 영업기회 추이';
+      if (titleEl) titleEl.textContent = '연도별 영업딜 추이';
     } else if (period === 'quarterly') {
       // 분기별: x축 = Q1~Q4
       labels = ['Q1', 'Q2', 'Q3', 'Q4'];
@@ -449,7 +449,7 @@ const DashboardPage = {
           .filter(d => d.qtr === q && ELEC.includes(d.business_type))
           .reduce((s, d) => s + d.count, 0)
       );
-      if (titleEl) titleEl.textContent = `${year}년 분기별 영업기회 추이`;
+      if (titleEl) titleEl.textContent = `${year}년 분기별 영업딜 추이`;
     } else if (period === 'monthly') {
       // 월간: 선택 연도 12개월
       const months = Array.from({ length: 12 }, (_, i) => ({
@@ -467,7 +467,7 @@ const DashboardPage = {
           .filter(d => d.month === m.key && ELEC.includes(d.business_type))
           .reduce((s, d) => s + d.count, 0)
       );
-      if (titleEl) titleEl.textContent = `${year}년 월간 영업기회 추이`;
+      if (titleEl) titleEl.textContent = `${year}년 월간 영업딜 추이`;
     } else {
       // recent6: 현재 기준 최근 6개월
       const now = new Date();
@@ -489,7 +489,7 @@ const DashboardPage = {
           .filter(d => d.month === m.key && ELEC.includes(d.business_type))
           .reduce((s, d) => s + d.count, 0)
       );
-      if (titleEl) titleEl.textContent = '영업기회 추이 (최근 6개월)';
+      if (titleEl) titleEl.textContent = '영업딜 추이 (최근 6개월)';
     }
 
     const ctx = document.getElementById('chart-monthly');
