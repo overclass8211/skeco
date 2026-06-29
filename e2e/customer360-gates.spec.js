@@ -27,10 +27,10 @@ test('360 게이트 타임라인 — 소재 카드에 MRD~MP 렌더 + 현재 강
   await expect(firstStepper).toContainText('MRD');
   await expect(firstStepper).toContainText('MP');
 
-  // 스텝 개수: 소재당 7게이트 → 7의 배수
+  // 스텝 개수: 소재당 8게이트(MRD~MP) → 8의 배수
   const steps = await page.locator('.lc-card .ss-step').count();
-  expect(steps).toBeGreaterThanOrEqual(7);
-  expect(steps % 7).toBe(0);
+  expect(steps).toBeGreaterThanOrEqual(8);
+  expect(steps % 8).toBe(0);
 
   // 현재 게이트 강조(ss-now) 최소 1개
   const nowSteps = await page.locator('.lc-card .ss-step.ss-now').count();

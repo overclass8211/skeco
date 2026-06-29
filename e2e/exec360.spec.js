@@ -13,13 +13,14 @@ const SUMMARY = {
     kpis: { weighted_expected: 48700000000, active_deals: 36, win_rate: 28, avg_health: 'B+', open_quality: 11, capa_short_accounts: 4, gate_delay_count: 7 },
     // 전면 교체: 단계 분포 = PLM 게이트 기준
     stage_distribution: [
-      { stage: 'MRD', label: '시장요구 정의', count: 5 },
-      { stage: 'CRP', label: '컨셉·고객요구', count: 2 },
-      { stage: 'DOE', label: '실험계획(DOE)', count: 14 },
-      { stage: 'ES', label: '엔지니어링 샘플', count: 3 },
-      { stage: 'CS', label: '고객 샘플', count: 2 },
-      { stage: 'QUAL', label: '승인·Spec-in', count: 5 },
-      { stage: 'MP', label: '양산', count: 3 },
+      { stage: 'MRD', label: 'Market Requirement', count: 5 },
+      { stage: 'CRP', label: 'Customer Requirement', count: 2 },
+      { stage: 'DOE', label: 'Design of Experiments', count: 14 },
+      { stage: 'PROTO', label: 'Prototype', count: 3 },
+      { stage: 'SMALL', label: 'Small-lot', count: 2 },
+      { stage: 'GALLON', label: 'Gallon-scale', count: 1 },
+      { stage: 'MRP', label: 'Mass-prod Readiness', count: 4 },
+      { stage: 'MP', label: 'Mass Production', count: 3 },
     ],
     top_accounts: [
       { id: 990777, name: 'E2E임원고객', weighted: 12800000000, active: 5, won: 1, health_grade: 'A-', risks: [{ level: 'high', label: '품질 1' }] },
@@ -28,7 +29,7 @@ const SUMMARY = {
       capa_short: [{ customer_id: 501, name: 'SK하이닉스', gap: 6000 }],
       quality: [{ customer_id: 502, name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }],
       eval_delay: [{ customer_id: 503, name: 'Intel', material: 'SOC 하드마스크 · PoC' }],
-      gate_delay: [{ customer_id: 505, name: 'SK하이닉스', material: '프리커서 Hf 전구체 · M16', gate: '실험계획(DOE)', days: 42 }],
+      gate_delay: [{ customer_id: 505, name: 'SK하이닉스', material: '프리커서 Hf 전구체 · M16', gate: 'Design of Experiments', days: 42 }],
       misalign: [{ customer_id: 504, name: 'UMC', level: 'medium', label: '수주됐으나 소재 인증이 평가 이하 — 양산·납품 지연 리스크', count: 1 }],
     },
   },
@@ -38,11 +39,12 @@ const SUMMARY = {
 const KPI_LISTS = {
   weighted: { kpi: 'weighted', total: 1, items: [{ customer_id: 777, name: 'E2E임원고객', weighted: 12800000000, active: 5 }] },
   quality: { kpi: 'quality', total: 1, items: [{ customer_id: 777, name: '삼성전자', title: '순도 편차', severity: 'high', type: 'VOC' }] },
-  gatedelay: { kpi: 'gatedelay', total: 1, items: [{ customer_id: 909, name: 'E2E지연고객', material: '식각가스 C4F6 · 평택', gate: '실험계획(DOE)', days: 41 }] },
+  gatedelay: { kpi: 'gatedelay', total: 1, items: [{ customer_id: 909, name: 'E2E지연고객', material: '식각가스 C4F6 · 평택', gate: 'Design of Experiments', days: 41 }] },
 };
 
 test.beforeEach(async ({ page }) => {
-  await loginAsAdmin(page);
+  // ⚠️ mock 라우트는 loginAsAdmin(goto '/') 보다 먼저 등록 —
+  //   기본 랜딩이 exec360 라 부팅 시 exec-summary 가 먼저 fetch 되어 mock 우회되던 문제 방지.
   await page.route('**/api/customer360/exec-summary', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SUMMARY) })
   );
@@ -54,7 +56,7 @@ test.beforeEach(async ({ page }) => {
   // 게이트 단계 AI 진단 (전면 교체: 게이트 키 허용) — 결정적 fixture
   await page.route('**/api/customer360/exec-stage/**', route => {
     const gate = route.request().url().split('/exec-stage/')[1].split(/[?#]/)[0];
-    const LBL = { MRD: '시장요구 정의', CRP: '컨셉·고객요구', DOE: '실험계획(DOE)', ES: '엔지니어링 샘플', CS: '고객 샘플', QUAL: '승인·Spec-in', MP: '양산' };
+    const LBL = { MRD: 'Market Requirement', CRP: 'Customer Requirement', DOE: 'Design of Experiments', PROTO: 'Prototype', SMALL: 'Small-lot', GALLON: 'Gallon-scale', MRP: 'Mass-prod Readiness', MP: 'Mass Production' };
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -78,6 +80,8 @@ test.beforeEach(async ({ page }) => {
     };
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { config, defaults: config } }) });
   });
+  // 모든 mock 등록 후 로그인(부팅 goto '/') — 부팅 시 exec-summary 도 mock 으로 응답
+  await loginAsAdmin(page);
 });
 
 test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async ({ page }) => {
@@ -89,15 +93,15 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
   await expect(page.locator('#ex-body')).toContainText('지연 게이트'); // PLM 지연 게이트 KPI
   await expect(page.locator('#ex-body .ex-kpi')).toHaveCount(7);
 
-  // 단계 분포 (mock 7 게이트 — 스트림/퍼널 그래픽, 클릭 가능)
-  await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(7);
+  // 단계 분포 (mock 8 게이트 — 스트림/퍼널 그래픽, 클릭 가능)
+  await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(8);
 
   // Top 계정 + 리스크
   await expect(page.locator('#ex-body')).toContainText('E2E임원고객');
   await expect(page.locator('#ex-body')).toContainText('순도 편차');
   // 게이트 지연 리스크 카드 + 항목
   await expect(page.locator('#ex-body')).toContainText('게이트 지연');
-  await expect(page.locator('#ex-body')).toContainText('실험계획(DOE) (D+42)');
+  await expect(page.locator('#ex-body')).toContainText('Design of Experiments (D+42)');
 
   // 드릴다운: 계정 행 클릭 → 고객·제품 360뷰로 이동
   await page.locator('#ex-body tr[data-acct]').first().click();
@@ -109,9 +113,9 @@ test('임원 360 요약 — 게이트 분포 클릭 시 진단 모달 (게이트
   await page.goto('/#exec360');
   await page.waitForSelector('#ex-body .ex-fn-col', { timeout: 15000 });
 
-  // DOE(실험계획) 게이트 컬럼 클릭 → 진단 모달
-  await page.locator('#ex-body .ex-fn-col', { hasText: '실험계획' }).first().click();
-  await expect(page.locator('#modal-overlay')).toContainText('실험계획(DOE)', { timeout: 5000 });
+  // DOE(Design of Experiments) 게이트 컬럼 클릭 → 진단 모달
+  await page.locator('#ex-body .ex-fn-col', { hasText: 'Design of Experiments' }).first().click();
+  await expect(page.locator('#modal-overlay')).toContainText('Design of Experiments', { timeout: 5000 });
   // 실패 문구가 아니라 진단/통계가 떠야 함
   await expect(page.locator('#modal-overlay')).not.toContainText('알 수 없는');
   await expect(page.locator('#modal-overlay')).toContainText('게이트 진단 결과');

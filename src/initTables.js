@@ -687,6 +687,44 @@ async function initTables() {
       UNIQUE KEY uniq_mg (customer_material_id, gate_key),
       INDEX idx_mg_mat (customer_material_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    // ── 공정 8단계 영문 재정의 1회 마이그레이션 (구 ES/CS/QUAL 존재 시에만) ──
+    //   구 키 → 신 키 rename(정의+진척) + 라벨/순서/매핑 영문 표준화. 완료 후 재실행 안 함 → 사용자 편집 보존.
+    {
+      const { DEFAULT_GATES, GATE_KEY_MIGRATION } = require('./data/plmGateDefaults');
+      const [legacy] = await pool.query(
+        `SELECT gate_key FROM plm_gates WHERE gate_key IN ('ES','CS','QUAL')`
+      );
+      if (legacy.length) {
+        for (const [oldKey, newKey] of Object.entries(GATE_KEY_MIGRATION)) {
+          const [[oldDef]] = await pool.query('SELECT 1 AS x FROM plm_gates WHERE gate_key=?', [
+            oldKey,
+          ]);
+          if (!oldDef) continue;
+          const [[newDef]] = await pool.query('SELECT 1 AS x FROM plm_gates WHERE gate_key=?', [
+            newKey,
+          ]);
+          if (newDef) await pool.query('DELETE FROM plm_gates WHERE gate_key=?', [oldKey]);
+          else
+            await pool.query('UPDATE plm_gates SET gate_key=? WHERE gate_key=?', [newKey, oldKey]);
+          // 진척 이관(중복 무시 후 잔여 제거)
+          await pool.query('UPDATE IGNORE material_gates SET gate_key=? WHERE gate_key=?', [
+            newKey,
+            oldKey,
+          ]);
+          await pool.query('DELETE FROM material_gates WHERE gate_key=?', [oldKey]);
+        }
+        // 표준 8단계 라벨/순서/매핑 영문 갱신(1회)
+        for (const g of DEFAULT_GATES) {
+          await pool.query(
+            'UPDATE plm_gates SET gate_label=?, display_order=?, lifecycle_stage=? WHERE gate_key=?',
+            [g.gate_label, g.display_order, g.lifecycle_stage, g.gate_key]
+          );
+        }
+        console.log(
+          '  ✓ PLM 공정 8단계 영문 재정의 마이그레이션 완료 (ES/CS/QUAL → PROTO/SMALL/MRP)'
+        );
+      }
+    }
     // 게이트 정의 시드 (INSERT IGNORE — 기존 사용자 수정 보존)
     {
       const { DEFAULT_GATES } = require('./data/plmGateDefaults');

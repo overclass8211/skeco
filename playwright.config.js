@@ -33,6 +33,9 @@ module.exports = defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     actionTimeout: 8 * 1000,
+    // 🐛 flaky fix: 서비스워커가 /api 응답을 캐시 서빙하면 page.route mock 이 우회됨
+    //   → SW 차단으로 모든 스펙에서 네트워크 mock(page.route)이 항상 적용되게 보장
+    serviceWorkers: 'block',
     // navigationTimeout 30s — 외부 CDN (jsPDF/Chart.js/FullCalendar 등)
     // 첫 로드 시 'load' 이벤트 지연 회피. helpers/auth.js 는 추가로
     // waitUntil:'domcontentloaded' + addInitScript 패턴 사용.
