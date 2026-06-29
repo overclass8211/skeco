@@ -1553,12 +1553,7 @@ const App = {
                 ${_dealStepper}
               </div>
             </div>
-            <!-- F2: 연결된 고객지원(A/S) 티켓 (support_tickets.lead_id) -->
-            <div class="card mb-3" id="ld-support-card">
-              <div class="card-body" id="ld-linked-support" style="max-height:34vh;overflow-y:auto">
-                <div class="loading" style="padding:14px;text-align:center;color:var(--text-3);font-size:12px">⏳ 고객지원 조회 중...</div>
-              </div>
-            </div>
+            <!-- 연결된 고객지원 카드 제거: 전체 이력(통합 타임라인)에 '고객지원' 소스로 이미 포함(중복) -->
             <div class="card mb-3" id="ld-timeline-card">
               <div class="card-header" style="flex-wrap:wrap;gap:10px;align-items:center">
                 <div class="card-title" style="margin-right:auto">
@@ -1831,10 +1826,7 @@ const App = {
       // v7.0.0 R3: 댓글은 _loadTimeline 에서 7번째 소스로 통합 로드 — 별도 호출 불필요
       // 📊 v6.0.0 Phase A: 통합 타임라인 lazy load (활동/회의/견적/제안/계약/지원 통합)
       this._loadTimeline(l.id, l.customer_name);
-      // F2: 연결된 고객지원(A/S) 티켓 목록 (support_tickets.lead_id)
-      if (typeof LinkedSupport !== 'undefined') {
-        LinkedSupport.render('#ld-linked-support', 'lead', l.id);
-      }
+      // (연결된 고객지원 카드 제거 — 고객지원은 통합 타임라인의 '고객지원' 소스로 포함)
       // v6.0.0 Phase 4: 빠른 활동 폼 Ctrl+Enter 저장
       const qdForm = document.getElementById('ld-quick-form');
       if (qdForm) {

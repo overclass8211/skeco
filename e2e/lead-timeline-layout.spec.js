@@ -123,29 +123,24 @@ test('영업리드 모달 — 타임라인 row 높이 일관성 (max 2줄)', asy
   console.log(`[e2e] row heights:`, heights.map(h => Math.round(h)));
 });
 
-// F2: 영업리드 모달 — 연결된 고객지원(A/S) 카드 렌더 검증
-test('영업리드 모달 — 연결된 고객지원(A/S) 카드 표시', async ({ page }) => {
-  await page.goto('/#leads', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#leads-table-body tr, .lead-row, [data-lead-id]', {
-    timeout: 8000,
+// 영업리드 모달 — 연결된 고객지원 카드 제거(전체 이력 통합 타임라인에 포함) 회귀
+test('영업리드 모달 — 연결된 고객지원 카드 제거 + 타임라인에 고객지원 칩 포함', async ({ page }) => {
+  // 딥링크로 결정적 진입(리스트 클릭 타이밍 flake 회피)
+  const login = await page.request.post('/api/auth/login', {
+    data: { username: 'admin', password: 'admin1234!' },
   });
-  const firstRow = page
-    .locator('[data-lead-id], #leads-table-body tr.lead-row, #leads-table-body tr')
-    .first();
-  await firstRow.click();
+  const token = (await login.json()).token;
+  const lr = await page.request.get('/api/leads', { headers: { Authorization: 'Bearer ' + token } });
+  const arr = (await lr.json()).data?.items || (await lr.json()).data || [];
+  expect(arr.length).toBeGreaterThan(0);
+  await page.goto('/#leads/' + arr[0].id);
+  await page.reload();
 
-  // F2 카드 컨테이너 존재 (우측 컬럼 상단)
-  await page.waitForSelector('#ld-support-card', { timeout: 8000 });
-  // LinkedSupport.render 완료 대기 — 로딩 placeholder 사라지고 헤더/빈상태 텍스트 노출
-  await page.waitForFunction(
-    () => {
-      const el = document.getElementById('ld-linked-support');
-      return el && !el.textContent.includes('조회 중');
-    },
-    { timeout: 12000 }
-  );
-  const txt = await page.locator('#ld-linked-support').textContent();
-  // 성공 시 항상 '연결된 고객지원' 헤더(또는 빈 상태 문구) 포함
-  expect(txt).toContain('연결된 고객지원');
-  console.log('[e2e] F2 고객지원(A/S) 카드 렌더 확인');
+  // 타임라인 카드(전체 이력)는 존재
+  await page.waitForSelector('#ld-timeline-card', { timeout: 8000 });
+  // 별도 연결된 고객지원 카드는 제거됨
+  await expect(page.locator('#ld-support-card')).toHaveCount(0);
+  await expect(page.locator('#ld-linked-support')).toHaveCount(0);
+  // 고객지원은 통합 타임라인의 '고객지원' 필터 칩으로 제공
+  await expect(page.locator('#ld-timeline-card')).toContainText('고객지원');
 });
