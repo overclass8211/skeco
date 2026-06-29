@@ -81,7 +81,7 @@ const FcstScPage = {
         <label style="font-size:13px;display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" class="fsc-wtoggle" data-w="cust" ${this._widgets.cust ? 'checked' : ''}> 고객 Top</label>
       </div>
 
-      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--text-2);margin-bottom:10px">
+      <div id="fsc-legend" style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--text-2);margin-bottom:10px">
         <span style="display:inline-flex;align-items:center;gap:7px"><i style="width:13px;height:13px;border-radius:3px;background:#378ADD;display:inline-block"></i>수요량(L)</span>
         <span style="display:inline-flex;align-items:center;gap:7px"><i style="width:13px;height:13px;border-radius:3px;background:#1D9E75;display:inline-block"></i>공급량(L)</span>
         <span style="display:inline-flex;align-items:center;gap:7px"><i style="width:22px;border-top:3px solid var(--oci-red);display:inline-block"></i>기대매출(<span id="fsc-rev-unit">M$</span>)</span>
@@ -93,10 +93,6 @@ const FcstScPage = {
       <div id="fsc-w-fulfill" style="margin-bottom:16px;${this._widgets.fulfill ? '' : 'display:none'}">
         <div style="font-size:13px;color:var(--text-2);margin-bottom:6px;font-weight:600">월별 수요 충족률 (%)</div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px"><div style="position:relative;height:130px"><canvas id="fsc-fulfill"></canvas></div></div>
-      </div>
-      <div id="fsc-w-mix" style="margin-bottom:16px;${this._widgets.mix ? '' : 'display:none'}">
-        <div style="font-size:13px;color:var(--text-2);margin-bottom:6px;font-weight:600">제품별 연간 수요 믹스 (L)</div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px"><div style="position:relative;height:170px"><canvas id="fsc-mix"></canvas></div></div>
       </div>
       <div id="fsc-w-cust" style="margin-bottom:16px;${this._widgets.cust ? '' : 'display:none'}">
         <div style="font-size:13px;color:var(--text-2);margin-bottom:6px;font-weight:600">고객 Top — 연간 기대매출</div>
@@ -161,11 +157,15 @@ const FcstScPage = {
         const w = c.dataset.w;
         this._widgets[w] = c.checked;
         localStorage.setItem('fcstsc.widgets', JSON.stringify(this._widgets));
+        // 제품 믹스는 별도 위젯이 아니라 메인 차트의 제품별 스택을 토글
+        if (w === 'mix') {
+          this._renderMain();
+          return;
+        }
         const box = document.getElementById('fsc-w-' + w);
         if (box) box.style.display = c.checked ? '' : 'none';
         if (c.checked) {
           if (w === 'fulfill') this._renderFulfill();
-          if (w === 'mix') this._renderMix();
           if (w === 'cust') this._renderCust();
         }
       });
@@ -203,7 +203,6 @@ const FcstScPage = {
     this._renderKpis();
     this._renderMain();
     if (this._widgets.fulfill) this._renderFulfill();
-    if (this._widgets.mix) this._renderMix();
     if (this._widgets.cust) this._renderCust();
     const box = document.getElementById('fsc-table-box');
     if (box && box.style.display !== 'none') this._renderTable();
@@ -225,6 +224,21 @@ const FcstScPage = {
       </div>`).join('');
   },
 
+  // 제품별 월별 수요(12개월) — 스택 막대용 (연간 합계 내림차순)
+  _PROD_COLORS: ['#378ADD', '#7F77DD', '#BA7517', '#D4537E', '#5DCAA5', '#185FA5', '#E24B4A', '#97C459', '#888780'],
+  _productMonthly() {
+    const prods = {};
+    for (const r of this._rows || []) {
+      const p = r.product_name || '(미지정)';
+      if (!prods[p]) prods[p] = Array(12).fill(0);
+      const mi = parseInt(String(r.period).slice(5, 7), 10) - 1;
+      if (mi >= 0 && mi < 12) prods[p][mi] += Number(r.demand_qty || 0);
+    }
+    return Object.entries(prods)
+      .sort((a, b) => b[1].reduce((s, v) => s + v, 0) - a[1].reduce((s, v) => s + v, 0))
+      .map(([name, data], i) => ({ name, data, color: this._PROD_COLORS[i % this._PROD_COLORS.length] }));
+  },
+
   _renderMain() {
     const m = this._monthly || {};
     const ctx = document.getElementById('fsc-main');
@@ -234,31 +248,44 @@ const FcstScPage = {
     const txt = this._cssVar('--text-3', '#86909C');
     const red = this._cssVar('--oci-red', '#EA002C');
     const revData = (m.revenue || []).map(v => this._revVal(v));
+    // 제품 믹스 ON → 수요량을 제품별 스택으로 분해(합계=수요), 공급량은 별도 스택
+    const mix = !!this._widgets.mix;
+    let datasets;
+    if (mix) {
+      const prods = this._productMonthly();
+      datasets = [
+        ...prods.map(p => ({ type: 'bar', label: p.name, data: p.data, backgroundColor: p.color, stack: 'demand', yAxisID: 'y', order: 3 })),
+        { type: 'bar', label: '공급량', data: m.supply || [], backgroundColor: 'rgba(29,158,117,0.75)', stack: 'supply', yAxisID: 'y', order: 2 },
+        { type: 'line', label: '기대매출', data: revData, borderColor: red, backgroundColor: red, borderWidth: 2.5, tension: 0.35, pointRadius: 2, yAxisID: 'y1', order: 1 },
+      ];
+    } else {
+      datasets = [
+        { type: 'bar', label: '수요량', data: m.demand || [], backgroundColor: 'rgba(55,138,221,0.55)', yAxisID: 'y', order: 3 },
+        { type: 'bar', label: '공급량', data: m.supply || [], backgroundColor: 'rgba(29,158,117,0.75)', yAxisID: 'y', order: 2 },
+        { type: 'line', label: '기대매출', data: revData, borderColor: red, backgroundColor: red, borderWidth: 2.5, tension: 0.35, pointRadius: 2, yAxisID: 'y1', order: 1 },
+      ];
+    }
+    // 스택 시 제품 범례가 필요 → 내장 범례 ON + 상단 커스텀 범례 숨김
+    const legEl = document.getElementById('fsc-legend');
+    if (legEl) legEl.style.display = mix ? 'none' : '';
     this._charts.main = new Chart(ctx, {
-      data: {
-        labels: m.months || [],
-        datasets: [
-          { type: 'bar', label: '수요량', data: m.demand || [], backgroundColor: 'rgba(55,138,221,0.55)', yAxisID: 'y', order: 3 },
-          { type: 'bar', label: '공급량', data: m.supply || [], backgroundColor: 'rgba(29,158,117,0.75)', yAxisID: 'y', order: 2 },
-          { type: 'line', label: '기대매출', data: revData, borderColor: red, backgroundColor: red, borderWidth: 2.5, tension: 0.35, pointRadius: 2, yAxisID: 'y1', order: 1 },
-        ],
-      },
+      data: { labels: m.months || [], datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: { display: mix, position: 'bottom', labels: { color: txt, font: { size: 11 }, boxWidth: 12 } },
           tooltip: {
             callbacks: {
               label: (c) => c.dataset.yAxisID === 'y1'
-                ? `기대매출: ${c.parsed.y.toLocaleString('ko-KR')} ${this._revUnit()}`
+                ? `${c.dataset.label}: ${c.parsed.y.toLocaleString('ko-KR')} ${this._revUnit()}`
                 : `${c.dataset.label}: ${c.parsed.y.toLocaleString('ko-KR')} L`,
             },
           },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: txt, font: { size: 11 } } },
-          y: { position: 'left', grid: { color: grid }, ticks: { color: txt, font: { size: 10 }, callback: v => (v / 1000) + 'K' }, title: { display: true, text: '수량(L)', color: txt, font: { size: 10 } } },
-          y1: { position: 'right', grid: { display: false }, ticks: { color: this._cssVar('--oci-red', '#EA002C'), font: { size: 10 } }, title: { display: true, text: this._revUnit(), color: this._cssVar('--oci-red', '#EA002C'), font: { size: 10 } } },
+          x: { stacked: mix, grid: { display: false }, ticks: { color: txt, font: { size: 11 } } },
+          y: { stacked: mix, position: 'left', grid: { color: grid }, ticks: { color: txt, font: { size: 10 }, callback: v => (v / 1000) + 'K' }, title: { display: true, text: '수량(L)', color: txt, font: { size: 10 } } },
+          y1: { position: 'right', grid: { display: false }, ticks: { color: red, font: { size: 10 } }, title: { display: true, text: this._revUnit(), color: red, font: { size: 10 } } },
         },
       },
     });
@@ -277,27 +304,10 @@ const FcstScPage = {
     });
   },
 
-  _aggByProduct() {
-    const map = {};
-    for (const r of this._rows) map[r.product_name] = (map[r.product_name] || 0) + Number(r.demand_qty || 0);
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  },
   _aggByCustomer() {
     const map = {};
     for (const r of this._rows) map[r.customer_name] = (map[r.customer_name] || 0) + Number(r.expected_revenue || 0);
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  },
-
-  _renderMix() {
-    const ctx = document.getElementById('fsc-mix');
-    if (!ctx || typeof Chart === 'undefined') return;
-    if (this._charts.mix) this._charts.mix.destroy();
-    const data = this._aggByProduct();
-    this._charts.mix = new Chart(ctx, {
-      type: 'doughnut',
-      data: { labels: data.map(d => d[0]), datasets: [{ data: data.map(d => d[1]), backgroundColor: ['#378ADD', '#1D9E75', '#BA7517', '#D4537E', '#7F77DD', '#888780'] }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: this._cssVar('--text-2', '#4E5969'), font: { size: 11 }, boxWidth: 12 } } } },
-    });
   },
 
   _renderCust() {

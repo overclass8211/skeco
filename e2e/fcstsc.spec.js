@@ -43,22 +43,33 @@ test('수급 FCST — 통화 $ ↔ ₩ 토글', async ({ page }) => {
   await expect(page.locator('#fsc-rev-unit')).toHaveText('억원');
 });
 
-test('수급 FCST — 위젯 표시/숨김 토글', async ({ page }) => {
+test('수급 FCST — 제품 믹스 토글 시 메인 차트 제품별 스택', async ({ page }) => {
   // SPA 내비게이션 — hash-only goto 는 동일 문서라 라우팅 경합 → App.navigate 로 결정적 진입
   await page.evaluate(() => App.navigate('fcstsc'));
   // 데이터 로드 완료 게이트 — KPI 카드가 실제 값으로 채워질 때까지 대기 (경합 방지)
   await expect(page.locator('#fsc-kpis')).toContainText('L', { timeout: 15000 });
 
-  const mixBox = page.locator('#fsc-w-mix');
-  // 제품 믹스 위젯 켜기
+  // 별도 도넛 위젯은 더 이상 없음 (메인 차트 스택으로 대체)
+  await expect(page.locator('#fsc-w-mix')).toHaveCount(0);
+
+  // 제품 믹스 ON → 메인 막대가 제품별 스택(stack='demand' 다수) + x축 스택
   await page.locator('.fsc-wtoggle[data-w="mix"]').check();
-  await expect(mixBox).toBeVisible();
+  await page.waitForFunction(() => {
+    const ch = window.Chart && Chart.getChart(document.getElementById('fsc-main'));
+    if (!ch) return false;
+    const demandBars = ch.data.datasets.filter(d => d.type === 'bar' && d.stack === 'demand').length;
+    return demandBars >= 2 && ch.options.scales.x.stacked === true;
+  }, { timeout: 5000 });
   // localStorage 저장 확인
   const saved = await page.evaluate(() => localStorage.getItem('fcstsc.widgets'));
   expect(saved).toContain('"mix":true');
-  // 끄기 → 숨김
+
+  // OFF → 단일 수요량 막대 (스택 해제)
   await page.locator('.fsc-wtoggle[data-w="mix"]').uncheck();
-  await expect(mixBox).toBeHidden();
+  await page.waitForFunction(() => {
+    const ch = window.Chart && Chart.getChart(document.getElementById('fsc-main'));
+    return ch && ch.options.scales.x.stacked === false;
+  }, { timeout: 5000 });
 });
 
 test('수급 FCST — 로데이터 접기 테이블', async ({ page }) => {
