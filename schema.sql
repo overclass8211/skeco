@@ -508,9 +508,8 @@ INSERT INTO leads (customer_id, customer_name, project_name, business_type, regi
 (5, 'DB하이텍', '부천 식각가스 통합공급(BSGS)', '통합서비스', '국내', 0, 52*100000000, 'KRW', 'negotiation', 5, '2026-07-25', NULL, 'Gas+물류 통합 패키지'),
 (10, 'Kioxia', 'Yokkaichi 프리커서 Zr 공급', '프리커서', '해외', 0, 40*100000000, 'KRW', 'proposal', 6, '2026-09-10', NULL, '3D NAND 적층공정 대응'),
 (11, 'Intel', 'Arizona SOC 하드마스크 공급', '포토소재', '해외', 0, 80*100000000, 'KRW', 'review', 1, '2026-10-15', NULL, 'EUV 공정 평가 협의'),
-(NULL, '삼성전자 평택 P5', 'BSGS 통합서비스 + Gas 패키지', '통합서비스', '국내', 0, 180*100000000, 'KRW', 'bidding', 5, '2026-07-18', '2026-07-12', '대형 통합공급 입찰'),
-(NULL, '삼성디스플레이 A5', 'OLED 블루도판트 초도물량', '디스플레이소재', '국내', 0, 24*100000000, 'KRW', 'won', 3, '2026-05-30', NULL, '초도물량 수주 완료'),
-(NULL, '중국 신규 패널사', 'T9 식각가스 (보류)', '식각가스', '해외', 0, 30*100000000, 'KRW', 'dropped', 6, '2026-05-20', NULL, '수출규제 검토로 보류');
+(1, '삼성전자 평택 P5', 'BSGS 통합서비스 + Gas 패키지', '통합서비스', '국내', 0, 180*100000000, 'KRW', 'bidding', 5, '2026-07-18', '2026-07-12', '대형 통합공급 입찰'),
+(3, '삼성디스플레이 A5', 'OLED 블루도판트 초도물량', '디스플레이소재', '국내', 0, 24*100000000, 'KRW', 'won', 3, '2026-05-30', NULL, '초도물량 수주 완료');
 
 -- 프로젝트 (수주 완료 후) — 소재 양산공급
 INSERT INTO projects (name, customer_name, project_type, contract_amount, estimated_cost, margin_pct, status, due_date, assigned_to) VALUES
