@@ -2063,9 +2063,9 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
    AI 어시스턴트 패널
    ============================================================ */
 .btn-ai {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  color: #E8D5FF;
-  border: 1px solid #3d2b6e;
+  background: var(--oci-red-light);
+  color: var(--oci-red-dark);
+  border: 1px solid rgba(234, 0, 44, 0.25);
   font-size: 12px;
   gap: 6px;
   padding: 6px 12px;
@@ -2073,13 +2073,13 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   transition: all 0.15s;
 }
 .btn-ai:hover {
-  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
-  color: #fff;
-  box-shadow: 0 0 0 3px rgba(124,77,255,0.15);
+  background: rgba(234, 0, 44, 0.16);
+  color: var(--oci-red-dark);
+  box-shadow: 0 0 0 3px rgba(234, 0, 44, 0.12);
 }
 .ai-badge {
-  background: linear-gradient(135deg, #7C4DFF, #5c35cc);
-  color: #fff !important;
+  background: var(--oci-red-light);
+  color: var(--oci-red-dark) !important;
   font-size: 9px;
   padding: 1px 5px;
 }
@@ -2552,9 +2552,9 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   align-items: center;
   gap: 5px;
   padding: 5px 11px;
-  background: linear-gradient(135deg, #1a1040, #2d1b69);
-  color: #C4A0FF;
-  border: 1px solid #3d2b6e;
+  background: transparent;
+  color: var(--oci-red);
+  border: 1px solid var(--oci-red);
   border-radius: var(--radius);
   font-size: 11px;
   font-weight: 500;
@@ -2562,8 +2562,9 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   transition: all 0.12s;
 }
 .ai-gen-btn:hover {
-  background: linear-gradient(135deg, #2d1b69, #4a2d99);
-  color: #E8D5FF;
+  background: rgba(234, 0, 44, 0.08);
+  color: var(--oci-red-dark);
+  border-color: var(--oci-red-dark);
 }
 
 /* ============================================================
