@@ -10200,10 +10200,43 @@ body,
   white-space: nowrap;
   flex-shrink: 0;
 }
-/* 단계 변경 퀵 액션 hover */
-.ld-stage-quick:hover {
-  filter: brightness(1.1);
+/* 영업딜 헤더 — 상태(단계) 칩: 유일한 색 신호 */
+.ld-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border: 0.5px solid;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
 }
+.ld-stage-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+/* 속성(지역·사업유형) — 무채색 메타 */
+.ld-meta-attr { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+/* D-day — 평상 무채색 / 임박 앰버 / 경과 레드 */
+.ld-day { font-size: 12px; color: var(--text-3); font-weight: 500; white-space: nowrap; }
+.ld-day-soon { color: #BA7517; }
+.ld-day-over { color: var(--oci-red); }
+/* 다음 단계 액션 — 전진(메인) + 이탈(소형) */
+.ld-next-wrap { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ld-next-main {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 12px; border-radius: 8px;
+  background: var(--surface); color: var(--text-1);
+  border: 0.5px solid var(--border-2, #C9CDD4);
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: background .12s, border-color .12s;
+}
+.ld-next-main:hover { background: var(--surface-2); border-color: var(--text-3); }
+.ld-next-exit {
+  padding: 6px 9px; border-radius: 8px;
+  background: transparent; color: var(--text-3);
+  border: 0.5px solid var(--border);
+  font-size: 11.5px; font-weight: 500; cursor: pointer; transition: color .12s, background .12s;
+}
+.ld-next-exit:hover { background: var(--surface-2); color: var(--text-1); }
 
 /* v6.0.0: 계약 목록 — 좁은 화면 가독성 + 가로 스크롤 (quotes 패턴 통일) */
 .ct-table-scroll {

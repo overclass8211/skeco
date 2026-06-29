@@ -1339,14 +1339,15 @@ const App = {
 
       const stage = STAGES[l.stage] || STAGES.lead;
       const days = Fmt.daysLeft(l.expected_close_date);
+      // D-day: 평상시 무채색, 임박(≤7) 앰버, 경과 레드 — 의미 있을 때만 색
       const daysBadge =
         days === null || days === undefined
           ? ''
           : days < 0
-            ? `<span class="badge badge-red">${Math.abs(days)}일 경과</span>`
+            ? `<span class="ld-day ld-day-over">${Math.abs(days)}일 경과</span>`
             : days <= 7
-              ? `<span class="badge badge-amber">D-${days}</span>`
-              : `<span class="badge badge-gray">D-${days}</span>`;
+              ? `<span class="ld-day ld-day-soon">D-${days}</span>`
+              : `<span class="ld-day">D-${days}</span>`;
 
       // 고객 담당자 정보 (App.customers 캐시 활용)
       const custInfo = (this.customers || []).find(c => c.name === l.customer_name);
@@ -1372,18 +1373,21 @@ const App = {
         lost: [],
         dropped: [],
       };
-      const nextOptions = (NEXT_STAGES[l.stage] || [])
-        .map(s => {
-          const meta = STAGES[s];
-          if (!meta) return '';
-          return `<button type="button" class="ld-stage-quick" data-next="${s}"
-            style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
-                   background:${meta.color};color:#fff;border:none;border-radius:6px;
-                   font-size:11px;font-weight:600;cursor:pointer;transition:filter .12s">
-            → ${esc(meta.label)}
-          </button>`;
-        })
-        .join('');
+      // 전진(forward) 1개 = 메인 버튼 / 이탈(실주·보류) = 무채색 소형
+      const EXIT_STAGES = new Set(['lost', 'dropped']);
+      const _nextList = NEXT_STAGES[l.stage] || [];
+      const _forward = _nextList.find(s => !EXIT_STAGES.has(s) && STAGES[s]);
+      const _exits = _nextList.filter(s => EXIT_STAGES.has(s) && STAGES[s]);
+      const nextOptions =
+        (_forward
+          ? `<button type="button" class="ld-stage-quick ld-next-main" data-next="${_forward}">다음 단계: ${esc(STAGES[_forward].label)} →</button>`
+          : '') +
+        _exits
+          .map(
+            s =>
+              `<button type="button" class="ld-stage-quick ld-next-exit" data-next="${s}">${esc(STAGES[s].label)}</button>`
+          )
+          .join('');
 
       // 영업 단계 스테퍼 (우측 패널 상단) — 종료단계(lost/dropped)는 별도 표기
       const DEAL_STAGE_ORDER = ['lead', 'review', 'proposal', 'bidding', 'negotiation', 'won'];
@@ -1396,19 +1400,15 @@ const App = {
           <div class="ld-modal-grid">
           <div class="ld-modal-left">
           <div class="detail-header ld-sticky-meta">
-            <div class="detail-stage" style="flex-wrap:wrap;gap:6px;align-items:center">
-              <span class="badge" style="background:${stage.color};color:#fff">${stage.label}</span>
-              <span class="badge ${l.region === '해외' ? 'badge-purple' : 'badge-blue'}">${esc(l.region)}</span>
-              <span class="badge ${BUSINESS_COLORS[l.business_type] || 'badge-gray'}">${esc(l.business_type)}</span>
+            <div class="detail-stage" style="flex-wrap:wrap;gap:10px;align-items:center">
+              <!-- 상태(단계): 유일한 색 신호 — 단계색 dot + 연한 틴트 칩 -->
+              <span class="ld-stage-chip" style="--stg:${stage.color};background:${stage.color}14;border-color:${stage.color}40">
+                <span class="ld-stage-dot" style="background:${stage.color}"></span>${esc(stage.label)}
+              </span>
+              <!-- 속성: 무채색 텍스트 (상태 아님) -->
+              <span class="ld-meta-attr">${esc(l.region)} · ${esc(l.business_type)}</span>
               ${daysBadge}
-              ${
-                nextOptions
-                  ? `<span style="margin-left:8px;display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center">
-                  <span style="font-size:10px;color:var(--text-3)">단계 →</span>
-                  ${nextOptions}
-                </span>`
-                  : ''
-              }
+              ${nextOptions ? `<span class="ld-next-wrap">${nextOptions}</span>` : ''}
             </div>
             <div class="detail-amount">
               <div class="text-muted fs-12">예상 매출</div>
