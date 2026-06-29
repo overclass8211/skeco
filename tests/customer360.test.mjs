@@ -291,6 +291,42 @@ describe('Customer360 (MVP) API', () => {
     expect(row).toHaveProperty('delayed');
   });
 
+  it('POST /leads — 고객사명 일치 시 customer_id 자동 매핑', async () => {
+    // 고유 고객명으로 결정화(중복명 환경 영향 배제)
+    const uniq = '__C360_DEALMAP_CUST__';
+    await pool.query('DELETE FROM leads WHERE customer_name=?', [uniq]);
+    await pool.query('DELETE FROM customers WHERE name=?', [uniq]);
+    const [c] = await pool.query(
+      "INSERT INTO customers (name, region, country, industry) VALUES (?, '국내','대한민국','반도체')",
+      [uniq]
+    );
+    const cid = c.insertId;
+    const res = await api()
+      .post('/api/leads')
+      .set('X-User-Id', '1')
+      .send({ customer_name: uniq, project_name: '__C360_DEALMAP__', stage: 'lead', expected_amount: 1000 });
+    expect(res.status).toBe(200);
+    const newId = res.body.data.id;
+    const [[row]] = await pool.query('SELECT customer_id FROM leads WHERE id=?', [newId]);
+    expect(row.customer_id).toBe(cid);
+    await pool.query('DELETE FROM leads WHERE id=?', [newId]);
+    await pool.query('DELETE FROM customers WHERE id=?', [cid]);
+  });
+
+  it('GET /:id — customer_id 로 연결된 영업딜(이름 불일치)도 360 집계(id-join)', async () => {
+    const before = (await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1')).body.data.summary
+      .deals.count;
+    const [r] = await pool.query(
+      "INSERT INTO leads (customer_id, customer_name, project_name, business_type, region, stage, expected_amount, currency) VALUES (?, '__C360MVP_T__ 평택P9', '__C360_IDJOIN__', '식각가스', '국내', 'proposal', 500000000, 'KRW')",
+      [custId]
+    );
+    const lid = r.insertId;
+    const after = (await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1')).body.data.summary
+      .deals.count;
+    expect(after).toBe(before + 1); // 이름 불일치여도 customer_id 로 집계
+    await pool.query('DELETE FROM leads WHERE id=?', [lid]);
+  });
+
   it('POST /forecasts — 월 upsert', async () => {
     const res = await api()
       .post('/api/customer360/forecasts')

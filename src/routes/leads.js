@@ -540,14 +540,24 @@ router.post('/', schema(SCHEMAS.createLead), async (req, res) => {
     // v6.0.0 Phase B: 협업자 정규화 (주담당과 자기 자신은 제외)
     const cleanedCollabIds = normalizeCollaboratorIds(collaborator_ids, assigned_to);
 
+    // 고객 마스터 자동 연결: 고객사명 정확 일치 시 customer_id 매핑(없으면 NULL)
+    let customerId = null;
+    if (customer_name) {
+      const [[cm]] = await pool.query('SELECT id FROM customers WHERE name=? ORDER BY id LIMIT 1', [
+        customer_name,
+      ]);
+      if (cm) customerId = cm.id;
+    }
+
     const [result] = await pool.query(
       `INSERT INTO leads
-       (customer_name, project_name, business_type, region,
+       (customer_id, customer_name, project_name, business_type, region,
         capacity_mw, expected_amount, currency, stage,
         assigned_to, expected_close_date, bidding_deadline, notes,
         amount_krw, fx_rate, fx_lock_policy, fx_locked_at, collaborator_ids)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
+        customerId,
         customer_name,
         project_name,
         business_type || '식각가스',
@@ -629,6 +639,20 @@ router.put('/:id', validateId, async (req, res) => {
         values.push(req.body[f]);
       }
     });
+
+    // 고객사명 변경 시 customer_id 재매핑(정확 일치 → id, 없으면 NULL) — 고객 마스터 연동 유지
+    if (req.body.customer_name !== undefined) {
+      let cid = null;
+      if (req.body.customer_name) {
+        const [[cm]] = await pool.query(
+          'SELECT id FROM customers WHERE name=? ORDER BY id LIMIT 1',
+          [req.body.customer_name]
+        );
+        if (cm) cid = cm.id;
+      }
+      updates.push('customer_id = ?');
+      values.push(cid);
+    }
 
     // v6.0.0 Phase B: collaborator_ids 별도 처리 (JSON 정규화)
     if (req.body.collaborator_ids !== undefined) {

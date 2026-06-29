@@ -54,13 +54,13 @@ router.get('/customers', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT c.id, c.name, c.industry, c.region, c.country,
               (SELECT COUNT(*) FROM leads l
-                 WHERE l.customer_name = c.name
+                 WHERE (l.customer_id = c.id OR (l.customer_id IS NULL AND l.customer_name = c.name))
                    AND l.stage NOT IN ('won','lost','dropped')) AS open_deals,
               (SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability,0)/100),0)
                  FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key=l.stage
-                WHERE l.customer_name = c.name AND l.stage NOT IN ('won','lost','dropped')) AS weighted,
+                WHERE (l.customer_id = c.id OR (l.customer_id IS NULL AND l.customer_name = c.name)) AND l.stage NOT IN ('won','lost','dropped')) AS weighted,
               (SELECT COALESCE(SUM(l.expected_amount),0) FROM leads l
-                 WHERE l.customer_name = c.name
+                 WHERE (l.customer_id = c.id OR (l.customer_id IS NULL AND l.customer_name = c.name))
                    AND l.stage NOT IN ('lost','dropped')) AS pipeline_amount,
               (SELECT COUNT(*) FROM quality_cases qc WHERE qc.customer_id=c.id AND qc.status<>'resolved') AS open_quality,
               (SELECT GROUP_CONCAT(DISTINCT m.business_type)
@@ -546,9 +546,9 @@ router.get('/:id', validateId, async (req, res) => {
              FROM leads l
              LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
              LEFT JOIN team_members t ON t.id = l.assigned_to
-            WHERE l.customer_name = ?
+            WHERE (l.customer_id = ? OR (l.customer_id IS NULL AND l.customer_name = ?))
             ORDER BY ps.sort_order ASC, l.expected_amount DESC`,
-          [name]
+          [id, name]
         )
         .then(r => r[0]),
       // 가중 예상매출 (진행 딜만 — lost/dropped 제외)
@@ -557,8 +557,8 @@ router.get('/:id', validateId, async (req, res) => {
           `SELECT COALESCE(SUM(l.expected_amount * COALESCE(l.win_probability, ps.win_probability, 0) / 100),0) AS weighted
              FROM leads l
              LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
-            WHERE l.customer_name = ? AND l.stage NOT IN ('lost','dropped')`,
-          [name]
+            WHERE (l.customer_id = ? OR (l.customer_id IS NULL AND l.customer_name = ?)) AND l.stage NOT IN ('lost','dropped')`,
+          [id, name]
         )
         .then(r => r[0]),
       pool
@@ -599,8 +599,8 @@ router.get('/:id', validateId, async (req, res) => {
         .then(r => r[0]),
       pool
         .query(
-          `SELECT COUNT(*) AS cnt FROM activities a JOIN leads l ON a.lead_id = l.id WHERE l.customer_name = ?`,
-          [name]
+          `SELECT COUNT(*) AS cnt FROM activities a JOIN leads l ON a.lead_id = l.id WHERE (l.customer_id = ? OR (l.customer_id IS NULL AND l.customer_name = ?))`,
+          [id, name]
         )
         .then(r => r[0]),
       // 타임라인 머지용
@@ -608,8 +608,8 @@ router.get('/:id', validateId, async (req, res) => {
         .query(
           `SELECT a.activity_type, a.title, a.performed_at AS dt
              FROM activities a JOIN leads l ON a.lead_id = l.id
-            WHERE l.customer_name = ? ORDER BY a.performed_at DESC LIMIT 8`,
-          [name]
+            WHERE (l.customer_id = ? OR (l.customer_id IS NULL AND l.customer_name = ?)) ORDER BY a.performed_at DESC LIMIT 8`,
+          [id, name]
         )
         .then(r => r[0]),
       pool
@@ -1100,9 +1100,9 @@ async function buildLifecycle(customerId) {
               l.expected_amount
          FROM leads l
          LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
-        WHERE l.customer_name = ? AND l.stage NOT IN ('lost','dropped')
+        WHERE (l.customer_id = ? OR (l.customer_id IS NULL AND l.customer_name = ?)) AND l.stage NOT IN ('lost','dropped')
         ORDER BY ps.sort_order ASC, l.expected_amount DESC`,
-      [cust.name]
+      [customerId, cust.name]
     );
   }
   const leadsByType = new Map();
@@ -1815,8 +1815,8 @@ async function gatherHealthSignals(customerId, customerName) {
           `SELECT SUM(CASE WHEN ps.role='won' THEN 1 ELSE 0 END) AS won,
                 SUM(CASE WHEN COALESCE(ps.role,'') NOT IN ('won','lost','dropped') THEN 1 ELSE 0 END) AS active
            FROM leads l LEFT JOIN pipeline_stages ps ON ps.stage_key = l.stage
-          WHERE l.customer_name = ?`,
-          [customerName]
+          WHERE (l.customer_id = ? OR (l.customer_id IS NULL AND l.customer_name = ?))`,
+          [customerId, customerName]
         )
         .then(r => r[0]),
       pool
