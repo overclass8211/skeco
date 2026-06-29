@@ -466,7 +466,6 @@ const Customer360Page = {
     this._quality = null;
     this._qualityDocs = null;
     this._qualityRestricted = false;
-    this._revenue = null;
     this._satisfaction = null;
     localStorage.setItem('c360_last', String(id));
     const body = document.getElementById('c360-body');
@@ -675,11 +674,10 @@ const Customer360Page = {
       lifecycle: () => this._tabLifecycle(),
       // ② 공급 자격 — 샘플/평가 + 품질
       qualification: () => sec('샘플 / 평가', this._tabSamples()) + sec('품질', this._tabQuality()),
-      // ③ 영업·매출 — 영업딜 + 포캐스트 + 계약/매출/수금
+      // ③ 영업·매출 — 영업딜 + 포캐스트
       commercial: () =>
         sec(this._L('customer360.sec_deals', '영업딜'), this._tabDeals()) +
-        sec('포캐스트', this._tabForecast()) +
-        sec('계약 / 매출 / 수금', this._tabRevenue()),
+        sec('포캐스트', this._tabForecast()),
       // ④ 관계 — 만족도(NPS/CSAT) + 조직 + 활동
       relationship: () =>
         sec('고객 만족도 (NPS/CSAT)', this._tabSatisfaction()) +
@@ -693,7 +691,7 @@ const Customer360Page = {
 
   _bindTab(el) {
     const t = this._tab;
-    // ③ 영업·매출 = 영업딜 + 포캐스트 + 계약/매출/수금
+    // ③ 영업·매출 = 영업딜 + 포캐스트
     if (t === 'commercial') {
       el.querySelectorAll('tr[data-lead-id]').forEach(tr =>
         tr.addEventListener('click', () => {
@@ -704,7 +702,6 @@ const Customer360Page = {
       );
       if (!this._fcData) this._loadForecast();
       else this._bindForecast(el);
-      if (!this._revenue) this._loadRevenue();
     }
     // ② 공급 자격 = 샘플/평가 + 품질
     if (t === 'qualification') {
@@ -1498,48 +1495,6 @@ const Customer360Page = {
   },
 
   // ── 계약/매출/수금 탭 (Forecast → 수주 → 매출 → 수금 → Gap) ──
-  _tabRevenue() {
-    if (!this._revenue) return '<div id="c360-rev"><div class="c360-empty">불러오는 중…</div></div>';
-    return `<div id="c360-rev">${this._renderRevenue()}</div>`;
-  },
-  async _loadRevenue() {
-    try {
-      const res = await API.get(`/customer360/${this._custId}/revenue`);
-      this._revenue = res.data;
-    } catch (_) {
-      this._revenue = { funnel: [], ar: 0, overdue: { count: 0, amount: 0 }, gap: 0, conversion: null };
-    }
-    const host = document.getElementById('c360-rev');
-    if (host) host.innerHTML = this._renderRevenue();
-  },
-  _renderRevenue() {
-    const d = this._revenue;
-    const f = d.funnel || [];
-    const max = Math.max(1, ...f.map(x => x.amount));
-    const colors = ['#2357E8', '#7c4dff', '#17A85A', '#0F7A3F'];
-    const funnel = f.length
-      ? f
-          .map(
-            (x, i) => `<div class="c360-pipe-row">
-              <span class="nm" style="width:150px">${esc(x.label)}</span>
-              <span class="c360-pipe-bar"><div style="width:${Math.round((x.amount / max) * 100)}%;background:${colors[i] || '#2357E8'}"></div></span>
-              <span class="amt">${this._won(x.amount)}${x.count !== null && x.count !== undefined ? ` · ${x.count}건` : ''}</span>
-            </div>`
-          )
-          .join('')
-      : '<div class="c360-empty">데이터가 없습니다.</div>';
-    return `
-      <div class="c360-kpis">
-        ${this._kpi('money', 'Forecast→수주 전환율', d.conversion === null ? '-' : d.conversion + '%', 'Gap ' + this._won(d.gap))}
-        ${this._kpi('contract', '매출채권(미수)', this._won(d.ar), '인식−수금')}
-        ${this._kpi('quality', '연체 수금', `${d.overdue.count}건`, this._won(d.overdue.amount))}
-      </div>
-      <div class="c360-sec" style="margin-top:0">Forecast → 수주 → 매출인식 → 수금</div>
-      <div class="c360-pipe">${funnel}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:10px">Forecast(가중 예상매출)가 실제 수주·매출·수금으로 얼마나 전환됐는지 추적합니다.</div>
-    `;
-  },
-
   // ── 샘플/평가 탭 ─────────────────────────────────────────
   _SMP_STATUS: {
     requested: '요청', sent: '발송', evaluating: '평가중', passed: '승인', conditional: '조건부', failed: '불합격',
