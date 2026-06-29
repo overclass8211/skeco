@@ -189,6 +189,16 @@ const Customer360Page = {
         .lc-card-link:hover{border-color:var(--oci-red);box-shadow:0 2px 10px rgba(0,0,0,.06)}
         .c360-sec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin:18px 0 10px}
         .c360-sec .btn-add{margin-left:auto;font-size:12px;font-weight:500}
+        /* 공급 자격 — 요약 스트립 + 슬림 */
+        .c360-qsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+        .c360-qtile{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 13px}
+        .c360-qt-l{font-size:11.5px;color:var(--text-3)}
+        .c360-qt-v{font-size:18px;font-weight:600;margin-top:3px;color:var(--text-1)}
+        .c360-sub{display:block;font-size:11px;color:var(--text-3);margin-top:2px}
+        .c360-doc-chips{display:flex;flex-wrap:wrap;gap:8px}
+        .c360-doc-chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+        .c360-doc-chip .dc-act{cursor:pointer;color:var(--text-3);font-size:11px}
+        .c360-doc-chip .dc-act:hover{color:var(--oci-red)}
         .lc-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:11px}
         /* 공정 라이프사이클 스테퍼 시인성 강화 (.lc-card 범위만) */
         .lc-card .ss-dot{width:34px;height:34px;font-size:14px;border-width:2.5px;margin-bottom:9px}
@@ -1525,22 +1535,36 @@ const Customer360Page = {
       this._bindSamples(host.parentElement || document);
     }
   },
+  // 자격 요약 타일 (라벨 + 값, 선택 색)
+  _qTile(label, val, color) {
+    return `<div class="c360-qtile"><div class="c360-qt-l">${esc(label)}</div><div class="c360-qt-v"${color ? ` style="color:${color}"` : ''}>${esc(val)}</div></div>`;
+  },
   _renderSamples() {
-    const list = this._samples;
+    const list = this._samples || [];
+    // ── 요약 스트립 ──
+    const total = list.length;
+    const approved = list.filter(s => s.status === 'passed').length;
+    const evaluating = list.filter(s => ['evaluating', 'sent', 'requested'].includes(s.status)).length;
+    const failed = list.filter(s => s.status === 'failed').length;
+    const specin = approved > 0 ? '승인' : evaluating > 0 ? '평가중' : total ? '대기' : '-';
+    const specinColor = approved > 0 ? '#0F7A3F' : evaluating > 0 ? '#BA7517' : '';
+    const strip = `<div class="c360-qsum">
+      ${this._qTile('샘플 · 평가', total + '건')}
+      ${this._qTile('승인', approved + '건', approved ? '#0F7A3F' : '')}
+      ${this._qTile('Spec-in', specin, specinColor)}
+      ${failed ? this._qTile('불합격', failed + '건', 'var(--oci-red)') : ''}
+    </div>`;
+    // ── 슬림 테이블: 소재 · 상태 · 결과 (Lot·발송일은 행 클릭 상세) ──
     const table = list.length
       ? `<table class="data-table" style="font-size:12px"><thead><tr>
-          <th>샘플번호</th><th>소재</th><th>목적</th><th>Lot</th><th>발송일</th><th>상태</th><th>결과</th><th></th>
+          <th>소재</th><th>상태</th><th>결과</th><th></th>
         </tr></thead><tbody>
         ${list
           .map(s => {
             const st = this._SMP_STATUS[s.status] || s.status;
             const cls = s.status === 'passed' ? 'pill-info' : s.status === 'failed' ? 'pill-danger' : s.status === 'conditional' ? 'pill-warn' : 'pill-mut';
             return `<tr class="clickable" data-smp-row="${s.id}" title="세부 내용 보기">
-            <td class="mono">${esc(s.sample_no)}</td>
-            <td>${esc(s.material_name ? s.material_name.split(' · ')[0] : '-')}</td>
-            <td>${esc(s.purpose || '-')}</td>
-            <td class="mono">${esc(s.lot_no || '-')}</td>
-            <td>${s.sent_at ? String(s.sent_at).slice(0, 10) : '-'}</td>
+            <td>${esc(s.material_name ? s.material_name.split(' · ')[0] : '-')}${s.purpose ? `<span class="c360-sub">${esc(s.purpose)}</span>` : ''}</td>
             <td><span class="pill ${cls}">${esc(st)}</span>${s.resample ? '<span class="pill pill-warn">재샘플</span>' : ''}</td>
             <td>${esc(s.fail_reason || s.result || '-')}</td>
             <td style="text-align:right"><button class="lc-mini" data-smp-edit="${s.id}">수정</button></td>
@@ -1551,7 +1575,7 @@ const Customer360Page = {
       : '<div class="c360-empty">등록된 샘플 요청이 없습니다.</div>';
     return `<div class="c360-sec" style="margin-top:0">샘플/평가 이력
         <button class="btn btn-primary btn-sm btn-add" id="smp-add">+ 샘플 등록</button>
-      </div>${table}`;
+      </div>${strip}${table}`;
   },
   _bindSamples(scope) {
     const root = scope || document;
@@ -1708,24 +1732,43 @@ const Customer360Page = {
     }
   },
   _renderQuality() {
-    const list = this._quality;
+    const list = this._quality || [];
+    const docs = this._qualityDocs || [];
+    const today = new Date().toISOString().slice(0, 10);
+    const isExpired = d => d.valid_until && String(d.valid_until).slice(0, 10) < today;
+    // ── 요약 스트립 (품질·문서) ──
+    const openCnt = list.filter(q => q.status !== 'resolved').length;
+    const highOpen = list.filter(q => q.status !== 'resolved' && q.severity === 'high').length;
+    const validDocs = docs.filter(d => !isExpired(d)).length;
+    const expiredDocs = docs.filter(d => isExpired(d)).length;
+    const strip = `<div class="c360-qsum">
+      ${this._qTile('품질 미해결', openCnt + '건', openCnt ? 'var(--oci-red)' : '#0F7A3F')}
+      ${highOpen ? this._qTile('심각(high) 미해결', highOpen + '건', 'var(--oci-red)') : ''}
+      ${this._qTile('문서 유효', validDocs + '건', '')}
+      ${expiredDocs ? this._qTile('문서 만료', expiredDocs + '건', 'var(--oci-red)') : ''}
+    </div>`;
+    // ── 슬림 케이스: 미해결 우선 → 심각도순. 소재·유형·심각도/상태·제목 (케이스번호·담당·발생일은 상세) ──
+    const sevRank = s => (s === 'high' ? 0 : s === 'medium' ? 1 : 2);
+    const sorted = [...list].sort((a, b) => {
+      const ar = a.status === 'resolved' ? 1 : 0;
+      const br = b.status === 'resolved' ? 1 : 0;
+      return ar - br || sevRank(a.severity) - sevRank(b.severity);
+    });
     const table = list.length
       ? `<table class="data-table" style="font-size:12px"><thead><tr>
-          <th>케이스</th><th>소재</th><th>유형</th><th>심각도</th><th>상태</th><th>제목</th><th>담당</th><th>발생일</th><th></th>
+          <th style="width:14px"></th><th>소재</th><th>유형</th><th>심각도 · 상태</th><th>제목</th><th></th>
         </tr></thead><tbody>
-        ${list
+        ${sorted
           .map(q => {
             const sevCls = q.severity === 'high' ? 'pill-danger' : q.severity === 'medium' ? 'pill-warn' : 'pill-mut';
             const stCls = q.status === 'resolved' ? 'pill-info' : q.status === 'in_progress' ? 'pill-warn' : 'pill-danger';
+            const open = q.status !== 'resolved';
             return `<tr class="clickable" data-q-row="${q.id}" title="세부 내용 보기">
-            <td class="mono">${esc(q.case_no)}</td>
+            <td>${open ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--oci-red)"></span>' : ''}</td>
             <td>${esc(q.material_name ? q.material_name.split(' · ')[0] : '-')}</td>
             <td>${esc(q.type)}</td>
-            <td><span class="pill ${sevCls}">${esc(q.severity)}</span></td>
-            <td><span class="pill ${stCls}">${esc(this._Q_STATUS[q.status] || q.status)}</span></td>
+            <td><span class="pill ${sevCls}">${esc(q.severity)}</span> <span class="pill ${stCls}">${esc(this._Q_STATUS[q.status] || q.status)}</span></td>
             <td>${esc(q.title)}</td>
-            <td>${esc(q.owner_name || '-')}</td>
-            <td>${q.opened_at ? String(q.opened_at).slice(0, 10) : '-'}</td>
             <td style="text-align:right"><button class="lc-mini" data-q-edit="${q.id}">수정</button></td>
           </tr>`;
           })
@@ -1735,39 +1778,34 @@ const Customer360Page = {
     const restrictNote = this._qualityRestricted
       ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">상세 원인·분석 자료(비고)는 팀장 이상 권한에서 열람됩니다.</div>'
       : '';
-    // 문서이력 (CoA/MSDS/CoC)
-    const docs = this._qualityDocs || [];
-    const docTable = docs.length
-      ? `<table class="data-table" style="font-size:12px"><thead><tr>
-          <th>유형</th><th>문서번호</th><th>소재</th><th>발행일</th><th>유효기한</th><th>첨부</th><th></th>
-        </tr></thead><tbody>
-        ${docs
+    // ── 문서 유효성 칩 (유형 배지=수정 / 유효기한·만료 / 📎 다운로드 / ✕ 삭제) ──
+    const docChips = docs.length
+      ? `<div class="c360-doc-chips">${docs
           .map(d => {
-            const expired = d.valid_until && String(d.valid_until).slice(0, 10) < new Date().toISOString().slice(0, 10);
-            const fileCell = d.file_path
-              ? `<a class="lc-mini" href="/api/customer360/documents/${d.id}/file" target="_blank" rel="noopener" title="${esc(d.file_name || '다운로드')}">📎 다운로드</a>`
+            const exp = isExpired(d);
+            const mat = d.material_name ? d.material_name.split(' · ')[0] : '';
+            const valid = d.valid_until ? '~' + String(d.valid_until).slice(0, 10) : '';
+            const dl = d.file_path
+              ? `<a class="dc-act" href="/api/customer360/documents/${d.id}/file" target="_blank" rel="noopener" title="다운로드">📎</a>`
               : d.file_url
-                ? `<a class="lc-mini" href="${esc(d.file_url)}" target="_blank" rel="noopener" title="외부 링크">🔗 링크</a>`
-                : '<span style="color:var(--text-3)">-</span>';
-            return `<tr>
-            <td><span class="pill pill-info">${esc(d.doc_type)}</span></td>
-            <td class="mono">${esc(d.doc_no || '-')}</td>
-            <td>${esc(d.material_name ? d.material_name.split(' · ')[0] : '-')}</td>
-            <td>${d.issued_at ? String(d.issued_at).slice(0, 10) : '-'}</td>
-            <td style="${expired ? 'color:var(--oci-red)' : ''}">${d.valid_until ? String(d.valid_until).slice(0, 10) : '-'}${expired ? ' (만료)' : ''}</td>
-            <td>${fileCell}</td>
-            <td style="text-align:right"><button class="lc-mini" data-doc-edit="${d.id}">수정</button><button class="lc-mini" data-doc-del="${d.id}" style="color:var(--oci-red)">삭제</button></td>
-          </tr>`;
+                ? `<a class="dc-act" href="${esc(d.file_url)}" target="_blank" rel="noopener" title="링크">🔗</a>`
+                : '';
+            return `<span class="c360-doc-chip">
+              <span class="pill pill-info" style="cursor:pointer" data-doc-edit="${d.id}" title="문서 수정">${esc(d.doc_type)}</span>
+              <span title="${esc(mat)}">${esc(mat) || '-'}</span>
+              <span style="color:${exp ? 'var(--oci-red)' : 'var(--text-3)'}">${valid}${exp ? ' 만료' : ''}</span>
+              ${dl}
+              <span class="dc-act" data-doc-del="${d.id}" title="삭제" style="color:var(--oci-red)">✕</span>
+            </span>`;
           })
-          .join('')}
-        </tbody></table>`
-      : '<div class="c360-empty" style="padding:24px">등록된 문서가 없습니다.</div>';
-    return `<div class="c360-sec" style="margin-top:0">품질 케이스 (VOC/NCR/Audit)
+          .join('')}</div>`
+      : '<div class="c360-empty" style="padding:20px">등록된 문서가 없습니다.</div>';
+    return `<div class="c360-sec" style="margin-top:0">품질 (케이스 · 문서)
         <button class="btn btn-primary btn-sm btn-add" id="q-add">+ 케이스 등록</button>
-      </div>${restrictNote}${table}
+      </div>${strip}${restrictNote}${table}
       <div class="c360-sec">품질 문서 (CoA/MSDS/CoC)
         <button class="btn btn-primary btn-sm btn-add" id="doc-add">+ 문서 등록</button>
-      </div>${docTable}`;
+      </div>${docChips}`;
   },
   _bindQuality(scope) {
     const root = scope || document;
