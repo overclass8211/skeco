@@ -9,6 +9,9 @@
 // =============================================================
 const Exec360Page = {
   _STAGE_COLOR: { discovery: '#93B4F9', sample: '#5585F5', evaluation: '#2357E8', specin: '#F59C00', massprod: '#17A85A', delivery: '#0F7A3F' },
+  // 단계 분포(퍼널) — 색약(적녹) 안전 팔레트: 게이트 순서(index) 기준으로 단계별 구분색
+  //   Okabe–Ito 기반 + 흰 배경 대비 확보. 인접 단계가 적/녹으로 겹치지 않게 배열.
+  _STAGE_CB: ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#D55E00', '#56B4E9', '#4D4D4D', '#000000'],
   _won(v) {
     return Fmt.amount(Number(v) || 0, 'KRW');
   },
@@ -264,7 +267,7 @@ const Exec360Page = {
       ...s,
       x: xPct(i),
       top: topPct(s.count),
-      color: this._STAGE_COLOR[s.stage] || '#2357E8',
+      color: this._STAGE_CB[i % this._STAGE_CB.length],
       pct: Math.round((s.count / total) * 100),
       isMax: max > 0 && s.count === max,
     }));

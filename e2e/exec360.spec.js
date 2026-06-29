@@ -95,6 +95,11 @@ test('임원 360 요약 — KPI + 단계 분포 + Top 계정 + 리스크', async
 
   // 단계 분포 (mock 8 게이트 — 스트림/퍼널 그래픽, 클릭 가능)
   await expect(page.locator('#ex-body .ex-fn-col')).toHaveCount(8);
+  // 색약 안전: 단계 dot 이 단일색이 아니라 서로 구분되는 색(≥4종)으로 렌더
+  const dotColors = await page
+    .locator('#ex-body .ex-fn-dot')
+    .evaluateAll(els => [...new Set(els.map(e => getComputedStyle(e).backgroundColor))]);
+  expect(dotColors.length).toBeGreaterThanOrEqual(4);
 
   // Top 계정 + 리스크
   await expect(page.locator('#ex-body')).toContainText('E2E임원고객');
