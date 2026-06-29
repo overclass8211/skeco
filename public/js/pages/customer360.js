@@ -27,6 +27,7 @@ const Customer360Page = {
   _FC_MONTHS: ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'],
   _fcData: null,
   _cmpVer: null,
+  _charts: {},
 
   // 워드 사전(다국어) 헬퍼 — Labels 미로드 시 한글 fallback
   _L(key, fallback) {
@@ -1339,6 +1340,8 @@ const Customer360Page = {
         <button class="btn btn-ghost btn-sm" id="fc-sync-capa" style="margin-left:auto" title="생산예측 모듈의 수량을 생산가능(CAPA)으로 반영">생산예측 연동(CAPA)</button>
         <button class="btn btn-primary btn-sm" id="fc-snapshot">현재 스냅샷 저장</button>
       </div>
+      ${f.materials.length ? `<div class="c360-sec" style="margin-top:0">월별 추이 <span style="font-size:11px;color:var(--text-3);font-weight:500">· 막대=수량(고객/내부/생산가능) · 선=예상매출(억)</span></div>
+      <div style="position:relative;height:260px;margin-bottom:16px"><canvas id="c360-fc-chart"></canvas></div>` : ''}
       <div class="c360-sec" style="margin-top:0">월별 합계 ${cmp ? `<span style="font-size:11px;color:var(--text-3);font-weight:500">· Δ고객 = 현재 − ${esc(this._cmpVer.version.label)}</span>` : ''}</div>
       <table class="data-table" style="font-size:12px">
         <thead><tr><th>월</th><th class="text-right">고객 합계</th><th class="text-right">내부 보정</th><th class="text-right">생산가능</th><th class="text-right">예상매출</th>${cmp ? '<th class="text-right">Δ고객</th>' : ''}</tr></thead>
@@ -1349,8 +1352,61 @@ const Customer360Page = {
     `;
   },
 
+  // 월별 추이 콤보 차트 (막대=수량 3종 + 라인=예상매출억) — 매출 포캐스트와 동일 스타일
+  _renderForecastChart() {
+    const f = this._fcData;
+    if (!f || !f.materials.length || typeof Chart === 'undefined') return;
+    const canvas = document.getElementById('c360-fc-chart');
+    if (!canvas) return;
+    if (this._charts.fc) {
+      this._charts.fc.destroy();
+      this._charts.fc = null;
+    }
+    const months = f.months;
+    const col = (mn, k) => Math.round((f.totals[mn] && f.totals[mn][k]) || 0);
+    const cust = months.map(mn => col(mn, 'customer'));
+    const intl = months.map(mn => col(mn, 'internal'));
+    const capa = months.map(mn => col(mn, 'capacity'));
+    const rev = months.map(mn => Math.round(((f.totals[mn]?.expected || 0) / 1e8) * 10) / 10); // 억
+    const cssVar = (n, fb) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || fb;
+    const red = cssVar('--oci-red', '#EA002C');
+    const unit = f.unit || '';
+    this._charts.fc = new Chart(canvas.getContext('2d'), {
+      data: {
+        labels: months,
+        datasets: [
+          { type: 'bar', label: '고객 Forecast', data: cust, backgroundColor: 'rgba(55,138,221,0.55)', yAxisID: 'y', order: 3 },
+          { type: 'bar', label: '내부 보정', data: intl, backgroundColor: 'rgba(120,120,140,0.45)', yAxisID: 'y', order: 3 },
+          { type: 'bar', label: '생산가능', data: capa, backgroundColor: 'rgba(29,158,117,0.7)', yAxisID: 'y', order: 2 },
+          { type: 'line', label: '예상매출(억)', data: rev, borderColor: red, backgroundColor: red, borderWidth: 2.5, tension: 0.35, pointRadius: 2, yAxisID: 'y1', order: 1 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { position: 'left', beginAtZero: true, title: { display: true, text: '수량' + (unit ? ' (' + unit + ')' : '') } },
+          y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: '예상매출(억원)' } },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: c =>
+                c.dataset.yAxisID === 'y1'
+                  ? `${c.dataset.label}: ₩${c.parsed.y}억`
+                  : `${c.dataset.label}: ${(c.parsed.y || 0).toLocaleString('ko-KR')}${unit}`,
+            },
+          },
+        },
+      },
+    });
+  },
+
   _bindForecast(scope) {
     const root = scope || document;
+    this._renderForecastChart();
     root.querySelector('#fc-snapshot')?.addEventListener('click', () => this._saveSnapshot());
     root.querySelector('#fc-sync-capa')?.addEventListener('click', () => this._syncCapa());
     root.querySelector('#fc-ver')?.addEventListener('change', e => this._onVersionChange(e.target.value));

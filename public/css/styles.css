@@ -590,6 +590,11 @@ body.sidebar-rail .btn-logout span { display: none; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: var(--surface-2); }
 .data-table tr.clickable { cursor: pointer; }
+/* 숫자 열: 헤더(th)도 우측 정렬 — .text-right 가 .data-table th(좌측)보다 명시도 낮아 무시되던 문제 보정 */
+.data-table th.text-right { text-align: right; }
+/* 숫자 정렬: 자릿수 폭 고정으로 열 깔끔하게 정렬 */
+.data-table th.text-right,
+.data-table td.text-right { font-variant-numeric: tabular-nums; }
 
 .mono { font-family: 'IBM Plex Mono', monospace; }
 
