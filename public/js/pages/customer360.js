@@ -1535,7 +1535,7 @@ const Customer360Page = {
           .map(s => {
             const st = this._SMP_STATUS[s.status] || s.status;
             const cls = s.status === 'passed' ? 'pill-info' : s.status === 'failed' ? 'pill-danger' : s.status === 'conditional' ? 'pill-warn' : 'pill-mut';
-            return `<tr>
+            return `<tr class="clickable" data-smp-row="${s.id}" title="세부 내용 보기">
             <td class="mono">${esc(s.sample_no)}</td>
             <td>${esc(s.material_name ? s.material_name.split(' · ')[0] : '-')}</td>
             <td>${esc(s.purpose || '-')}</td>
@@ -1557,8 +1557,68 @@ const Customer360Page = {
     const root = scope || document;
     root.querySelector('#smp-add')?.addEventListener('click', () => this._openSampleModal(null));
     root.querySelectorAll('[data-smp-edit]').forEach(b =>
-      b.addEventListener('click', () => this._openSampleModal(this._samples.find(s => s.id === Number(b.dataset.smpEdit))))
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this._openSampleModal(this._samples.find(s => s.id === Number(b.dataset.smpEdit)));
+      })
     );
+    // 행 클릭 → 세부 내용 드릴다운 (수정 버튼 제외)
+    root.querySelectorAll('[data-smp-row]').forEach(tr =>
+      tr.addEventListener('click', e => {
+        if (e.target.closest('button, a')) return;
+        this._openSampleDetail(this._samples.find(s => s.id === Number(tr.dataset.smpRow)));
+      })
+    );
+  },
+  // 읽기전용 상세 한 줄 (라벨:값)
+  _dRow(label, val) {
+    const v =
+      val === null || val === undefined || val === ''
+        ? '<span style="color:var(--text-3)">-</span>'
+        : esc(String(val));
+    return `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="min-width:104px;color:var(--text-3);font-size:12px">${esc(label)}</div><div style="flex:1;font-size:13px;word-break:break-word">${v}</div></div>`;
+  },
+  // 읽기전용 상세 섹션 구분선
+  _dSec(label) {
+    return `<div style="margin:12px 0 2px;font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.3px">${esc(label)}</div>`;
+  },
+  _openSampleDetail(s) {
+    if (!s) return;
+    const ymd = d => (d ? String(d).slice(0, 10) : '');
+    const qty = s.qty ? `${Number(s.qty).toLocaleString('ko-KR')}${s.unit || ''}` : '';
+    const body =
+      `<div style="display:flex;flex-direction:column">` +
+      this._dRow('샘플번호', s.sample_no) +
+      this._dRow('소재', s.material_name) +
+      this._dRow('목적', s.purpose) +
+      this._dRow('Lot No', s.lot_no) +
+      this._dRow('수량', qty) +
+      this._dSec('일정 / 상태') +
+      this._dRow('요청일', ymd(s.requested_at)) +
+      this._dRow('발송일', ymd(s.sent_at)) +
+      this._dRow('상태', this._SMP_STATUS[s.status] || s.status) +
+      this._dRow('재샘플', s.resample ? '필요' : '아니오') +
+      this._dSec('평가') +
+      this._dRow('평가 기준', s.eval_criteria) +
+      this._dRow('평가 장비/공정', s.eval_equipment) +
+      this._dRow('결과', s.result) +
+      this._dRow('불합격 사유', s.fail_reason) +
+      this._dRow('비고', s.note) +
+      `</div>`;
+    Modal.open({
+      title: `샘플 상세 — ${esc(s.sample_no || '')}`,
+      width: 480,
+      compact: true,
+      body,
+      footer: `<button class="btn btn-ghost" id="sd-close">닫기</button><button class="btn btn-primary" id="sd-edit">수정</button>`,
+      bind: {
+        '#sd-close': () => Modal.close(),
+        '#sd-edit': () => {
+          Modal.close();
+          this._openSampleModal(s);
+        },
+      },
+    });
   },
   _openSampleModal(s) {
     const stOpts = Object.entries(this._SMP_STATUS)
@@ -1657,7 +1717,7 @@ const Customer360Page = {
           .map(q => {
             const sevCls = q.severity === 'high' ? 'pill-danger' : q.severity === 'medium' ? 'pill-warn' : 'pill-mut';
             const stCls = q.status === 'resolved' ? 'pill-info' : q.status === 'in_progress' ? 'pill-warn' : 'pill-danger';
-            return `<tr>
+            return `<tr class="clickable" data-q-row="${q.id}" title="세부 내용 보기">
             <td class="mono">${esc(q.case_no)}</td>
             <td>${esc(q.material_name ? q.material_name.split(' · ')[0] : '-')}</td>
             <td>${esc(q.type)}</td>
@@ -1713,15 +1773,84 @@ const Customer360Page = {
     const root = scope || document;
     root.querySelector('#q-add')?.addEventListener('click', () => this._openQualityModal(null));
     root.querySelectorAll('[data-q-edit]').forEach(b =>
-      b.addEventListener('click', () => this._openQualityModal(this._quality.find(q => q.id === Number(b.dataset.qEdit))))
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this._openQualityModal(this._quality.find(q => q.id === Number(b.dataset.qEdit)));
+      })
+    );
+    // 행 클릭 → 품질 케이스 세부 내용 드릴다운 (수정 버튼 제외)
+    root.querySelectorAll('[data-q-row]').forEach(tr =>
+      tr.addEventListener('click', e => {
+        if (e.target.closest('button, a')) return;
+        this._openQualityDetail(this._quality.find(q => q.id === Number(tr.dataset.qRow)));
+      })
     );
     root.querySelector('#doc-add')?.addEventListener('click', () => this._openDocModal(null));
     root.querySelectorAll('[data-doc-edit]').forEach(b =>
-      b.addEventListener('click', () => this._openDocModal((this._qualityDocs || []).find(d => d.id === Number(b.dataset.docEdit))))
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this._openDocModal((this._qualityDocs || []).find(d => d.id === Number(b.dataset.docEdit)));
+      })
     );
     root.querySelectorAll('[data-doc-del]').forEach(b =>
-      b.addEventListener('click', () => this._deleteDoc(Number(b.dataset.docDel)))
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this._deleteDoc(Number(b.dataset.docDel));
+      })
     );
+  },
+  _openQualityDetail(q) {
+    if (!q) return;
+    const ymd = d => (d ? String(d).slice(0, 10) : '');
+    const qty = q.defect_qty ? `${Number(q.defect_qty).toLocaleString('ko-KR')}${q.defect_unit || ''}` : '';
+    const restricted = this._qualityRestricted;
+    const r = (label, val) => (restricted ? this._dRow(label, '🔒 팀장 이상 열람') : this._dRow(label, val));
+    const body =
+      `<div style="display:flex;flex-direction:column">` +
+      this._dRow('케이스', q.case_no) +
+      this._dRow('고객 참조번호', q.customer_ref_no) +
+      this._dRow('소재', q.material_name) +
+      this._dRow('유형', q.type) +
+      this._dRow('채널', q.channel) +
+      this._dRow('우선순위', q.priority) +
+      this._dRow('심각도', q.severity) +
+      this._dRow('상태', this._Q_STATUS[q.status] || q.status) +
+      this._dRow('재발', q.is_recurring ? '재발' : '아니오') +
+      this._dSec('식별 정보') +
+      this._dRow('Lot No', q.lot_no) +
+      this._dRow('불량 코드', q.defect_code) +
+      this._dRow('불량 수량', qty) +
+      this._dSec('내용 / 분석·조치') +
+      this._dRow('제목', q.title) +
+      this._dRow('내용', q.description) +
+      r('원인 분석', q.root_cause) +
+      r('봉쇄/응급조치', q.correction) +
+      r('시정/해결', q.resolution) +
+      r('예방조치', q.preventive_action) +
+      r('검증', q.verification) +
+      r('비고', q.notes) +
+      this._dSec('일정') +
+      this._dRow('발생일', ymd(q.opened_at)) +
+      this._dRow('목표일', ymd(q.due_date)) +
+      this._dRow('1차 회신', ymd(q.first_response_at)) +
+      this._dRow('해결일', ymd(q.resolved_at)) +
+      this._dRow('종결일', ymd(q.closed_at)) +
+      this._dRow('담당', q.owner_name) +
+      `</div>`;
+    Modal.open({
+      title: `품질 케이스 상세 — ${esc(q.case_no || '')}`,
+      width: 520,
+      compact: true,
+      body,
+      footer: `<button class="btn btn-ghost" id="qd-close">닫기</button><button class="btn btn-primary" id="qd-edit">수정</button>`,
+      bind: {
+        '#qd-close': () => Modal.close(),
+        '#qd-edit': () => {
+          Modal.close();
+          this._openQualityModal(q);
+        },
+      },
+    });
   },
   _openDocModal(d) {
     const types = ['CoA', 'MSDS', 'CoC', '기타'];
