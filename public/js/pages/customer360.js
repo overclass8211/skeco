@@ -1756,7 +1756,7 @@ const Customer360Page = {
     });
     const table = list.length
       ? `<table class="data-table" style="font-size:12px"><thead><tr>
-          <th style="width:14px"></th><th>소재</th><th>유형</th><th>심각도 · 상태</th><th>제목</th><th></th>
+          <th style="width:14px"></th><th>소재</th><th>유형</th><th>제목</th><th>심각도 · 상태</th><th></th>
         </tr></thead><tbody>
         ${sorted
           .map(q => {
@@ -1767,8 +1767,8 @@ const Customer360Page = {
             <td>${open ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--oci-red)"></span>' : ''}</td>
             <td>${esc(q.material_name ? q.material_name.split(' · ')[0] : '-')}</td>
             <td>${esc(q.type)}</td>
-            <td><span class="pill ${sevCls}">${esc(q.severity)}</span> <span class="pill ${stCls}">${esc(this._Q_STATUS[q.status] || q.status)}</span></td>
             <td>${esc(q.title)}</td>
+            <td><span class="pill ${sevCls}">${esc(q.severity)}</span> <span class="pill ${stCls}">${esc(this._Q_STATUS[q.status] || q.status)}</span></td>
             <td style="text-align:right"><button class="lc-mini" data-q-edit="${q.id}">수정</button></td>
           </tr>`;
           })
@@ -1800,12 +1800,13 @@ const Customer360Page = {
           })
           .join('')}</div>`
       : '<div class="c360-empty" style="padding:20px">등록된 문서가 없습니다.</div>';
-    return `<div class="c360-sec" style="margin-top:0">품질 (케이스 · 문서)
-        <button class="btn btn-primary btn-sm btn-add" id="q-add">+ 케이스 등록</button>
+    return `<div class="c360-sec" style="margin-top:0">케이스 · 문서
+        <span style="margin-left:auto;display:inline-flex;gap:6px">
+          <button class="btn btn-primary btn-sm" id="q-add">+ 케이스</button>
+          <button class="btn btn-primary btn-sm" id="doc-add">+ 문서</button>
+        </span>
       </div>${strip}${restrictNote}${table}
-      <div class="c360-sec">품질 문서 (CoA/MSDS/CoC)
-        <button class="btn btn-primary btn-sm btn-add" id="doc-add">+ 문서 등록</button>
-      </div>${docChips}`;
+      <div style="font-size:12px;color:var(--text-3);font-weight:600;margin:14px 0 6px">문서 (CoA/MSDS/CoC)</div>${docChips}`;
   },
   _bindQuality(scope) {
     const root = scope || document;
