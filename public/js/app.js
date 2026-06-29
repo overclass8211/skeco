@@ -1264,7 +1264,7 @@ const App = {
       case 'customers':
         targetPage = 'customers';
         openFn = () =>
-          typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerModal?.(numId);
+          typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerDetail?.(numId);
         break;
       case 'projects':
         targetPage = 'projects';
@@ -1730,8 +1730,8 @@ const App = {
             Modal.close();
             setTimeout(() => {
               App.navigate('customers').then(() => {
-                if (typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerModal) {
-                  CustomersPage.showCustomerModal(cid);
+                if (typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerDetail) {
+                  CustomersPage.showCustomerDetail(cid);
                 }
               });
             }, 100);
@@ -1743,8 +1743,8 @@ const App = {
             Modal.close();
             setTimeout(() => {
               App.navigate('customers').then(() => {
-                if (typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerModal) {
-                  CustomersPage.showCustomerModal(cid);
+                if (typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerDetail) {
+                  CustomersPage.showCustomerDetail(cid);
                 }
               });
             }, 100);

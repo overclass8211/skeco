@@ -33,12 +33,12 @@ test('고객사 모달 견적 탭 → 견적 행 클릭 → 견적 상세 모달
   // ── 수정 검증 1: window.navigate 가 함수로 정의됨 (이전엔 undefined) ──
   expect(await page.evaluate(() => typeof window.navigate)).toBe('function');
 
-  // ── 고객 모달 → 견적 탭 → 견적 행 클릭 ──
-  await page.evaluate(id => CustomersPage.showCustomerModal(id), CUST);
-  await page.waitForSelector('.cust-mtab[data-mtab="quotes"]', { timeout: 8000 });
-  await page.evaluate(() => document.querySelector('.cust-mtab[data-mtab="quotes"]').click());
-  await page.waitForSelector('#cm-tab-quotes .lq-row', { timeout: 8000 });
-  await page.evaluate(() => document.querySelector('#cm-tab-quotes .lq-row').click());
+  // ── 고객 상세 → 견적 서브탭 → 견적 행 클릭 ──
+  await page.evaluate(id => CustomersPage.showCustomerDetail(id), CUST);
+  await page.waitForSelector('.cust-subtab[data-sub="quotes"]', { timeout: 8000 });
+  await page.evaluate(() => document.querySelector('.cust-subtab[data-sub="quotes"]').click());
+  await page.waitForSelector('#lq-customer .lq-row', { timeout: 8000 });
+  await page.evaluate(() => document.querySelector('#lq-customer .lq-row').click());
 
   // ── 수정 검증 2: 견적 상세 모달이 실제로 열림 (목록만 뜨던 버그 해소) ──
   await page.waitForSelector('.qt-modal, #qt-f-quote_no', { timeout: 10000 });

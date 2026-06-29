@@ -1865,7 +1865,7 @@ const CustomersPage = {
           Modal.close();
           // 기존 모달 닫고 → 매칭된 고객사 열기
           Modal.close();
-          this.openCustomerModal(existingCustomer.id);
+          this.showCustomerDetail(existingCustomer.id);
         },
         '#bc-update': () => this._acceptNameChange(existingCustomer.id, newName),
       },
@@ -1892,7 +1892,7 @@ const CustomersPage = {
       Modal.close();
       await this.loadData();
       // 변경된 기존 고객사 열기
-      this.openCustomerModal(customerId);
+      this.showCustomerDetail(customerId);
     } catch (e) {
       Toast.error('이름 변경 실패: ' + (e.message || ''));
     }

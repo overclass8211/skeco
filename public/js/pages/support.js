@@ -899,10 +899,13 @@ const SupportPage = {
           const cid = parseInt(e.currentTarget.dataset.goCustomer, 10);
           Modal.close();
           setTimeout(() => {
-            if (typeof CustomersPage !== 'undefined' && CustomersPage.openCustomerModal) {
-              CustomersPage.openCustomerModal(cid);
-            } else if (typeof App !== 'undefined' && App.navigate) {
-              App.navigate('customers');
+            // 고객사 페이지로 이동 후 해당 고객 상세 프로필 표시
+            if (typeof App !== 'undefined' && App.navigate) {
+              App.navigate('customers').then(() => {
+                if (typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerDetail) {
+                  CustomersPage.showCustomerDetail(cid);
+                }
+              });
             }
           }, 80);
         });

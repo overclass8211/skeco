@@ -50,19 +50,19 @@ test('고객사 모달 — 수금 탭에 연결된 수금일정 표시', async (
     () => typeof CustomersPage !== 'undefined' && CustomersPage.data && CustomersPage.data.length > 0,
     { timeout: 10000 }
   );
-  await page.evaluate(id => CustomersPage.showCustomerModal(id), CID);
+  await page.evaluate(id => CustomersPage.showCustomerDetail(id), CID);
 
-  // 수금 탭 버튼 표시 확인 → JS 클릭으로 전환
-  // (모달의 다른 로더가 가짜 고객 id 를 실서버 조회해 띄우는 토스트가
+  // 수금 서브탭 표시 확인 → JS 클릭으로 전환
+  // (다른 로더가 가짜 고객 id 를 실서버 조회해 띄우는 토스트가
   //  실제 마우스 클릭을 가로막을 수 있어, 탭 전환 핸들러를 직접 트리거)
-  const payTab = page.locator('.cust-mtab[data-mtab="payments"]');
+  const payTab = page.locator('.cust-subtab[data-sub="payments"]');
   await expect(payTab).toBeVisible({ timeout: 5000 });
   await page.evaluate(() =>
-    document.querySelector('.cust-mtab[data-mtab="payments"]').click()
+    document.querySelector('.cust-subtab[data-sub="payments"]').click()
   );
 
   // 수금 탭 내용 — 연결된 수금일정 렌더
-  const wrap = page.locator('#cm-tab-payments');
+  const wrap = page.locator('#lpay-customer');
   await expect(wrap).toContainText('연결된 수금일정', { timeout: 5000 });
   await expect(wrap).toContainText('계약금');
   await expect(wrap).toContainText('잔금');
