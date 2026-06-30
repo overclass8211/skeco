@@ -3143,12 +3143,16 @@ const App = {
           typeof Labels !== 'undefined'
             ? Labels.get('activities.modal_new', '활동 추가')
             : '활동 추가',
-        width: 480,
+        width: 600,
         body: `
           <form id="activity-form" class="form-grid">
             <input type="hidden" name="lead_id" value="${leadId}">
             <input type="hidden" name="customer_name" value="${esc(customerName)}">
-            <div class="form-row-2">
+            <div class="form-row">
+              <label class="form-label required" data-label="activities.title">제목</label>
+              <input class="form-input" name="title" required>
+            </div>
+            <div class="form-row-3">
               <div class="form-row">
                 <label class="form-label" data-label="activities.activity_type">활동 유형</label>
                 <select class="form-input" name="activity_type" id="act-type-sel">
@@ -3167,29 +3171,29 @@ const App = {
                   <option value="done"    data-label="activities.status_done">✅ 완료</option>
                 </select>
               </div>
+              <div class="form-row">
+                <label class="form-label" data-label="activities.performer_name">담당자</label>
+                <select class="form-input" name="performed_by">
+                  <option value="">-</option>
+                  ${this.team.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}
+                </select>
+              </div>
             </div>
-            <div class="form-row">
-              <label class="form-label" data-label="activities.title">제목 *</label>
-              <input class="form-input" name="title" required>
-            </div>
-            <div class="form-row">
-              <label class="form-label" data-label="activities.activity_date">일시</label>
-              <input class="form-input" type="datetime-local" name="activity_datetime" value="${defaultDt}">
+            <div class="form-row-3" style="display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:flex-end">
+              <div class="form-row">
+                <label class="form-label" data-label="activities.activity_date">일시</label>
+                <input class="form-input" type="datetime-local" name="activity_datetime" step="1800" value="${defaultDt}">
+              </div>
+              <div class="form-row"><!-- spacer --></div>
+              <div class="form-row" id="calendar-sync-row">
+                <label class="form-check" style="white-space:nowrap;padding-bottom:9px" data-label="activities.sync_calendar">
+                  <input type="checkbox" name="sync_calendar" id="sync-calendar-cb" checked> 영업 캘린더 등록
+                </label>
+              </div>
             </div>
             <div class="form-row">
               <label class="form-label" data-label="activities.content">내용</label>
-              <textarea class="form-input" name="content" rows="3"></textarea>
-            </div>
-            <div class="form-row">
-              <label class="form-label" data-label="activities.performer_name">담당자</label>
-              <select class="form-input" name="performed_by">
-                <option value="">-</option>
-                ${this.team.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-row" id="calendar-sync-row" style="align-items:center;gap:8px">
-              <label class="form-label" style="margin:0" data-label="activities.sync_calendar">영업 캘린더 등록</label>
-              <input type="checkbox" name="sync_calendar" id="sync-calendar-cb" checked style="width:16px;height:16px;cursor:pointer">
+              <textarea class="form-input" name="content" rows="4"></textarea>
             </div>
           </form>
         `,
