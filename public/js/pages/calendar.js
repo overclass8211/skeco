@@ -665,9 +665,19 @@ const CalendarPage = (() => {
         : toLocalDT(ep.end_datetime).replace('T', ' ')
       : '-';
     const isDone = ep.status === 'completed';
-    const statusBadge = isDone
-      ? `<span class="status-badge completed">✓ 완료</span>`
-      : `<span class="status-badge planned">○ 계획</span>`;
+    // 상태 토글(스위치) — 클릭 시 즉시 저장(수정 모달 불필요)
+    const statusToggle = `
+      <button type="button" id="cal-status-toggle" class="cal-toggle${isDone ? ' on' : ''}"
+              role="switch" aria-checked="${isDone}" aria-label="완료 상태 토글">
+        <span class="cal-toggle-text">${isDone ? '완료' : '계획'}</span>
+        <span class="cal-toggle-track"><span class="cal-toggle-knob"></span></span>
+      </button>`;
+    // 완료 메모 — 완료 시 인라인 입력(포커스 해제 시 저장)
+    const completionBlock = `
+      <div id="cal-completion-block" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)${isDone ? '' : ';display:none'}">
+        <div style="font-size:12px;font-weight:600;color:#0F7A3F;margin-bottom:8px">✓ 완료 내용 <span style="font-weight:400;color:var(--text-3)">· 작성 후 다른 곳 클릭 시 저장</span></div>
+        <textarea id="cal-completion-note" class="form-input" rows="3" placeholder="미팅 결과·후속 액션을 입력하세요 (예: Hf 전구체 양산 승인, 7월 PO 예정)" style="width:100%;resize:vertical">${esc(ep.completion_note || '')}</textarea>
+      </div>`;
     const descBlock = ep.description
       ? (() => {
           const meetingMatch = ep.description.match(/\[회의록 상세보기\]\s*meeting:(\d+)/);
@@ -731,13 +741,14 @@ const CalendarPage = (() => {
       width: 560,
       body: `
         <div class="kv-grid">
-          <div class="kv-row"><span class="kv-key">상태</span><span class="kv-val">${statusBadge}</span></div>
+          <div class="kv-row"><span class="kv-key">상태</span><span class="kv-val">${statusToggle}</span></div>
           <div class="kv-row"><span class="kv-key">유형</span><span class="kv-val">${esc(ep.event_type || '-')}</span></div>
           <div class="kv-row"><span class="kv-key">시작</span><span class="kv-val">${esc(startStr)}</span></div>
           <div class="kv-row"><span class="kv-key">종료</span><span class="kv-val">${esc(endStr)}</span></div>
           <div class="kv-row"><span class="kv-key">고객사</span><span class="kv-val">${esc(ep.customer_name || '-')}</span></div>
           <div class="kv-row"><span class="kv-key">담당자</span><span class="kv-val">${esc(ep.assignee_name || '-')}</span></div>
         </div>
+        ${completionBlock}
         ${descBlock}
         ${linkedActivityBlock}`,
       footer: `
@@ -745,6 +756,43 @@ const CalendarPage = (() => {
         <button class="btn btn-ghost" id="cal-detail-close-btn">닫기</button>
         <button class="btn btn-primary" id="cal-edit-btn">수정</button>`,
       bind: { '#cal-detail-close-btn': () => Modal.close() },
+    });
+    // 상태 토글 — 클릭 시 즉시 저장(계획 ⇄ 완료), 완료 시 완료 메모 노출
+    const toggleBtn = document.getElementById('cal-status-toggle');
+    toggleBtn?.addEventListener('click', async () => {
+      if (toggleBtn.dataset.busy) return; // 빠른 연속 클릭 레이스 방지
+      toggleBtn.dataset.busy = '1';
+      const newStatus = ep.status === 'completed' ? 'planned' : 'completed';
+      try {
+        await API.put(`/calendar/events/${ep.id}`, { status: newStatus });
+        ep.status = newStatus;
+        const done = newStatus === 'completed';
+        toggleBtn.classList.toggle('on', done);
+        toggleBtn.setAttribute('aria-checked', String(done));
+        toggleBtn.querySelector('.cal-toggle-text').textContent = done ? '완료' : '계획';
+        const cb = document.getElementById('cal-completion-block');
+        if (cb) cb.style.display = done ? '' : 'none';
+        if (done) setTimeout(() => document.getElementById('cal-completion-note')?.focus(), 60);
+        Toast.success(done ? '완료로 변경되었습니다' : '계획으로 변경되었습니다');
+        calendar?.refetchEvents();
+      } catch (e) {
+        Toast.error('상태 변경 실패: ' + (e.message || e));
+      } finally {
+        delete toggleBtn.dataset.busy;
+      }
+    });
+    // 완료 메모 — 포커스 해제 시 변경분만 저장
+    const noteEl = document.getElementById('cal-completion-note');
+    noteEl?.addEventListener('blur', async () => {
+      const val = noteEl.value.trim();
+      if (val === (ep.completion_note || '').trim()) return;
+      try {
+        await API.put(`/calendar/events/${ep.id}`, { completion_note: val });
+        ep.completion_note = val;
+        Toast.success('완료 내용이 저장되었습니다');
+      } catch (e) {
+        Toast.error('완료 내용 저장 실패: ' + (e.message || e));
+      }
     });
     document.getElementById('cal-edit-btn').addEventListener('click', () => {
       Modal.close();

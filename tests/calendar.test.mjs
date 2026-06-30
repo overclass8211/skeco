@@ -45,6 +45,30 @@ describe('Calendar API', () => {
     expect(row.status).toBe('completed');
   });
 
+  it('PUT /:id — 완료 메모(completion_note) 부분 저장 + 상태-only PUT 시 메모 보존', async () => {
+    // 완료 + 메모 동시 저장
+    const r1 = await api().put(`/api/calendar/events/${createdEventId}`).send({
+      status: 'completed',
+      completion_note: '__TEST__ 완료 메모',
+    });
+    expect(r1.status).toBe(200);
+    let [[row]] = await pool.query(
+      'SELECT status, completion_note FROM calendar_events WHERE id = ?',
+      [createdEventId]
+    );
+    expect(row.status).toBe('completed');
+    expect(row.completion_note).toBe('__TEST__ 완료 메모');
+
+    // 상태만 토글(계획) — 부분 업데이트라 completion_note 는 보존되어야 함
+    await api().put(`/api/calendar/events/${createdEventId}`).send({ status: 'planned' });
+    [[row]] = await pool.query(
+      'SELECT status, completion_note FROM calendar_events WHERE id = ?',
+      [createdEventId]
+    );
+    expect(row.status).toBe('planned');
+    expect(row.completion_note).toBe('__TEST__ 완료 메모');
+  });
+
   it('DELETE /:id — 일정 삭제', async () => {
     const res = await api().delete(`/api/calendar/events/${createdEventId}`);
     expect(res.status).toBe(200);

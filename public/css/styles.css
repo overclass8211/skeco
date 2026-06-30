@@ -4227,6 +4227,40 @@ body,
 .status-badge.planned { background: #e6f0fe; color: #1664E5; }
 .status-badge.completed { background: #e6f7ef; color: #00A86B; }
 
+/* 영업일정 상태 토글(스위치) — 클릭 즉시 저장 */
+.cal-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 2px;
+}
+.cal-toggle .cal-toggle-text { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.cal-toggle.on .cal-toggle-text { color: #0F7A3F; }
+.cal-toggle .cal-toggle-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background .15s;
+}
+.cal-toggle.on .cal-toggle-track { background: rgba(15, 122, 63, .25); }
+.cal-toggle .cal-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: left .15s, background .15s;
+}
+.cal-toggle.on .cal-toggle-knob { left: 20px; background: #0F7A3F; }
+.cal-toggle:hover .cal-toggle-track { box-shadow: 0 0 0 3px rgba(0, 0, 0, .04); }
+
 /* "+N more" 링크 */
 .fc .fc-daygrid-more-link {
   font-size: 11px;

@@ -245,6 +245,7 @@ router.put('/events/:id', async (req, res) => {
       'assigned_to',
       'color',
       'recurrence',
+      'completion_note',
     ];
     const updates = [];
     const values = [];

@@ -16,6 +16,7 @@ async function initTables() {
       assigned_to    INT,
       color          VARCHAR(20) DEFAULT '#e63946',
       recurrence     VARCHAR(100),
+      completion_note TEXT,
       created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
@@ -23,6 +24,13 @@ async function initTables() {
       await pool.query(
         `ALTER TABLE calendar_events ADD COLUMN status VARCHAR(20) DEFAULT 'planned'`
       );
+    } catch (_) {
+      /* column may already exist */
+    }
+
+    try {
+      // 영업일정 완료 메모 (상태 토글 시 인라인 입력) — 기존 설치 가드형 추가
+      await pool.query(`ALTER TABLE calendar_events ADD COLUMN completion_note TEXT`);
     } catch (_) {
       /* column may already exist */
     }
