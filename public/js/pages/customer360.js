@@ -176,11 +176,14 @@ const Customer360Page = {
         .c360-group{margin-bottom:28px}
         .c360-group:last-child{margin-bottom:0}
         .c360-group-h{font-size:13px;font-weight:700;color:var(--text-1);margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
-        .c360-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:18px}
-        .c360-kpi{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--surface)}
-        .c360-kpi .h{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);margin-bottom:4px}
-        .c360-kpi .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
-        .c360-kpi .s{font-size:11px;color:var(--text-3);margin-top:1px}
+        .c360-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+        .c360-kpi{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--surface)}
+        .c360-kpi .h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);margin-bottom:10px}
+        .c360-kpi .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+        .c360-kpi .s{font-size:12px;color:var(--text-3);margin-top:3px}
+        .c360-kpi-ic{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,.05);color:var(--text-2);flex-shrink:0}
+        .c360-kpi-ic.kpi-success{background:rgba(15,122,63,.12);color:#0F7A3F}
+        .c360-kpi-ic.kpi-danger{background:rgba(230,51,41,.1);color:var(--oci-red)}
         .c360-kpi-link{cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
         .c360-kpi-link:hover{border-color:var(--oci-red);box-shadow:0 2px 8px rgba(0,0,0,.06);transform:translateY(-1px)}
         .c360-qrow{cursor:pointer}
@@ -736,6 +739,9 @@ const Customer360Page = {
     if (t === 'lifecycle') {
       el.querySelector('#c360-add-mat')?.addEventListener('click', () => this._openMaterialModal(null));
       el.querySelector('#c360-gate-cfg')?.addEventListener('click', () => this._openGateConfig());
+      // 수급·매출 스냅샷: 상세 → 영업·매출 탭 / 데이터 미로드 시 백그라운드 로드
+      el.querySelector('#c360-fc-snap-more')?.addEventListener('click', () => this._gotoTab('commercial'));
+      if (!this._fcData) this._loadForecast();
       el.querySelectorAll('[data-edit-mat]').forEach(b =>
         b.addEventListener('click', e => {
           e.stopPropagation();
@@ -850,9 +856,11 @@ const Customer360Page = {
     location.hash = '#quality';
   },
 
-  _kpi(icon, label, value, sub, nav) {
-    return `<div class="c360-kpi${nav ? ' c360-kpi-link' : ''}"${nav ? ` data-ctab="${nav}"` : ''}>
-      <div class="h">${this._svg(icon, 13)} ${esc(label)}</div>
+  _kpi(icon, label, value, sub, nav, tone, domId) {
+    const ic = `<span class="c360-kpi-ic${tone ? ` kpi-${tone}` : ''}">${this._svg(icon, 16)}</span>`;
+    const clickable = nav || domId;
+    return `<div class="c360-kpi${clickable ? ' c360-kpi-link' : ''}"${nav ? ` data-ctab="${nav}"` : ''}${domId ? ` id="${domId}"` : ''}>
+      <div class="h">${ic}${esc(label)}</div>
       <div class="v">${value}</div>
       ${sub ? `<div class="s">${esc(sub)}</div>` : ''}
     </div>`;
@@ -867,41 +875,40 @@ const Customer360Page = {
 
   _tabLifecycle() {
     const s = this._data.summary;
+    const h = this._data.header;
     const lc = this._data.lifecycle;
     const f = lc.demand_flow;
-    const rb = this._data.header.revenue_breakdown || { month: 0, quarter: 0, annual: 0 };
+    // ── KPI 4종: 공정·매출·품질 균형 (헤더 카드와 중복 최소화) ──
+    // 1) 가중 예상수주매출(딜 확률가중 합) + 단순합계 / 2) 진행 딜(+견적·제안·계약 funnel)
+    // 3) 수급 Gap(CAPA 부족/정상) / 4) 품질 미해결(high)
+    const openQ = (lc.quality || []).filter(q => q.status !== 'resolved');
+    const openHigh = openQ.filter(q => q.severity === 'high').length;
+    const gapShort = f.short_count > 0;
+    const gapVal = gapShort
+      ? `<span style="color:var(--oci-red)">부족 ${f.short_count}건</span>`
+      : '<span style="color:#0F7A3F">정상</span>';
+    const gapSub = gapShort
+      ? `리스크 ${this._won(f.risk_revenue)} · AI 진단 ›`
+      : '부족 소재 0건';
+    const qVal =
+      openQ.length > 0
+        ? `<span style="color:var(--oci-red)">${openQ.length}건</span>`
+        : '<span style="color:#0F7A3F">0건</span>';
+    const qSub = openHigh > 0 ? `심각(high) ${openHigh}건` : '미해결 이슈 없음';
+    // 공급 충족: 부족 시 클릭→CAPA AI 진단(_openCapaModal, #c360-capa-box 바인딩), 정상 시 영업·매출 탭
+    const gapKpi = gapShort
+      ? this._kpi('check', '공급 충족', gapVal, gapSub, null, 'danger', 'c360-capa-box')
+      : this._kpi('check', '공급 충족', gapVal, gapSub, 'commercial', 'success');
     const kpis = `<div class="c360-kpis">
-      ${this._kpi('deal', '진행 딜', `${s.deals.count}건`, this._won(s.deals.total_expected), 'commercial')}
-      ${this._kpi('quote', '견적', `${s.quotes.count}건`, this._won(s.quotes.total_amount), 'commercial')}
-      ${this._kpi('proposal', '제안', `${s.proposals.count}건`, this._won(s.proposals.total_expected), 'commercial')}
-      ${this._kpi('contract', '계약', `${s.contracts.count}건`, this._won(s.contracts.total_amount), 'commercial')}
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-      <div class="flow-box"><div class="l">예상매출 · 월</div><div class="v">${this._won(rb.month)}</div></div>
-      <div class="flow-box"><div class="l">분기</div><div class="v">${this._won(rb.quarter)}</div></div>
-      <div class="flow-box"><div class="l">연간</div><div class="v">${this._won(rb.annual)}</div></div>
+      ${this._kpi('money', '가중 예상수주매출', this._won(h.weighted_expected), `단순 합계 ${this._won(s.deals.total_expected)}`, 'commercial')}
+      ${this._kpi('deal', '진행 딜', `${s.deals.count}건`, `견적 ${s.quotes.count} · 제안 ${s.proposals.count} · 계약 ${s.contracts.count}`, 'commercial')}
+      ${gapKpi}
+      ${this._kpi('quality', '품질 미해결', qVal, qSub, 'qualification', openQ.length > 0 ? 'danger' : 'success')}
     </div>`;
 
     const board = lc.materials.length
       ? lc.materials.map(m => this._matCard(m)).join('')
       : '<div class="c360-empty">등록된 공급 품목이 없습니다. “공급 품목 등록”으로 시작하세요.</div>';
-
-    const flow = `
-      <div class="flow">
-        <div class="flow-box" style="background:rgba(23,168,90,.08)"><div class="l" style="color:#17A85A">분기 예상 수주</div><div class="v" style="color:#17A85A">${this._won(f.expected_order)}</div></div>
-        ${
-          f.short_count > 0
-            ? `<div class="flow-box c360-capa-link" id="c360-capa-box" title="AI 진단·대책 보기" style="background:rgba(230,51,41,.08)">
-                 <div class="l" style="color:var(--oci-red)">CAPA 부족 소재 <span class="c360-capa-ai">AI 진단 ›</span></div>
-                 <div class="v" style="color:var(--oci-red)">${f.short_count}개</div>
-               </div>
-               <div class="flow-box" style="background:rgba(230,51,41,.05)">
-                 <div class="l" style="color:var(--oci-red)">부족 매출 리스크</div>
-                 <div class="v" style="color:var(--oci-red)">${this._won(f.risk_revenue)}</div>
-               </div>`
-            : `<div class="flow-box" style="background:rgba(23,168,90,.06)"><div class="l" style="color:#17A85A">공급 충족</div><div class="v" style="color:#17A85A">정상</div></div>`
-        }
-      </div>`;
 
     const quality = lc.quality.length
       ? `<table class="data-table" style="font-size:12px"><thead><tr><th>케이스</th><th>소재</th><th>유형</th><th>심각도</th><th>상태</th><th>제목</th></tr></thead><tbody>
@@ -942,13 +949,15 @@ const Customer360Page = {
     // 랜딩 대시보드: KPI → 프로세스 흐름(수요·생산·수주) → 소재 라이프사이클 → 품질 → 액션
     return `
       ${kpis}
-      <div class="c360-sec">분기 공급 리스크 (3개월)</div>
-      ${flow}
       <div class="c360-sec">공정 라이프사이클 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">소재별 · 카드 클릭 시 영업딜</span>
         ${['team_lead', 'executive', 'admin', 'superadmin'].includes(App.currentUser?.role) ? '<button class="btn btn-sm" id="c360-gate-cfg" style="margin-right:6px" title="PLM 게이트 단계 설정">⚙ 게이트 설정</button>' : ''}
         <button class="btn btn-primary btn-sm btn-add" id="c360-add-mat">+ 공급 품목 등록</button>
       </div>
       ${board}
+      <div class="c360-sec">수급 · 매출 스냅샷 <span style="font-size:11.5px;font-weight:400;color:var(--text-3)">· 다음 3개월</span>
+        <a id="c360-fc-snap-more" style="margin-left:auto;font-size:12px;font-weight:500;color:var(--oci-red);cursor:pointer">상세 ›</a>
+      </div>
+      <div id="c360-fc-snap">${this._fcData ? this._renderFcSnapshot() : '<div class="c360-empty" style="padding:18px">수급·매출 불러오는 중…</div>'}</div>
       <div class="c360-sec">품질 이슈</div>
       ${quality}
       <div class="c360-sec">AI 추천 다음 액션</div>
@@ -1266,6 +1275,46 @@ const Customer360Page = {
     return `<div id="c360-fc">${this._renderForecast()}</div>`;
   },
 
+  // 현황 탭용 포캐스트 미니 요약 (다음 3개월 수요·생산능력·Gap·예상매출). 상세는 영업·매출 탭.
+  _renderFcSnapshot() {
+    const f = this._fcData;
+    if (!f || !f.materials || !f.materials.length) {
+      return '<div class="c360-empty" style="padding:18px">등록된 포캐스트가 없습니다. 영업·매출 탭에서 입력하세요.</div>';
+    }
+    const months = (f.months || []).slice(0, 3);
+    let sumCust = 0;
+    let sumCap = 0;
+    let sumRev = 0;
+    const rows = months
+      .map(mn => {
+        const t = f.totals[mn] || { customer: 0, internal: 0, capacity: 0, expected: 0 };
+        const gap = (t.capacity || 0) - (t.customer || 0);
+        sumCust += t.customer || 0;
+        sumCap += t.capacity || 0;
+        sumRev += t.expected || 0;
+        return `<tr>
+          <td>${mn}</td>
+          <td class="text-right">${this._qty(t.customer)}</td>
+          <td class="text-right">${this._qty(t.capacity)}</td>
+          <td class="text-right" style="${gap < 0 ? 'color:var(--oci-red);font-weight:600' : ''}">${gap > 0 ? '+' : ''}${this._qty(gap)}${gap < 0 ? ' 부족' : ''}</td>
+          <td class="text-right">${this._won(t.expected)}</td>
+        </tr>`;
+      })
+      .join('');
+    const gapSum = sumCap - sumCust;
+    return `<table class="data-table" style="font-size:12px">
+      <thead><tr><th>월</th><th class="text-right">수요(L)</th><th class="text-right">생산능력(L)</th><th class="text-right">수급 Gap</th><th class="text-right">예상매출</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:600;border-top:2px solid var(--border)">
+        <td>합계</td>
+        <td class="text-right">${this._qty(sumCust)}</td>
+        <td class="text-right">${this._qty(sumCap)}</td>
+        <td class="text-right" style="${gapSum < 0 ? 'color:var(--oci-red)' : ''}">${gapSum > 0 ? '+' : ''}${this._qty(gapSum)}</td>
+        <td class="text-right">${this._won(sumRev)}</td>
+      </tr></tfoot>
+    </table>`;
+  },
+
   async _loadForecast() {
     try {
       const res = await API.get(`/customer360/${this._custId}/forecast`);
@@ -1278,6 +1327,9 @@ const Customer360Page = {
       host.innerHTML = this._renderForecast();
       this._bindForecast(host.parentElement || document);
     }
+    // 현황 탭 미니 스냅샷도 갱신 (백그라운드 로드 완료 시)
+    const snap = document.getElementById('c360-fc-snap');
+    if (snap) snap.innerHTML = this._renderFcSnapshot();
   },
 
   _renderForecast() {
