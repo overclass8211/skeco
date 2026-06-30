@@ -682,8 +682,10 @@ const Customer360Page = {
     const m = {
       // ① 현황 — 라이프사이클 + 수요·생산·수주 + 리스크 (한눈에)
       lifecycle: () => this._tabLifecycle(),
-      // ② 공급 자격 — 샘플/평가 + 품질
-      qualification: () => sec('샘플 / 평가', this._tabSamples()) + sec('품질', this._tabQuality()),
+      // ② 공급 자격 — 샘플/평가 + 품질 (헤더는 각 섹션 내부 c360-sec 1개로 통일)
+      qualification: () =>
+        `<section class="c360-group">${this._tabSamples()}</section>` +
+        `<section class="c360-group">${this._tabQuality()}</section>`,
       // ③ 영업·매출 — 영업딜 + 포캐스트
       commercial: () =>
         sec(this._L('customer360.sec_deals', '영업딜'), this._tabDeals()) +
@@ -1573,8 +1575,8 @@ const Customer360Page = {
           .join('')}
         </tbody></table>`
       : '<div class="c360-empty">등록된 샘플 요청이 없습니다.</div>';
-    return `<div class="c360-sec" style="margin-top:0">샘플/평가 이력
-        <button class="btn btn-primary btn-sm btn-add" id="smp-add">+ 샘플 등록</button>
+    return `<div class="c360-sec" style="margin-top:0">샘플 / 평가
+        <button class="btn btn-primary btn-sm btn-add" id="smp-add">+ 샘플</button>
       </div>${strip}${table}`;
   },
   _bindSamples(scope) {
@@ -1800,13 +1802,13 @@ const Customer360Page = {
           })
           .join('')}</div>`
       : '<div class="c360-empty" style="padding:20px">등록된 문서가 없습니다.</div>';
-    return `<div class="c360-sec" style="margin-top:0">케이스 · 문서
+    return `<div class="c360-sec" style="margin-top:0">품질
         <span style="margin-left:auto;display:inline-flex;gap:6px">
           <button class="btn btn-primary btn-sm" id="q-add">+ 케이스</button>
           <button class="btn btn-primary btn-sm" id="doc-add">+ 문서</button>
         </span>
       </div>${strip}${restrictNote}${table}
-      <div style="font-size:12px;color:var(--text-3);font-weight:600;margin:14px 0 6px">문서 (CoA/MSDS/CoC)</div>${docChips}`;
+      <div style="margin-top:10px">${docChips}</div>`;
   },
   _bindQuality(scope) {
     const root = scope || document;
