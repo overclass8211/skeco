@@ -306,7 +306,7 @@ test('Phase 5-A — 리비전 트리 모달: 그룹 전체 리비전 표시', as
   await page.unroute('**/api/quotes/999111/revisions');
 });
 
-test('Phase 5-B — 상태 워크플로우: draft → 📤 발송 버튼 표시', async ({ page }) => {
+test('단계 도넛 — draft 행 클릭 시 인라인 드롭다운에 발송 옵션 표시 (영업딜 방식)', async ({ page }) => {
   // /api/quotes 목록 mock — draft 상태
   await page.route('**/api/quotes**', async route => {
     if (/\/api\/quotes\?/.test(route.request().url())) {
@@ -339,15 +339,19 @@ test('Phase 5-B — 상태 워크플로우: draft → 📤 발송 버튼 표시'
 
   await page.goto('/#quotes');
   await page.waitForSelector('#qt-new-btn', { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
-  await page.evaluate(() => (window.QuotesPage._reload ? null : null));
-  // 강제 reload — QuotesPage 모듈이 자체 _reload 를 호출하지만 mock 이 늦게 등록될 수 있음
-  await page.waitForTimeout(500);
 
-  // 목록에 발송 버튼 표시
-  const sendBtn = page.locator('.qt-status-btn[data-status="sent"]').first();
-  await expect(sendBtn).toBeVisible({ timeout: 5000 });
-  await expect(sendBtn).toContainText('발송');
+  // 단계 도넛 트리거(영업딜과 동일) — 도넛+캐럿 2개 svg, 옛 스텝퍼/액션버튼은 제거됨
+  const stageTrig = page.locator('.qt-stage-trigger').first();
+  await expect(stageTrig).toHaveCount(1, { timeout: 15000 });
+  await expect(stageTrig.locator('svg')).toHaveCount(2);
+  await expect(page.locator('.qt-status-btn, .stage-progress')).toHaveCount(0);
+
+  // 클릭 → 인라인 드롭다운에 '발송' 옵션 노출 (넓은 표 우측 셀이라 force)
+  await stageTrig.scrollIntoViewIfNeeded();
+  await stageTrig.click({ force: true });
+  const pop = page.locator('.qt-stage-pop');
+  await expect(pop).toBeVisible({ timeout: 3000 });
+  await expect(pop.locator('.qt-stage-opt[data-stage="sent"]')).toContainText('발송');
 
   await page.unroute('**/api/quotes**');
 });

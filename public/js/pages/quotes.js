@@ -311,11 +311,13 @@ const QuotesPage = (() => {
                     : `<span style="color:var(--text-3)">v${r.revision_no || 1}</span>`
                 }
               </td>
-              <td style="text-align:center">
-                <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
-                  ${_renderStageProgress(r.status)}
-                  ${_renderStatusActions(r)}
-                </div>
+              <td style="text-align:center" data-stop-propagation="1">
+                <span class="qt-stage-trigger" data-id="${r.id}" data-status="${esc(r.status)}"
+                      style="cursor:pointer;display:inline-flex;align-items:center;gap:4px"
+                      title="${esc(_statusLabel(r.status))} · 클릭하여 단계 변경">
+                  ${_qtStageDonut(r.status)}
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3)"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
               </td>
               <td style="text-align:center;white-space:nowrap">
                 <button class="btn btn-ghost btn-sm" data-act="edit" data-id="${r.id}" title="편집">편집</button>
@@ -380,44 +382,39 @@ const QuotesPage = (() => {
     </div>`;
   }
 
-  // v6.0.0: 단계 진척률 (5개 모듈 통일 — StageProgress 컴포넌트)
-  // 정상 흐름: draft → sent → accepted (3단계)
-  // 종료: rejected (실패)
-  const _QT_STAGES = [
-    { key: 'draft', label: '초안', color: '#6b7280' },
-    { key: 'sent', label: '발송', color: '#3b82f6' },
-    { key: 'accepted', label: '수주', color: '#16a34a' },
+  // 단계 표시 — 영업딜과 동일 방식: 단일 진행도 도넛(클릭 시 인라인 드롭다운으로 변경)
+  //   정상 흐름: draft → sent → accepted (진행률만큼 링 채움) / 수주=체크 / 실패=꽉 찬 빨강 링
+  const _QT_STAGE_ORDER = ['draft', 'sent', 'accepted'];
+  const _QT_STAGE_COLOR = { draft: '#9ca3af', sent: '#3b82f6', accepted: '#16a34a', rejected: '#dc2626' };
+  const _QT_STAGE_LIST = [
+    { key: 'draft', label: '초안' },
+    { key: 'sent', label: '발송' },
+    { key: 'accepted', label: '수주' },
+    { key: 'rejected', label: '실패' },
   ];
-  const _QT_TERMINAL_REJECTED = { key: 'rejected', label: '실패', color: '#dc2626' };
-  function _renderStageProgress(status) {
-    if (typeof StageProgress === 'undefined') {
-      // fallback — 컴포넌트 없으면 기존 badge
-      return `<span class="badge badge-${_statusColor(status)}">${_statusLabel(status)}</span>`;
-    }
-    return StageProgress.render({
-      stages: _QT_STAGES,
-      current: status,
-      size: 'sm',
-      terminal: _QT_TERMINAL_REJECTED,
-    });
+  function _qtStageDonut(status, size = 18) {
+    const stroke = Math.max(2, Math.round(size / 6));
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    const cx = size / 2;
+    const color = _QT_STAGE_COLOR[status] || '#9ca3af';
+    const idx = _QT_STAGE_ORDER.indexOf(status);
+    let frac = idx >= 0 ? idx / (_QT_STAGE_ORDER.length - 1) : 1; // 정상=진행률, 종료(실패)=꽉참
+    frac = Math.max(0.1, Math.min(1, frac));
+    const dash = `${(frac * c).toFixed(2)} ${c.toFixed(2)}`;
+    const k = size / 18;
+    const check =
+      status === 'accepted'
+        ? `<path d="M${(5.6 * k).toFixed(1)} ${(9.4 * k).toFixed(1)} L${(8.1 * k).toFixed(1)} ${(11.8 * k).toFixed(1)} L${(12.6 * k).toFixed(1)} ${(6.6 * k).toFixed(1)}" fill="none" stroke="${color}" stroke-width="${(stroke * 0.8).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`
+        : '';
+    return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="display:block;flex-shrink:0" aria-hidden="true">
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="#e5e7eb" stroke-width="${stroke}"/>
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${dash}" stroke-linecap="round" transform="rotate(-90 ${cx} ${cx})"/>
+      ${check}
+    </svg>`;
   }
-
-  // Phase 5-B: 상태별 다음 액션 버튼 (워크플로우)
-  //   draft     → 📤 발송
-  //   sent      → ✅ 수주 + ❌ 실패
-  //   accepted / rejected → (액션 없음)
-  function _renderStatusActions(r) {
-    const id = r.id;
-    if (r.status === 'draft') {
-      return `<button class="btn btn-ghost btn-sm qt-status-btn" data-status="sent" data-id="${id}" title="발송됨으로 변경" style="font-size:11px;padding:2px 6px">📤 발송</button>`;
-    }
-    if (r.status === 'sent') {
-      return `<div style="display:flex;gap:2px">
-        <button class="btn btn-ghost btn-sm qt-status-btn" data-status="accepted" data-id="${id}" title="수주됨" style="font-size:11px;padding:2px 6px;color:#0F7A3F">✅ 수주</button>
-        <button class="btn btn-ghost btn-sm qt-status-btn" data-status="rejected" data-id="${id}" title="실패" style="font-size:11px;padding:2px 6px;color:#d93025">❌ 실패</button>
-      </div>`;
-    }
-    return ''; // accepted / rejected — 최종 상태
+  function _renderStageProgress(status) {
+    return _qtStageDonut(status);
   }
 
   function _bindListEvents() {
@@ -436,14 +433,12 @@ const QuotesPage = (() => {
         _openRevisionTree(id);
       });
     });
-    // Phase 5-B: 상태 워크플로우 액션 버튼
-    document.querySelectorAll('.qt-status-btn').forEach(btn => {
-      btn.addEventListener('click', async e => {
+    // 단계 도넛 클릭 → 인라인 단계 선택 드롭다운 (영업딜과 동일 UX)
+    document.querySelectorAll('.qt-stage-trigger').forEach(trig => {
+      trig.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        const id = parseInt(btn.dataset.id, 10);
-        const status = btn.dataset.status;
-        await _setStatus(id, status);
+        _openQtStagePop(trig, parseInt(trig.dataset.id, 10), trig.dataset.status);
       });
     });
     document.querySelectorAll('[data-act]').forEach(btn => {
@@ -458,6 +453,46 @@ const QuotesPage = (() => {
         else if (act === 'delete') _delete(id);
       });
     });
+  }
+
+  // ── 인라인 단계 선택 드롭다운 (단계 도넛 클릭) — 영업딜과 동일 UX ──
+  function _openQtStagePop(triggerEl, id, current) {
+    document.querySelectorAll('.qt-stage-pop').forEach(el => el.remove());
+    const menu = document.createElement('div');
+    menu.className = 'qt-stage-pop';
+    menu.style.cssText =
+      'position:fixed;z-index:9600;min-width:170px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:6px';
+    menu.innerHTML = _QT_STAGE_LIST.map(
+      s => `<button class="qt-stage-opt" data-stage="${s.key}"
+          style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:0;background:none;cursor:pointer;text-align:left;border-radius:6px;font-size:13px;color:var(--text-1)">
+          ${_qtStageDonut(s.key, 16)}
+          <span style="flex:1">${esc(s.label)}</span>
+          ${s.key === current ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--oci-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
+        </button>`
+    ).join('');
+    document.body.appendChild(menu);
+    const rect = triggerEl.getBoundingClientRect();
+    let left = rect.left;
+    if (left + 190 > window.innerWidth - 12) left = window.innerWidth - 202;
+    menu.style.left = Math.max(12, left) + 'px';
+    menu.style.top = rect.bottom + 4 + 'px';
+    const close = () => {
+      menu.remove();
+      document.removeEventListener('click', outside, true);
+    };
+    const outside = ev => {
+      if (!menu.contains(ev.target) && ev.target !== triggerEl && !triggerEl.contains(ev.target)) close();
+    };
+    menu.querySelectorAll('.qt-stage-opt').forEach(b => {
+      b.addEventListener('mouseenter', () => (b.style.background = 'var(--surface-2)'));
+      b.addEventListener('mouseleave', () => (b.style.background = 'none'));
+      b.addEventListener('click', () => {
+        const next = b.dataset.stage;
+        close();
+        if (next && next !== current) _setStatus(id, next);
+      });
+    });
+    setTimeout(() => document.addEventListener('click', outside, true), 0);
   }
 
   // Phase 5-B: 상태 전환 (빠른 액션)
