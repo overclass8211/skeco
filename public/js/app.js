@@ -3208,6 +3208,19 @@ const App = {
         onOpen: () => {
           const sel = document.getElementById('act-type-sel');
           const statusSel = document.getElementById('act-status-sel');
+          // 일시 30분 단위 스냅 (picker 가 step 무시 시 대비)
+          const dtEl = document.querySelector('#activity-form [name="activity_datetime"]');
+          if (dtEl) {
+            dtEl.addEventListener('change', () => {
+              const v = dtEl.value;
+              if (!v) return;
+              const d = new Date(v);
+              if (isNaN(d.getTime())) return;
+              d.setMinutes(Math.round(d.getMinutes() / 30) * 30, 0, 0);
+              const p = n => String(n).padStart(2, '0');
+              dtEl.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+            });
+          }
           // 활동 유형 변경 시 캘린더 동기화 행 토글 + 활동 구분 자동 추천
           if (sel) {
             sel.addEventListener('change', () => {

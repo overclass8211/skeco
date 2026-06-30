@@ -9,6 +9,13 @@ const { test, expect } = require('@playwright/test');
 const { loginAsAdmin } = require('./helpers/auth');
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('oci_onboarding_done', '1');
+    } catch (_) {
+      /* noop */
+    }
+  });
   await loginAsAdmin(page);
 });
 
@@ -37,6 +44,10 @@ test('영업딜 활동 추가 모달 — 캘린더 폼과 동일 구조(제목 t
   await expect(form.locator('[name="performed_by"]')).toBeVisible();
   // 3) 일시 datetime 30분 단위(step=1800) + 영업 캘린더 등록 인라인
   await expect(form.locator('[name="activity_datetime"]')).toHaveAttribute('step', '1800');
+  // 비정렬 입력(:11) → 30분 스냅(:00)
+  await form.locator('[name="activity_datetime"]').fill('2026-07-01T14:11');
+  await form.locator('[name="activity_datetime"]').dispatchEvent('change');
+  await expect(form.locator('[name="activity_datetime"]')).toHaveValue('2026-07-01T14:00');
   await expect(form.locator('#calendar-sync-row #sync-calendar-cb')).toHaveCount(1);
   // 4) 내용
   await expect(form.locator('[name="content"]')).toBeVisible();

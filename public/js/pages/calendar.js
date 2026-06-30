@@ -188,8 +188,29 @@ const CalendarPage = (() => {
       </form>`;
   }
 
+  // datetime-local 값을 30분 단위로 스냅 (브라우저 picker 가 step 을 무시하는 경우 대비)
+  function snapTo30(val) {
+    if (!val) return val;
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return val;
+    d.setMinutes(Math.round(d.getMinutes() / 30) * 30, 0, 0); // 60 → 자동 다음 시
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function wireSnap30(...ids) {
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        const snapped = snapTo30(el.value);
+        if (snapped !== el.value) el.value = snapped;
+      });
+    });
+  }
+
   function wireAlldayToggle() {
     const chk = document.getElementById('cal-allday');
+    wireSnap30('cal-start', 'cal-end'); // 시작/종료 일시 30분 스냅
     if (!chk) return;
     // 종일 체크 시 datetime-local(.cal-dt) ↔ date(.cal-d) 입력 전환
     const toggle = () => {
