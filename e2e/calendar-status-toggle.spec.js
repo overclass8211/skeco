@@ -18,6 +18,38 @@ test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
 });
 
+test('영업캘린더 — 새 일정 모달 정돈(색상 제거 · 종일 인라인 · 계획|완료 좌우)', async ({ page }) => {
+  await page.evaluate(() => App.navigate('calendar'));
+  await page.waitForSelector('#cal-add-btn', { timeout: 15000 });
+  await page.locator('#cal-add-btn').click();
+  await page.waitForSelector('#cal-event-form', { timeout: 8000 });
+
+  // 1) 색상 구분 필드 제거
+  await expect(page.locator('#cal-color, #cal-color-dot')).toHaveCount(0);
+  // 2) 종일 일정이 시작/종료와 같은 그룹(행) 안
+  await expect(page.locator('#cal-datetime-group #cal-allday')).toHaveCount(1);
+  await expect(page.locator('#cal-datetime-group #cal-start')).toHaveCount(1);
+  await expect(page.locator('#cal-datetime-group #cal-end')).toHaveCount(1);
+  // 3) 라벨: 시작일·종료일·계획 / 설명·메모 제거
+  const labels = await page.locator('#cal-event-form .form-label').allInnerTexts();
+  const joined = labels.join(' ');
+  expect(joined).toContain('시작일');
+  expect(joined).toContain('종료일');
+  expect(joined).toContain('계획');
+  expect(joined).not.toContain('설명 / 메모');
+  // 시작/종료 일시는 30분 단위(step=1800)
+  await expect(page.locator('#cal-start')).toHaveAttribute('step', '1800');
+  await expect(page.locator('#cal-end')).toHaveAttribute('step', '1800');
+  // 4·5) 계획 + 완료 내용 textarea 좌우 동시 노출
+  await expect(page.locator('#cal-description')).toBeVisible();
+  await expect(page.locator('#cal-completion-note')).toBeVisible();
+
+  // 종일 토글 → date 입력 전환
+  await page.locator('#cal-allday').check();
+  await expect(page.locator('#cal-start-date')).toBeVisible();
+  await expect(page.locator('#cal-start')).toBeHidden();
+});
+
 test('영업캘린더 — 상태 토글 즉시저장 + 완료 메모 인라인', async ({ page }) => {
   await page.evaluate(() => App.navigate('calendar'));
   await page.waitForSelector('.fc-event', { timeout: 15000 });

@@ -202,12 +202,13 @@ router.post('/events', async (req, res) => {
       assigned_to,
       color,
       recurrence,
+      completion_note,
     } = req.body;
     const [result] = await pool.query(
       `INSERT INTO calendar_events
        (title, description, start_datetime, end_datetime, all_day, event_type,
-        status, lead_id, customer_name, assigned_to, color, recurrence)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        status, lead_id, customer_name, assigned_to, color, recurrence, completion_note)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         title,
         description || null,
@@ -221,6 +222,7 @@ router.post('/events', async (req, res) => {
         assigned_to || null,
         color || '#e63946',
         recurrence || null,
+        completion_note || null,
       ]
     );
     logAccess(req, 201);

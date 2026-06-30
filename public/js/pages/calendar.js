@@ -108,7 +108,6 @@ const CalendarPage = (() => {
   }
 
   function buildEventForm(d = {}) {
-    const colorVal = d.color || TYPE_COLORS[d.event_type] || '#1a73e8';
     const status = d.status || 'planned';
     return `
       <form id="cal-event-form" autocomplete="off" class="form-grid">
@@ -138,48 +137,26 @@ const CalendarPage = (() => {
           </div>
         </div>
 
-        <div id="cal-datetime-group">
-          <div class="form-row-2" id="cal-datetime-row">
-            <div class="form-row">
-              <label class="form-label">시작 일시</label>
-              <input type="datetime-local" class="form-input" id="cal-start"
-                     value="${esc(d.start_datetime ? toLocalDT(d.start_datetime) : d._start || '')}">
-            </div>
-            <div class="form-row">
-              <label class="form-label">종료 일시</label>
-              <input type="datetime-local" class="form-input" id="cal-end"
-                     value="${esc(d.end_datetime ? toLocalDT(d.end_datetime) : d._end || '')}">
-            </div>
-          </div>
-          <div class="form-row-2" id="cal-date-row" style="display:none">
-            <div class="form-row">
-              <label class="form-label">시작일</label>
-              <input type="date" class="form-input" id="cal-start-date"
-                     value="${esc(d.start_datetime ? toDateStr(d.start_datetime) : d._startDate || '')}">
-            </div>
-            <div class="form-row">
-              <label class="form-label">종료일</label>
-              <input type="date" class="form-input" id="cal-end-date"
-                     value="${esc(d.end_datetime ? toDateStr(d.end_datetime) : d._endDate || '')}">
-            </div>
-          </div>
-        </div>
-
-        <div class="form-row-3">
+        <div class="form-row-3" id="cal-datetime-group" style="display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:flex-end">
           <div class="form-row">
-            <label class="form-check">
+            <label class="form-label">시작일</label>
+            <input type="datetime-local" class="form-input cal-dt" id="cal-start" step="1800"
+                   value="${esc(d.start_datetime ? toLocalDT(d.start_datetime) : d._start || '')}">
+            <input type="date" class="form-input cal-d" id="cal-start-date" style="display:none"
+                   value="${esc(d.start_datetime ? toDateStr(d.start_datetime) : d._startDate || '')}">
+          </div>
+          <div class="form-row">
+            <label class="form-label">종료일</label>
+            <input type="datetime-local" class="form-input cal-dt" id="cal-end" step="1800"
+                   value="${esc(d.end_datetime ? toLocalDT(d.end_datetime) : d._end || '')}">
+            <input type="date" class="form-input cal-d" id="cal-end-date" style="display:none"
+                   value="${esc(d.end_datetime ? toDateStr(d.end_datetime) : d._endDate || '')}">
+          </div>
+          <div class="form-row">
+            <label class="form-check" style="white-space:nowrap;padding-bottom:9px">
               <input type="checkbox" id="cal-allday" ${d.all_day ? 'checked' : ''}> 종일 일정
             </label>
           </div>
-          <div class="form-row">
-            <label class="form-label">색상 구분</label>
-            <div class="cal-color-indicator" id="cal-color-indicator">
-              <span class="cal-color-dot" id="cal-color-dot"></span>
-              <span class="cal-color-text" id="cal-color-text"></span>
-            </div>
-            <input type="hidden" id="cal-color" value="${colorVal}">
-          </div>
-          <div class="form-row"><!-- spacer --></div>
         </div>
 
         <div class="form-row-2">
@@ -196,50 +173,35 @@ const CalendarPage = (() => {
           </div>
         </div>
 
-        <div class="form-row">
-          <label class="form-label">설명 / 메모</label>
-          <textarea class="form-input" id="cal-description" rows="3"
-                    placeholder="회의 안건, 준비 사항, 결과 등">${esc(d.description || '')}</textarea>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label class="form-label">계획</label>
+            <textarea class="form-input" id="cal-description" rows="4"
+                      placeholder="안건·준비 사항 등 계획 내용">${esc(d.description || '')}</textarea>
+          </div>
+          <div class="form-row">
+            <label class="form-label">완료 <span style="font-weight:400;color:var(--text-3)">· 완료 시 작성</span></label>
+            <textarea class="form-input" id="cal-completion-note" rows="4"
+                      placeholder="진행 결과·후속 액션 (완료 시)">${esc(d.completion_note || '')}</textarea>
+          </div>
         </div>
       </form>`;
   }
 
-  function syncColorIndicator() {
-    const typeEl = document.getElementById('cal-event-type');
-    const statusEl = document.getElementById('cal-status');
-    const dotEl = document.getElementById('cal-color-dot');
-    const textEl = document.getElementById('cal-color-text');
-    const hiddenEl = document.getElementById('cal-color');
-    if (!typeEl || !statusEl || !dotEl) return;
-
-    const isCompleted = statusEl.value === 'completed';
-    const type = typeEl.value;
-    const color = isCompleted ? '#9e9e9e' : TYPE_COLORS[type] || '#1a73e8';
-
-    dotEl.style.background = color;
-    textEl.textContent = isCompleted ? `완료 · ${type}` : `계획 · ${type}`;
-    textEl.style.color = color;
-    if (hiddenEl) hiddenEl.value = color;
-  }
-
   function wireAlldayToggle() {
     const chk = document.getElementById('cal-allday');
-    const dtRow = document.getElementById('cal-datetime-row');
-    const dRow = document.getElementById('cal-date-row');
     if (!chk) return;
+    // 종일 체크 시 datetime-local(.cal-dt) ↔ date(.cal-d) 입력 전환
     const toggle = () => {
-      dtRow.style.display = chk.checked ? 'none' : '';
-      dRow.style.display = chk.checked ? '' : 'none';
+      document.querySelectorAll('#cal-datetime-group .cal-dt').forEach(el => {
+        el.style.display = chk.checked ? 'none' : '';
+      });
+      document.querySelectorAll('#cal-datetime-group .cal-d').forEach(el => {
+        el.style.display = chk.checked ? '' : 'none';
+      });
     };
     toggle();
     chk.addEventListener('change', toggle);
-
-    // 유형·상태 변경 시 색상 프리뷰 + hidden value 동기화
-    const typeEl = document.getElementById('cal-event-type');
-    const statusEl = document.getElementById('cal-status');
-    if (typeEl) typeEl.addEventListener('change', syncColorIndicator);
-    if (statusEl) statusEl.addEventListener('change', syncColorIndicator);
-    syncColorIndicator(); // 초기 렌더
   }
 
   function collectForm() {
@@ -258,11 +220,17 @@ const CalendarPage = (() => {
       end_datetime: end || null,
       all_day: allDay ? 1 : 0,
       description: document.getElementById('cal-description').value.trim(),
+      completion_note: document.getElementById('cal-completion-note').value.trim(),
       customer_name: document.getElementById('cal-customer').value.trim(),
       customer_id: document.getElementById('cal-customer-id')?.value || null, // Combobox 자동완성 선택 시
       lead_id: document.getElementById('cal-lead-id').value || null,
       assigned_to: document.getElementById('cal-assigned-to').value || null,
-      color: document.getElementById('cal-color').value,
+      // 색상 = 유형/상태 자동 산출(완료=회색) — 색상 구분 필드 제거에 따라 내부 계산
+      color: (() => {
+        const type = document.getElementById('cal-event-type').value;
+        const completed = document.getElementById('cal-status').value === 'completed';
+        return completed ? '#9e9e9e' : TYPE_COLORS[type] || '#1a73e8';
+      })(),
     };
   }
 
