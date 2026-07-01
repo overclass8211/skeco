@@ -199,7 +199,9 @@ const CalendarPage = (() => {
             <input class="form-input" id="cal-title" value="${esc(d.title || '')}" placeholder="예: 삼성케미칼 견적서 발송" required>
           </div>
           <div class="form-row">
-            <label class="form-label">영업딜</label>
+            <label class="form-label" style="display:flex;align-items:center;gap:6px">영업딜
+              <a id="cal-nav-lead" class="cal-detail-nav" style="font-size:11px;font-weight:500;color:var(--oci-red);cursor:pointer">상세 ›</a>
+            </label>
             <input class="form-input" id="cal-lead-input" placeholder="고객사/프로젝트 검색 (선택)" autocomplete="off" value="${esc(_leadInitialText(d.lead_id))}">
             <input type="hidden" id="cal-lead-id" value="${esc(d.lead_id || '')}">
           </div>
@@ -216,7 +218,9 @@ const CalendarPage = (() => {
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
           <div class="form-row">
-            <label class="form-label">고객사</label>
+            <label class="form-label" style="display:flex;align-items:center;gap:6px">고객사
+              <a id="cal-nav-cust" class="cal-detail-nav" style="font-size:11px;font-weight:500;color:var(--oci-red);cursor:pointer">상세 ›</a>
+            </label>
             <input class="form-input" id="cal-customer" value="${esc(d.customer_name || '')}" placeholder="고객사명">
           </div>
           <div class="form-row">
@@ -282,6 +286,36 @@ const CalendarPage = (() => {
           </div>
         </div>
       </form>`;
+  }
+
+  // 영업딜/고객사 "상세 ›" 클릭 → 해당 상세 화면으로 전환
+  function wireDetailNav() {
+    document.getElementById('cal-nav-lead')?.addEventListener('click', e => {
+      e.preventDefault();
+      const id = document.getElementById('cal-lead-id')?.value;
+      if (!id) {
+        Toast.info?.('연결된 영업딜이 없습니다');
+        return;
+      }
+      Modal.close();
+      App.openLeadDetail(Number(id));
+    });
+    document.getElementById('cal-nav-cust')?.addEventListener('click', e => {
+      e.preventDefault();
+      const name = (document.getElementById('cal-customer')?.value || '').trim();
+      const cid =
+        document.getElementById('cal-customer-id')?.value ||
+        ((typeof App !== 'undefined' && App.customers) || []).find(c => c.name === name)?.id;
+      if (!cid) {
+        Toast.info?.('연결된 고객사를 찾을 수 없습니다');
+        return;
+      }
+      Modal.close();
+      App.navigate('customers').then(() => {
+        if (typeof CustomersPage !== 'undefined' && CustomersPage.showCustomerDetail)
+          CustomersPage.showCustomerDetail(Number(cid));
+      });
+    });
   }
 
   function wireAlldayToggle() {
@@ -623,6 +657,7 @@ const CalendarPage = (() => {
     });
     wireAlldayToggle();
     wireStatusToggle();
+    wireDetailNav();
 
     // 고객사 자동완성 + 영업기회 자동 필터링 활성화
     _attachCustomerCombobox(defaults.customer_id || null, defaults.lead_id || null);
@@ -722,6 +757,7 @@ const CalendarPage = (() => {
     });
     wireAlldayToggle();
     wireStatusToggle();
+    wireDetailNav();
     // 고객사 자동완성 + 영업기회 자동 필터링 (수정 모달도 동일)
     _attachCustomerCombobox(eventData.customer_id || null, eventData.lead_id || null);
     _attachLeadCombobox();
