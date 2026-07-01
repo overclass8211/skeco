@@ -1053,6 +1053,16 @@ const CalendarPage = (() => {
           <button class="btn btn-ghost btn-sm" id="cal-autolink-btn" title="리드가 연결된 과거 활동 이력을 캘린더 일정과 자동 매칭합니다"
                   style="font-size:12px;white-space:nowrap">🔗 과거 활동 연결</button>
         </div>
+        <div class="cal-legend">
+          <span class="cal-legend-label">활동유형</span>
+          ${EVENT_TYPES.map(
+            t =>
+              `<span class="cal-legend-item"><i class="cal-legend-dot" style="background:${TYPE_COLORS[t]}"></i>${t}</span>`
+          ).join('')}
+          <span class="cal-legend-divider"></span>
+          <span class="cal-legend-item"><i class="cal-legend-dot" style="background:#9e9e9e"></i>완료(회색)</span>
+          <span class="cal-legend-item cal-legend-mark">● 계획 · ✓ 완료</span>
+        </div>
         <div class="cal-wrap">
           <div id="cal-calendar"></div>
         </div>

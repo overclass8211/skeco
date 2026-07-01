@@ -2631,6 +2631,35 @@ tr.cp-row-warn td { background: rgba(230,51,41,.05) !important; }
   flex-wrap: wrap;
 }
 .cal-nav-group { display: flex; gap: 2px; align-items: center; }
+/* 활동 색상 범례 */
+.cal-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 9px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+  font-size: 12px;
+  color: #5f6368;
+}
+.cal-legend-label {
+  font-weight: 600;
+  color: #3c4043;
+  margin-right: 2px;
+}
+.cal-legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.cal-legend-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.cal-legend-divider { width: 1px; height: 14px; background: #dadce0; }
+.cal-legend-mark { color: #80868b; }
+[data-theme="dark"] .cal-legend { background: var(--surface-2); border-color: var(--border); color: var(--text-2); }
+[data-theme="dark"] .cal-legend-label { color: var(--text-1); }
 .cal-view-group {
   display: flex;
   background: #f1f3f4;
