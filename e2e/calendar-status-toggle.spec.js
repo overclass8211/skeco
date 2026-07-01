@@ -26,39 +26,57 @@ test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
 });
 
-test('영업캘린더 — 새 일정 모달 정돈(색상 제거 · 종일 인라인 · 계획|완료 좌우)', async ({ page }) => {
+test('영업캘린더 — 새 일정 모달(활동유형·활동목적·동반자 · 날짜+시간30분 · 계획|완료)', async ({ page }) => {
   await page.evaluate(() => App.navigate('calendar'));
   await page.waitForSelector('#cal-add-btn', { timeout: 15000 });
   await page.locator('#cal-add-btn').click();
   await page.waitForSelector('#cal-event-form', { timeout: 8000 });
 
-  // 1) 색상 구분 필드 제거
+  // 색상 구분 필드 제거
   await expect(page.locator('#cal-color, #cal-color-dot')).toHaveCount(0);
-  // 2) 종일 일정이 시작/종료와 같은 그룹(행) 안
-  await expect(page.locator('#cal-datetime-group #cal-allday')).toHaveCount(1);
-  await expect(page.locator('#cal-datetime-group #cal-start')).toHaveCount(1);
-  await expect(page.locator('#cal-datetime-group #cal-end')).toHaveCount(1);
-  // 3) 라벨: 시작일·종료일·계획 / 설명·메모 제거
-  const labels = await page.locator('#cal-event-form .form-label').allInnerTexts();
-  const joined = labels.join(' ');
-  expect(joined).toContain('시작일');
-  expect(joined).toContain('종료일');
-  expect(joined).toContain('계획');
+  // 라벨: 활동유형·활동목적·동반자·영업담당자·고객담당자·영업딜·계획, (구)유형/설명·메모 없음
+  const joined = (await page.locator('#cal-event-form .form-label').allInnerTexts()).join(' ');
+  for (const l of ['활동유형', '활동목적', '동반자', '영업담당자', '고객담당자', '영업딜', '계획']) {
+    expect(joined).toContain(l);
+  }
   expect(joined).not.toContain('설명 / 메모');
-  // 시작/종료 일시는 30분 단위(step=1800) + 비정렬 입력 시 30분 스냅
-  await expect(page.locator('#cal-start')).toHaveAttribute('step', '1800');
-  await expect(page.locator('#cal-end')).toHaveAttribute('step', '1800');
-  await page.locator('#cal-start').fill('2026-07-01T10:17');
-  await page.locator('#cal-start').dispatchEvent('change');
-  await expect(page.locator('#cal-start')).toHaveValue('2026-07-01T10:30');
-  // 4·5) 계획 + 완료 내용 textarea 좌우 동시 노출
+  // 활동목적 옵션(제품시연 등) + 동반자 select
+  await expect(page.locator('#cal-purpose option', { hasText: '제품시연' })).toHaveCount(1);
+  await expect(page.locator('#cal-companion')).toHaveCount(1);
+  // 시작일 = 날짜 + 시간 드랍박스(30분 단위: 00/30만, 48개)
+  await expect(page.locator('#cal-start-date')).toBeVisible();
+  await expect(page.locator('#cal-start-time')).toBeVisible();
+  expect(await page.locator('#cal-start-time option').count()).toBe(48);
+  await expect(page.locator('#cal-start-time option', { hasText: '09:30' })).toHaveCount(1);
+  await expect(page.locator('#cal-start-time option', { hasText: '09:15' })).toHaveCount(0);
+  // 계획 + 완료 textarea
   await expect(page.locator('#cal-description')).toBeVisible();
   await expect(page.locator('#cal-completion-note')).toBeVisible();
 
-  // 종일 토글 → date 입력 전환
+  // 종일 체크 → 시간 드랍박스 숨김(날짜만)
   await page.locator('#cal-allday').check();
+  await expect(page.locator('#cal-start-time')).toBeHidden();
   await expect(page.locator('#cal-start-date')).toBeVisible();
-  await expect(page.locator('#cal-start')).toBeHidden();
+});
+
+test('영업캘린더 — 종료일이 시작일보다 앞서면 저장 차단 + 안내(회귀)', async ({ page }) => {
+  await page.evaluate(() => App.navigate('calendar'));
+  await page.waitForSelector('#cal-add-btn', { timeout: 15000 });
+  await page.locator('#cal-add-btn').click();
+  await page.waitForSelector('#cal-event-form', { timeout: 8000 });
+
+  await page.locator('#cal-title').fill('__E2E_BADRANGE__');
+  await page.locator('#cal-start-date').fill('2026-07-17');
+  await page.locator('#cal-start-time').selectOption('15:30');
+  await page.locator('#cal-end-date').fill('2026-07-08');
+  await page.locator('#cal-end-time').selectOption('18:30');
+  await page.locator('#cal-save-btn').click();
+
+  // 안내 토스트 + 모달 유지(저장 차단)
+  await expect(page.locator('.toast', { hasText: '종료일이 시작일보다 앞설 수 없습니다' })).toBeVisible({
+    timeout: 5000,
+  });
+  await expect(page.locator('#cal-event-form')).toBeVisible();
 });
 
 test('영업캘린더 — 이벤트 클릭 시 편집 모달 직행 + 상태 토글 + 완료내용 저장 유지(회귀)', async ({ page }) => {

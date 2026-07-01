@@ -203,12 +203,15 @@ router.post('/events', async (req, res) => {
       color,
       recurrence,
       completion_note,
+      activity_purpose,
+      companion_id,
     } = req.body;
     const [result] = await pool.query(
       `INSERT INTO calendar_events
        (title, description, start_datetime, end_datetime, all_day, event_type,
-        status, lead_id, customer_name, assigned_to, color, recurrence, completion_note)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        status, lead_id, customer_name, assigned_to, color, recurrence, completion_note,
+        activity_purpose, companion_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         title,
         description || null,
@@ -223,6 +226,8 @@ router.post('/events', async (req, res) => {
         color || '#e63946',
         recurrence || null,
         completion_note || null,
+        activity_purpose || null,
+        companion_id || null,
       ]
     );
     logAccess(req, 201);
@@ -248,6 +253,8 @@ router.put('/events/:id', async (req, res) => {
       'color',
       'recurrence',
       'completion_note',
+      'activity_purpose',
+      'companion_id',
     ];
     const updates = [];
     const values = [];

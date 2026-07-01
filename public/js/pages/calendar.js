@@ -150,22 +150,58 @@ const CalendarPage = (() => {
     refresh();
   }
 
+  // 활동 목적(세부 속성) 옵션
+  const ACTIVITY_PURPOSES = ['인사', '제품시연', '정보수집', '제안', '견적', '협상', '업무협의', '계약', '교육', '기타'];
+  function _purposeOptions(sel) {
+    return (
+      '<option value="">— 선택 —</option>' +
+      ACTIVITY_PURPOSES.map(p => `<option value="${p}" ${sel === p ? 'selected' : ''}>${p}</option>`).join('')
+    );
+  }
+  // 시간 드랍박스 — 30분 단위(00/30)만
+  function _timeOptions(sel) {
+    let o = '';
+    for (let h = 0; h < 24; h++) {
+      for (const m of ['00', '30']) {
+        const v = `${String(h).padStart(2, '0')}:${m}`;
+        o += `<option value="${v}" ${sel === v ? 'selected' : ''}>${v}</option>`;
+      }
+    }
+    return o;
+  }
+  // datetime → 'HH:MM'(30분 스냅). 없으면 기본값
+  function _hhmm(dt, fallback = '09:00') {
+    if (!dt) return fallback;
+    const t = toLocalDT(dt).slice(11, 16);
+    if (!t) return fallback;
+    const [H, M] = t.split(':').map(Number);
+    const rm = Math.round((M || 0) / 30) * 30;
+    const d = new Date(2000, 0, 1, H || 0, rm);
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
   function buildEventForm(d = {}) {
     const status = d.status || 'planned';
+    const sDate = d.start_datetime
+      ? toDateStr(d.start_datetime)
+      : d._startDate || (d._start ? d._start.slice(0, 10) : '');
+    const eDate = d.end_datetime
+      ? toDateStr(d.end_datetime)
+      : d._endDate || (d._end ? d._end.slice(0, 10) : '');
+    const sTime = _hhmm(d.start_datetime, d._start ? d._start.slice(11, 16) : '09:00');
+    const eTime = _hhmm(d.end_datetime, d._end ? d._end.slice(11, 16) : '10:00');
     return `
       <form id="cal-event-form" autocomplete="off" class="form-grid">
-        <div class="form-row">
-          <label class="form-label required">제목</label>
-          <input class="form-input" id="cal-title" value="${esc(d.title || '')}"
-                 placeholder="예: 삼성케미칼 견적서 발송" required>
-        </div>
-
-        <div class="form-row-3">
+        <div style="display:grid;grid-template-columns:2fr 2fr auto;gap:14px;align-items:end">
           <div class="form-row">
-            <label class="form-label">유형</label>
-            <select class="form-input" id="cal-event-type">
-              ${EVENT_TYPES.map(t => `<option value="${t}" ${d.event_type === t ? 'selected' : ''}>${t}</option>`).join('')}
-            </select>
+            <label class="form-label required">제목</label>
+            <input class="form-input" id="cal-title" value="${esc(d.title || '')}" placeholder="예: 삼성케미칼 견적서 발송" required>
+          </div>
+          <div class="form-row">
+            <label class="form-label">영업딜</label>
+            <input class="form-input" id="cal-lead-input" placeholder="고객사/프로젝트 검색 (선택)" autocomplete="off" value="${esc(_leadInitialText(d.lead_id))}">
+            <input type="hidden" id="cal-lead-id" value="${esc(d.lead_id || '')}">
           </div>
           <div class="form-row">
             <label class="form-label">상태</label>
@@ -176,55 +212,61 @@ const CalendarPage = (() => {
               <span class="cal-toggle-track"><span class="cal-toggle-knob"></span></span>
             </button>
           </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+          <div class="form-row">
+            <label class="form-label">고객사</label>
+            <input class="form-input" id="cal-customer" value="${esc(d.customer_name || '')}" placeholder="고객사명">
+          </div>
+          <div class="form-row">
+            <label class="form-label">고객담당자 <span style="font-weight:400;color:var(--text-3)">· 자동</span></label>
+            <input class="form-input" id="cal-customer-contact" value="${esc(_custContactText(d.customer_name, d.customer_id))}" readonly
+                   placeholder="고객사 선택 시 자동" title="연결 고객사의 담당자(영업딜과 동일 출처)" style="background:var(--surface-2)">
+          </div>
           <div class="form-row">
             <label class="form-label">영업담당자</label>
             <select class="form-input" id="cal-assigned-to">${teamOptions(d.assigned_to)}</select>
           </div>
         </div>
 
-        <div class="form-row-3" id="cal-datetime-group" style="display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:flex-end">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+          <div class="form-row">
+            <label class="form-label">활동유형</label>
+            <select class="form-input" id="cal-event-type">
+              ${EVENT_TYPES.map(t => `<option value="${t}" ${d.event_type === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">활동목적</label>
+            <select class="form-input" id="cal-purpose">${_purposeOptions(d.activity_purpose)}</select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">동반자 <span style="font-weight:400;color:var(--text-3)">· 선택</span></label>
+            <select class="form-input" id="cal-companion">${teamOptions(d.companion_id)}</select>
+          </div>
+        </div>
+
+        <div id="cal-datetime-group" style="display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end">
           <div class="form-row">
             <label class="form-label">시작일</label>
-            <input type="datetime-local" class="form-input cal-dt" id="cal-start" step="1800"
-                   value="${esc(d.start_datetime ? toLocalDT(d.start_datetime) : d._start || '')}">
-            <input type="date" class="form-input cal-d" id="cal-start-date" style="display:none"
-                   value="${esc(d.start_datetime ? toDateStr(d.start_datetime) : d._startDate || '')}">
+            <div style="display:flex;gap:6px">
+              <input type="date" class="form-input" id="cal-start-date" style="flex:1" value="${esc(sDate)}">
+              <select class="form-input cal-time" id="cal-start-time" style="width:92px">${_timeOptions(sTime)}</select>
+            </div>
           </div>
           <div class="form-row">
             <label class="form-label">종료일</label>
-            <input type="datetime-local" class="form-input cal-dt" id="cal-end" step="1800"
-                   value="${esc(d.end_datetime ? toLocalDT(d.end_datetime) : d._end || '')}">
-            <input type="date" class="form-input cal-d" id="cal-end-date" style="display:none"
-                   value="${esc(d.end_datetime ? toDateStr(d.end_datetime) : d._endDate || '')}">
+            <div style="display:flex;gap:6px">
+              <input type="date" class="form-input" id="cal-end-date" style="flex:1" value="${esc(eDate)}">
+              <select class="form-input cal-time" id="cal-end-time" style="width:92px">${_timeOptions(eTime)}</select>
+            </div>
           </div>
           <div class="form-row">
             <label class="form-check" style="white-space:nowrap;padding-bottom:9px">
               <input type="checkbox" id="cal-allday" ${d.all_day ? 'checked' : ''}> 종일 일정
             </label>
           </div>
-        </div>
-
-        <div class="form-row-2">
-          <div class="form-row">
-            <label class="form-label">고객사</label>
-            <input class="form-input" id="cal-customer" value="${esc(d.customer_name || '')}" placeholder="고객사명">
-          </div>
-          <div class="form-row">
-            <label class="form-label">영업딜</label>
-            <input class="form-input" id="cal-lead-input"
-                   placeholder="고객사/프로젝트 검색 (선택)" autocomplete="off"
-                   value="${esc(_leadInitialText(d.lead_id))}">
-            <input type="hidden" id="cal-lead-id" value="${esc(d.lead_id || '')}">
-          </div>
-        </div>
-
-        <div class="form-row-2">
-          <div class="form-row">
-            <label class="form-label">고객담당자 <span style="font-weight:400;color:var(--text-3)">· 고객사 기준 자동</span></label>
-            <input class="form-input" id="cal-customer-contact" value="${esc(_custContactText(d.customer_name, d.customer_id))}" readonly
-                   placeholder="고객사 선택 시 자동 표시" title="연결 고객사의 담당자(영업딜과 동일 출처)" style="background:var(--surface-2)">
-          </div>
-          <div class="form-row"></div>
         </div>
 
         <div class="form-row-2">
@@ -242,37 +284,13 @@ const CalendarPage = (() => {
       </form>`;
   }
 
-  // datetime-local 값을 30분 단위로 스냅 (브라우저 picker 가 step 을 무시하는 경우 대비)
-  function snapTo30(val) {
-    if (!val) return val;
-    const d = new Date(val);
-    if (isNaN(d.getTime())) return val;
-    d.setMinutes(Math.round(d.getMinutes() / 30) * 30, 0, 0); // 60 → 자동 다음 시
-    const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-  }
-  function wireSnap30(...ids) {
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('change', () => {
-        const snapped = snapTo30(el.value);
-        if (snapped !== el.value) el.value = snapped;
-      });
-    });
-  }
-
   function wireAlldayToggle() {
     const chk = document.getElementById('cal-allday');
-    wireSnap30('cal-start', 'cal-end'); // 시작/종료 일시 30분 스냅
     if (!chk) return;
-    // 종일 체크 시 datetime-local(.cal-dt) ↔ date(.cal-d) 입력 전환
+    // 종일 체크 시 시간 드랍박스(.cal-time) 숨김 — 날짜만 사용
     const toggle = () => {
-      document.querySelectorAll('#cal-datetime-group .cal-dt').forEach(el => {
+      document.querySelectorAll('#cal-datetime-group .cal-time').forEach(el => {
         el.style.display = chk.checked ? 'none' : '';
-      });
-      document.querySelectorAll('#cal-datetime-group .cal-d').forEach(el => {
-        el.style.display = chk.checked ? '' : 'none';
       });
     };
     toggle();
@@ -281,15 +299,17 @@ const CalendarPage = (() => {
 
   function collectForm() {
     const allDay = document.getElementById('cal-allday').checked;
-    const start = allDay
-      ? document.getElementById('cal-start-date').value
-      : document.getElementById('cal-start').value;
-    const end = allDay
-      ? document.getElementById('cal-end-date').value || start
-      : document.getElementById('cal-end').value;
+    const sd = document.getElementById('cal-start-date').value;
+    const ed = document.getElementById('cal-end-date').value || sd;
+    const st = document.getElementById('cal-start-time')?.value || '00:00';
+    const et = document.getElementById('cal-end-time')?.value || '00:00';
+    const start = allDay ? sd : sd ? `${sd}T${st}` : '';
+    const end = allDay ? ed : ed ? `${ed}T${et}` : '';
     return {
       title: document.getElementById('cal-title').value.trim(),
       event_type: document.getElementById('cal-event-type').value,
+      activity_purpose: document.getElementById('cal-purpose')?.value || null,
+      companion_id: document.getElementById('cal-companion')?.value || null,
       status: document.getElementById('cal-status-toggle')?.dataset.status || 'planned',
       start_datetime: start,
       end_datetime: end || null,
@@ -308,6 +328,15 @@ const CalendarPage = (() => {
         return completed ? '#9e9e9e' : TYPE_COLORS[type] || '#1a73e8';
       })(),
     };
+  }
+
+  // 종료일이 시작일보다 앞서면 에러 메시지 반환(없으면 null)
+  function _dateRangeError(data) {
+    if (!data.start_datetime || !data.end_datetime) return null;
+    const s = new Date(data.start_datetime.replace(' ', 'T'));
+    const e = new Date(data.end_datetime.replace(' ', 'T'));
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+    return e < s ? '종료일이 시작일보다 앞설 수 없습니다. 날짜를 다시 선택해주세요.' : null;
   }
 
   // ─── 고객사 Combobox + 영업기회 자동 필터 통합 ───────────
@@ -626,6 +655,11 @@ const CalendarPage = (() => {
         Toast.error('시작 일시를 입력하세요');
         return;
       }
+      const dErr = _dateRangeError(data);
+      if (dErr) {
+        Toast.error(dErr);
+        return;
+      }
       try {
         // ① 캘린더 이벤트 생성
         const calResult = await API.post('/calendar/events', data);
@@ -698,6 +732,11 @@ const CalendarPage = (() => {
       const data = collectForm();
       if (!data.title) {
         Toast.error('제목을 입력하세요');
+        return;
+      }
+      const dErr = _dateRangeError(data);
+      if (dErr) {
+        Toast.error(dErr);
         return;
       }
       try {

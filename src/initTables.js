@@ -34,6 +34,17 @@ async function initTables() {
     } catch (_) {
       /* column may already exist */
     }
+    // 활동 목적 + 동반자 (영업캘린더 기획서) — 가드형 추가
+    for (const ddl of [
+      `ALTER TABLE calendar_events ADD COLUMN activity_purpose VARCHAR(30) DEFAULT NULL`,
+      `ALTER TABLE calendar_events ADD COLUMN companion_id INT DEFAULT NULL`,
+    ]) {
+      try {
+        await pool.query(ddl);
+      } catch (_) {
+        /* column may already exist */
+      }
+    }
 
     await pool.query(`CREATE TABLE IF NOT EXISTS announcements (
       id         INT AUTO_INCREMENT PRIMARY KEY,
