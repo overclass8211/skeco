@@ -106,6 +106,21 @@ async function initTables() {
       INDEX idx_meeting_date (meeting_date),
       INDEX idx_customer (customer_name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    // 수기 작성(회의록 AI ③) — 참석자·장소·시간·소스 (가드형 추가)
+    for (const ddl of [
+      `ALTER TABLE meeting_minutes ADD COLUMN attendees_customer VARCHAR(500) DEFAULT NULL`,
+      `ALTER TABLE meeting_minutes ADD COLUMN attendees_internal VARCHAR(500) DEFAULT NULL`,
+      `ALTER TABLE meeting_minutes ADD COLUMN location VARCHAR(200) DEFAULT NULL`,
+      `ALTER TABLE meeting_minutes ADD COLUMN start_time VARCHAR(5) DEFAULT NULL`,
+      `ALTER TABLE meeting_minutes ADD COLUMN end_time VARCHAR(5) DEFAULT NULL`,
+      `ALTER TABLE meeting_minutes ADD COLUMN source VARCHAR(10) DEFAULT 'stt'`,
+    ]) {
+      try {
+        await pool.query(ddl);
+      } catch (_) {
+        /* column exists */
+      }
+    }
 
     await pool.query(`CREATE TABLE IF NOT EXISTS ai_usage (
       id                INT AUTO_INCREMENT PRIMARY KEY,

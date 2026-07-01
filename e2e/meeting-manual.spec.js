@@ -1,0 +1,54 @@
+// =============================================================
+// E2E — 회의록 AI > 수기 작성 (③) + 회의록 템플릿
+//
+// 검증(기획서):
+//   1) [수기 작성 시작] → 진입 카드 숨김 + 수기 폼 표시
+//   2) 회의록 템플릿 드롭박스 6종 + 선택 시 본문 삽입
+//   3) 시간 30분 단위 + 종료<시작 저장 차단
+//   4) 저장 → 회의록 목록으로 이동
+// =============================================================
+const { test, expect } = require('@playwright/test');
+const { loginAsAdmin } = require('./helpers/auth');
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('oci_onboarding_done', '1');
+    } catch (_) {
+      /* noop */
+    }
+  });
+  await loginAsAdmin(page);
+});
+
+test('회의록 AI — 수기 작성 폼 + 템플릿 6종 + 저장', async ({ page }) => {
+  await page.evaluate(() => App.navigate('meeting'));
+  await page.waitForSelector('#meeting-manual-btn', { timeout: 15000 });
+  await page.locator('#meeting-manual-btn').click();
+
+  // 수기 폼 표시 + 진입 카드 숨김
+  await expect(page.locator('#meeting-manual')).toBeVisible();
+  await expect(page.locator('#meeting-entry')).toBeHidden();
+
+  // 템플릿 6종 + 시간 30분(48개)
+  expect(await page.locator('#mm-template option').count()).toBe(7); // 안내 1 + 6종
+  expect(await page.locator('#mm-start option').count()).toBe(48);
+
+  // 템플릿 선택 → 본문 삽입
+  await page.locator('#mm-template').selectOption('제안/견적 미팅');
+  await expect(page.locator('#mm-content')).toHaveValue(/제안 개요/);
+
+  // 종료<시작 저장 차단
+  await page.locator('#mm-title').fill('__E2E_MM__ ' + Date.now());
+  await page.locator('#mm-start').selectOption('14:00');
+  await page.locator('#mm-end').selectOption('13:00');
+  await page.locator('#mm-save-btn').click();
+  await expect(page.locator('.toast', { hasText: '종료 시간이 시작 시간보다' })).toBeVisible({
+    timeout: 5000,
+  });
+
+  // 정상 시간으로 저장 → 회의록 목록 이동
+  await page.locator('#mm-end').selectOption('15:00');
+  await page.locator('#mm-save-btn').click();
+  await expect(page).toHaveURL(/#meeting-list/, { timeout: 8000 });
+});

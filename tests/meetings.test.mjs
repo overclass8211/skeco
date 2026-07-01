@@ -42,6 +42,35 @@ describe('Meetings API', () => {
     expect(res.body.data.summary_md).toContain('미팅 주요 어젠다');
   });
 
+  it('POST — 수기 회의록(참석자·장소·시간·source) 저장', async () => {
+    const res = await api()
+      .post('/api/meetings')
+      .send({
+        title: '__TEST__ 수기 회의록',
+        meeting_date: '2026-07-21',
+        start_time: '13:00',
+        end_time: '14:00',
+        customer_name: '__TEST__고객사',
+        attendees_customer: '정수석',
+        attendees_internal: '데이비드',
+        location: '울산 공장 G1',
+        summary_md: '## 회의 개요\n- 수기',
+        source: 'manual',
+      });
+    expect(res.status).toBe(200);
+    const id = res.body.id;
+    const [[row]] = await pool.query(
+      'SELECT attendees_customer, attendees_internal, location, start_time, end_time, source FROM meeting_minutes WHERE id=?',
+      [id]
+    );
+    expect(row.attendees_customer).toBe('정수석');
+    expect(row.attendees_internal).toBe('데이비드');
+    expect(row.location).toBe('울산 공장 G1');
+    expect(row.start_time).toBe('13:00');
+    expect(row.source).toBe('manual');
+    await pool.query('DELETE FROM meeting_minutes WHERE id=?', [id]);
+  });
+
   it('DELETE /:id — 회의록 삭제', async () => {
     const res = await api().delete(`/api/meetings/${createdMeetingId}`);
     expect(res.status).toBe(200);

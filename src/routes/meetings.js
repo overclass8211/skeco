@@ -271,12 +271,19 @@ router.post('/', async (req, res) => {
       summary_md,
       customer_name,
       lead_id,
+      attendees_customer,
+      attendees_internal,
+      location,
+      start_time,
+      end_time,
+      source,
     } = req.body;
     const [result] = await pool.query(
       `INSERT INTO meeting_minutes
        (title, meeting_date, raw_transcript, speakers_json, summary_md,
-        customer_name, lead_id, created_by)
-       VALUES (?,?,?,?,?,?,?,?)`,
+        customer_name, lead_id, created_by,
+        attendees_customer, attendees_internal, location, start_time, end_time, source)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         title || `회의록 ${new Date().toISOString().slice(0, 10)}`,
         meeting_date || new Date().toISOString().slice(0, 10),
@@ -286,6 +293,12 @@ router.post('/', async (req, res) => {
         customer_name || null,
         lead_id || null,
         getUserId(req),
+        attendees_customer || null,
+        attendees_internal || null,
+        location || null,
+        start_time || null,
+        end_time || null,
+        source === 'manual' ? 'manual' : 'stt',
       ]
     );
     // Webhook 발행

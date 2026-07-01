@@ -53,6 +53,124 @@ const MeetingRecorder = {
   },
 };
 
+// 회의록 템플릿 세트 (수기 작성 — 드롭박스 선택 시 본문 삽입, 편집 가능)
+const MEETING_TEMPLATES = {
+  '영업 기본 미팅록': `## 회의 개요
+- 목적:
+- 배경:
+
+## 참석자
+- 고객:
+- 자사:
+
+## 주요 논의 사항
+1.
+2.
+
+## 고객 니즈 · 요구사항
+-
+
+## 결정 사항
+-
+
+## 후속 액션 (담당 · 기한)
+- [ ] (담당: / 기한: )`,
+  '내부 보고 미팅': `## 안건
+-
+
+## 진행 현황
+-
+
+## 이슈 · 리스크
+-
+
+## 의사결정 요청
+-
+
+## 결정 사항
+-
+
+## To-Do (담당 · 기한)
+- [ ] (담당: / 기한: )`,
+  '제안/견적 미팅': `## 제안 개요
+-
+
+## 고객 요구사항
+-
+
+## 제안 내용 · 범위
+-
+
+## 가격 · 조건
+-
+
+## 경쟁 · 비교
+-
+
+## 고객 피드백
+-
+
+## 다음 단계
+- [ ]`,
+  '이슈 보고 미팅': `## 이슈 개요
+-
+
+## 발생 경위
+-
+
+## 영향도
+-
+
+## 원인 분석
+-
+
+## 대응 방안
+-
+
+## 조치 결정
+-
+
+## 후속 관리 (담당 · 기한)
+- [ ]`,
+  '프로젝트 미팅': `## 프로젝트 현황
+-
+
+## 마일스톤 · 일정
+-
+
+## 진척률
+-
+
+## 이슈 · 리스크
+-
+
+## 액션 아이템 (담당 · 기한)
+- [ ]`,
+  기타: `## 회의 개요
+-
+
+## 논의 사항
+-
+
+## 결정 사항
+-
+
+## 액션 아이템
+- [ ]`,
+};
+
+// 30분 단위 시간 옵션(00/30)
+function _mmTimeOptions(sel) {
+  let o = '';
+  for (let h = 0; h < 24; h++) {
+    for (const m of ['00', '30']) {
+      const v = `${String(h).padStart(2, '0')}:${m}`;
+      o += `<option value="${v}" ${sel === v ? 'selected' : ''}>${v}</option>`;
+    }
+  }
+  return o;
+}
+
 const MeetingPage = (() => {
   let leads = [];
   let _googleStatus = { connected: false, configured: false, email: null };
@@ -97,7 +215,7 @@ const MeetingPage = (() => {
         <div class="card-body no-pad" id="offline-queue-list"></div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div id="meeting-entry" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
         <!-- 실시간 녹음 -->
         <div class="card">
           <div class="card-header"><div class="card-title">🔴 미팅 실시간 녹음</div></div>
@@ -127,6 +245,65 @@ const MeetingPage = (() => {
               <input type="file" id="audio-file-input" accept="audio/*" style="display:none">
             </div>
             <div id="audio-file-info" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <!-- 수기 작성 -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">✍ 수기 작성</div></div>
+          <div class="card-body" style="text-align:center;padding:24px">
+            <div style="font-size:32px;margin-bottom:8px">📝</div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:4px">직접 회의록 작성</div>
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:14px">템플릿 선택 후 편집</div>
+            <button class="btn btn-primary" id="meeting-manual-btn">✍ 수기 작성 시작</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 수기 작성 폼 (기본 숨김) -->
+      <div id="meeting-manual" class="card" style="display:none;margin-bottom:14px">
+        <div class="card-header">
+          <div class="card-title">✍ 수기 회의록 작성</div>
+          <div style="display:flex;gap:6px;margin-left:auto">
+            <button class="btn btn-ghost btn-sm" id="mm-list-btn" title="회의록 목록으로 이동">📋 목록</button>
+            <button class="btn btn-primary btn-sm" id="mm-save-btn">💾 회의록 저장</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label required">회의명</label>
+              <input class="form-input" id="mm-title" placeholder="예: LG디스플레이 공장 실사"></div>
+            <div class="form-row"><label class="form-label">고객사</label>
+              <input class="form-input" id="mm-customer" placeholder="고객사"></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">참석자(고객)</label>
+              <input class="form-input" id="mm-att-cust" placeholder="쉼표로 구분 (예: 정수석, 김책임)"></div>
+            <div class="form-row"><label class="form-label">참석자(자사)</label>
+              <input class="form-input" id="mm-att-int" placeholder="쉼표로 구분"></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-row"><label class="form-label">날짜 / 시간</label>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <input type="date" class="form-input" id="mm-date" value="${new Date().toISOString().slice(0, 10)}" style="flex:1;min-width:130px">
+                <select class="form-input" id="mm-start" style="width:92px">${_mmTimeOptions('13:00')}</select>
+                <span style="color:var(--text-3)">~</span>
+                <select class="form-input" id="mm-end" style="width:92px">${_mmTimeOptions('13:30')}</select>
+              </div>
+            </div>
+            <div class="form-row"><label class="form-label">장소</label>
+              <input class="form-input" id="mm-location" placeholder="회의 장소"></div>
+          </div>
+          <div class="form-row">
+            <label class="form-label" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">내용
+              <select class="form-input" id="mm-template" style="width:auto;font-size:12px;padding:3px 8px;height:auto">
+                <option value="">📄 회의록 템플릿 선택…</option>
+                ${Object.keys(MEETING_TEMPLATES).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}
+              </select>
+            </label>
+            <textarea class="form-input" id="mm-content" rows="16"
+                      style="font-family:var(--font-mono,'Courier New',monospace);font-size:13px;line-height:1.7"
+                      placeholder="템플릿을 선택하거나 직접 작성하세요"></textarea>
           </div>
         </div>
       </div>
@@ -207,6 +384,37 @@ const MeetingPage = (() => {
       ?.addEventListener('click', () => regenerateSummary());
     document.getElementById('meeting-reset-btn')?.addEventListener('click', () => reset());
     document.getElementById('meeting-save-btn')?.addEventListener('click', () => save());
+
+    // ── 수기 작성 모드 ─────────────────────────────────────
+    document.getElementById('meeting-manual-btn')?.addEventListener('click', () => {
+      // 진입 카드/결과 숨기고 수기 폼 표시
+      ['meeting-entry', 'gmeet-card', 'meeting-result'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      const mm = document.getElementById('meeting-manual');
+      if (mm) mm.style.display = '';
+      document.getElementById('mm-title')?.focus();
+    });
+    document.getElementById('mm-list-btn')?.addEventListener('click', () => App.navigate('meeting-list'));
+    // 템플릿 선택 → 본문 삽입 (기존 내용 있으면 확인)
+    document.getElementById('mm-template')?.addEventListener('change', e => {
+      const key = e.target.value;
+      if (!key || !MEETING_TEMPLATES[key]) return;
+      const ta = document.getElementById('mm-content');
+      const apply = () => {
+        ta.value = MEETING_TEMPLATES[key];
+        ta.focus();
+      };
+      if (ta.value.trim()) {
+        Modal.confirm('현재 작성 내용을 템플릿으로 덮어쓸까요?', apply, () => {
+          e.target.value = '';
+        });
+      } else {
+        apply();
+      }
+    });
+    document.getElementById('mm-save-btn')?.addEventListener('click', () => saveManual());
 
     // audio dropzone
     const dropzone = document.getElementById('audio-dropzone');
@@ -1038,6 +1246,44 @@ GOOGLE_REDIRECT_URI=http://localhost:3001/api/google/callback</pre>
   }
 
   // ── 6) 저장 + 캘린더 등록 플로우 ────────────────────────
+  // 수기 회의록 저장 → 목록으로 이동
+  async function saveManual() {
+    const title = document.getElementById('mm-title').value.trim();
+    if (!title) {
+      Toast.error('회의명을 입력하세요');
+      document.getElementById('mm-title')?.focus();
+      return;
+    }
+    const st = document.getElementById('mm-start').value;
+    const et = document.getElementById('mm-end').value;
+    if (st && et && et < st) {
+      Toast.error('종료 시간이 시작 시간보다 앞설 수 없습니다.');
+      return;
+    }
+    const payload = {
+      title,
+      customer_name: document.getElementById('mm-customer').value.trim() || null,
+      meeting_date: document.getElementById('mm-date').value || new Date().toISOString().slice(0, 10),
+      start_time: st || null,
+      end_time: et || null,
+      attendees_customer: document.getElementById('mm-att-cust').value.trim() || null,
+      attendees_internal: document.getElementById('mm-att-int').value.trim() || null,
+      location: document.getElementById('mm-location').value.trim() || null,
+      summary_md: document.getElementById('mm-content').value.trim() || null,
+      source: 'manual',
+    };
+    const btn = document.getElementById('mm-save-btn');
+    if (btn) btn.disabled = true;
+    try {
+      await API.meetings.create(payload);
+      Toast.success('회의록이 저장되었습니다');
+      App.navigate('meeting-list');
+    } catch (_) {
+      Toast.error('저장 중 오류가 발생했습니다');
+      if (btn) btn.disabled = false;
+    }
+  }
+
   async function save() {
     const title =
       document.getElementById('meeting-title').value.trim() ||
