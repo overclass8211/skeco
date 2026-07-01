@@ -71,6 +71,42 @@ describe('Meetings API', () => {
     await pool.query('DELETE FROM meeting_minutes WHERE id=?', [id]);
   });
 
+  it('수기 HTML 회의록 — 목록 미리보기/캘린더 설명에서 HTML 태그 제거', async () => {
+    const html =
+      '<blockquote>핵심 요약 태그제거검증</blockquote><h2>1. 회의 개요</h2><ul><li>목적: 리치에디터</li></ul>';
+    const cRes = await api().post('/api/meetings').send({
+      title: '__TEST__ HTML 회의록',
+      meeting_date: '2026-07-01',
+      summary_md: html,
+      customer_name: '__TEST__고객사',
+      source: 'manual',
+    });
+    const id = cRes.body.id;
+
+    // ① 목록 미리보기: HTML 태그 없이 평문
+    const listRes = await api().get('/api/meetings');
+    const item = listRes.body.data.find(m => m.id === id);
+    expect(item).toBeTruthy();
+    expect(item.summary_preview).not.toMatch(/<[a-z/]/i);
+    expect(item.summary_preview).toContain('핵심 요약 태그제거검증');
+
+    // ② 캘린더 등록: description(계획)에 HTML 태그 없음
+    const regRes = await api()
+      .post(`/api/meetings/${id}/register-calendar`)
+      .send({ customer_name: '__TEST__고객사' });
+    expect(regRes.body.success).toBe(true);
+    const [[m]] = await pool.query('SELECT calendar_event_id FROM meeting_minutes WHERE id=?', [id]);
+    const [[ev]] = await pool.query('SELECT description FROM calendar_events WHERE id=?', [
+      m.calendar_event_id,
+    ]);
+    expect(ev.description).not.toMatch(/<[a-z/]/i);
+    expect(ev.description).toContain('핵심 요약 태그제거검증');
+
+    // 정리
+    await pool.query('DELETE FROM calendar_events WHERE id=?', [m.calendar_event_id]);
+    await pool.query('DELETE FROM meeting_minutes WHERE id=?', [id]);
+  });
+
   it('DELETE /:id — 회의록 삭제', async () => {
     const res = await api().delete(`/api/meetings/${createdMeetingId}`);
     expect(res.status).toBe(200);

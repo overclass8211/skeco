@@ -4105,19 +4105,123 @@ body,
   50%       { opacity: 0.2; }
 }
 
+/* 업로드 카드(=카드 본문) — 점선 제거, 드래그 시만 강조 */
 #audio-dropzone {
-  border: 2px dashed var(--border-2);
-  border-radius: 8px;
-  padding: 28px 16px;
-  text-align: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s, box-shadow 0.15s;
+  border-radius: 12px;
+}
+#audio-dropzone.drag-over {
+  background: rgba(26, 115, 232, 0.06);
+  box-shadow: inset 0 0 0 2px #1a73e8;
+}
+/* 회의록 3모드 CTA 버튼 — 동일 크기·정렬 */
+.meet-cta {
+  width: 100%;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 9px 12px;
+  transition: filter 0.12s, box-shadow 0.12s;
+}
+.meet-cta:hover {
+  filter: brightness(0.94);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ── 수기 회의록 작성 폼 ─────────────────────────────── */
+.mm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.mm-form .form-label {
+  margin-bottom: 6px;
+}
+.mm-content-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+/* 템플릿 드롭다운 — 화살표/텍스트 겹침 방지 (고정 폭 + 우측 패딩) */
+.mm-tpl-select {
+  width: auto;
+  min-width: 168px;
+  max-width: 220px;
+  font-size: 12px;
+  height: 32px;
+  padding: 4px 28px 4px 10px;
+}
+/* 리치 에디터(Quill) 래퍼 */
+.mm-editor-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.mm-editor-wrap .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid var(--border);
   background: var(--surface-2);
 }
-#audio-dropzone:hover,
-#audio-dropzone.drag-over {
-  border-color: var(--oci-red);
-  background: rgba(230,57,70,.06);
+.mm-editor-wrap .ql-container.ql-snow {
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+}
+.mm-editor-wrap .ql-editor {
+  min-height: 320px;
+  max-height: 640px;
+  overflow-y: auto;
+  resize: vertical;
+  line-height: 1.7;
+}
+.mm-editor-wrap .ql-editor.ql-blank::before {
+  color: var(--text-3);
+  font-style: normal;
+}
+.mm-html-src {
+  width: 100%;
+  min-height: 320px;
+  border: none;
+  outline: none;
+  padding: 12px 14px;
+  font-family: var(--font-mono, 'Courier New', monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+  background: var(--surface);
+  color: var(--text-1);
+}
+.mm-src-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.mm-src-hint {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.mm-src-tab {
+  font-size: 11px;
+  padding: 3px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.mm-src-tab.is-active {
+  background: var(--surface);
+  color: var(--text-1);
+  border-color: var(--border);
+  font-weight: 600;
 }
 
 /* 회의록 목록 */

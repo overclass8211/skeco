@@ -15,6 +15,27 @@ const {
 const { transcribeAudio } = require('../services/stt');
 const { sendExport, normalizeFormat } = require('../utils/exportHelper');
 
+// HTML → 평문 (목록 미리보기·캘린더 설명용). 저장 원본(HTML/마크다운)은 보존하고
+// "텍스트로 노출"하는 지점에서만 태그를 제거한다. 마크다운 문자열은 그대로 통과.
+function stripHtml(s) {
+  if (!s) return '';
+  if (!/[<&]/.test(s)) return String(s).replace(/\s+/g, ' ').trim();
+  return String(s)
+    .replace(/<\/(h[1-6]|p|div|blockquote|li|tr|ul|ol)>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<li[^>]*>/gi, '· ')
+    .replace(/<[^>]*>/g, ' ') // 온전한 태그 제거
+    .replace(/<[^>]*$/g, ' ') // 잘린 태그 잔여 제거 (SUBSTRING 후)
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 const MEETING_COLS = [
   { key: 'id', label: 'ID' },
   { key: 'title', label: '제목' },
@@ -197,11 +218,12 @@ router.get('/', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT m.id, m.title, m.meeting_date, m.customer_name, m.lead_id,
               m.calendar_event_id, m.created_at,
-              SUBSTRING(m.summary_md, 1, 200) AS summary_preview,
+              SUBSTRING(m.summary_md, 1, 400) AS summary_preview,
               t.name AS created_by_name
        FROM meeting_minutes m LEFT JOIN team_members t ON m.created_by = t.id
        ORDER BY m.created_at DESC`
     );
+    rows.forEach(r => (r.summary_preview = stripHtml(r.summary_preview)));
     res.json({ success: true, data: rows });
   } catch (err) {
     handleError(res, err);
@@ -226,7 +248,7 @@ router.get('/export', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT m.id, m.title, m.meeting_date, m.customer_name,
               m.audio_duration_sec, m.created_at,
-              SUBSTRING(m.summary_md, 1, 200) AS summary_preview,
+              SUBSTRING(m.summary_md, 1, 400) AS summary_preview,
               t.name AS created_by_name
          FROM meeting_minutes m
          LEFT JOIN team_members t ON m.created_by = t.id
@@ -235,6 +257,7 @@ router.get('/export', async (req, res) => {
         LIMIT 2000`,
       params
     );
+    rows.forEach(r => (r.summary_preview = stripHtml(r.summary_preview)));
     await sendExport(res, {
       columns: MEETING_COLS,
       rows,
@@ -403,10 +426,9 @@ router.post('/:id/register-calendar', async (req, res) => {
     // 핵심 내용 섹션에서 50자 요약 추출
     const coreMatch = md.match(/##\s*핵심\s*내용\s*\n([\s\S]*?)(?=\n##|$)/);
     const agendaMatch = md.match(/##\s*미팅\s*주요\s*어젠다\s*\n([\s\S]*?)(?=\n##|$)/);
-    const rawSummary = (coreMatch?.[1] || agendaMatch?.[1] || md)
-      .replace(/[#*`]/g, '')
-      .replace(/\n+/g, ' ')
-      .trim();
+    const rawSummary = stripHtml(
+      (coreMatch?.[1] || agendaMatch?.[1] || md).replace(/[#*`]/g, '').replace(/\n+/g, ' ')
+    );
     const shortSummary = rawSummary.length > 50 ? rawSummary.substring(0, 50) + '...' : rawSummary;
     const description = `${shortSummary}\n\n[회의록 상세보기] meeting:${req.params.id}`;
 

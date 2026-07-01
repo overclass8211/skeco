@@ -53,110 +53,50 @@ const MeetingRecorder = {
   },
 };
 
-// 회의록 템플릿 세트 (수기 작성 — 드롭박스 선택 시 본문 삽입, 편집 가능)
+// 회의록 템플릿 세트 (수기 작성 — 드롭박스 선택 시 에디터에 삽입, 편집 가능)
+// 노션풍 리치 HTML — Quill 에디터로 로드되어 그대로 편집/저장됩니다.
 const MEETING_TEMPLATES = {
-  '영업 기본 미팅록': `## 회의 개요
-- 목적:
-- 배경:
-
-## 참석자
-- 고객:
-- 자사:
-
-## 주요 논의 사항
-1.
-2.
-
-## 고객 니즈 · 요구사항
--
-
-## 결정 사항
--
-
-## 후속 액션 (담당 · 기한)
-- [ ] (담당: / 기한: )`,
-  '내부 보고 미팅': `## 안건
--
-
-## 진행 현황
--
-
-## 이슈 · 리스크
--
-
-## 의사결정 요청
--
-
-## 결정 사항
--
-
-## To-Do (담당 · 기한)
-- [ ] (담당: / 기한: )`,
-  '제안/견적 미팅': `## 제안 개요
--
-
-## 고객 요구사항
--
-
-## 제안 내용 · 범위
--
-
-## 가격 · 조건
--
-
-## 경쟁 · 비교
--
-
-## 고객 피드백
--
-
-## 다음 단계
-- [ ]`,
-  '이슈 보고 미팅': `## 이슈 개요
--
-
-## 발생 경위
--
-
-## 영향도
--
-
-## 원인 분석
--
-
-## 대응 방안
--
-
-## 조치 결정
--
-
-## 후속 관리 (담당 · 기한)
-- [ ]`,
-  '프로젝트 미팅': `## 프로젝트 현황
--
-
-## 마일스톤 · 일정
--
-
-## 진척률
--
-
-## 이슈 · 리스크
--
-
-## 액션 아이템 (담당 · 기한)
-- [ ]`,
-  기타: `## 회의 개요
--
-
-## 논의 사항
--
-
-## 결정 사항
--
-
-## 액션 아이템
-- [ ]`,
+  '영업 기본 미팅록': `<blockquote>핵심 요약 — 한 줄로 정리해 주세요.</blockquote>
+<h2>1. 회의 개요</h2><ul><li>목적: </li><li>배경: </li></ul>
+<h2>2. 참석자</h2><ul><li>고객: </li><li>자사: </li></ul>
+<h2>3. 주요 논의 사항</h2><ol><li></li><li></li></ol>
+<h2>4. 고객 니즈 · 요구사항</h2><ul><li></li></ul>
+<h2>5. 결정 사항</h2><ul><li></li></ul>
+<h2>6. 후속 액션 (담당 · 기한)</h2><ul><li>☐ (담당:  / 기한: )</li></ul>`,
+  '내부 보고 미팅': `<blockquote>핵심 요약 — 한 줄로 정리해 주세요.</blockquote>
+<h2>1. 안건</h2><ul><li></li></ul>
+<h2>2. 진행 현황</h2><ul><li></li></ul>
+<h2>3. 이슈 · 리스크</h2><ul><li></li></ul>
+<h2>4. 의사결정 요청</h2><ul><li></li></ul>
+<h2>5. 결정 사항</h2><ul><li></li></ul>
+<h2>6. To-Do (담당 · 기한)</h2><ul><li>☐ (담당:  / 기한: )</li></ul>`,
+  '제안/견적 미팅': `<blockquote>핵심 요약 — 한 줄로 정리해 주세요.</blockquote>
+<h2>1. 제안 개요</h2><ul><li></li></ul>
+<h2>2. 고객 요구사항</h2><ul><li></li></ul>
+<h2>3. 제안 내용 · 범위</h2><ul><li></li></ul>
+<h2>4. 가격 · 조건</h2><ul><li></li></ul>
+<h2>5. 경쟁 · 비교</h2><ul><li></li></ul>
+<h2>6. 고객 피드백</h2><ul><li></li></ul>
+<h2>7. 다음 단계</h2><ul><li>☐ </li></ul>`,
+  '이슈 보고 미팅': `<blockquote>핵심 요약 — 이슈와 현재 상태를 한 줄로 정리해 주세요.</blockquote>
+<h2>1. 이슈 개요</h2><ul><li></li></ul>
+<h2>2. 발생 경위</h2><ul><li></li></ul>
+<h2>3. 영향도</h2><ul><li></li></ul>
+<h2>4. 원인 분석</h2><ul><li></li></ul>
+<h2>5. 대응 방안</h2><ul><li></li></ul>
+<h2>6. 조치 결정</h2><ul><li></li></ul>
+<h2>7. 후속 관리 (담당 · 기한)</h2><ul><li>☐ (담당:  / 기한: )</li></ul>`,
+  '프로젝트 미팅': `<blockquote>핵심 요약 — 한 줄로 정리해 주세요.</blockquote>
+<h2>1. 프로젝트 현황</h2><ul><li></li></ul>
+<h2>2. 마일스톤 · 일정</h2><ul><li></li></ul>
+<h2>3. 진척률</h2><ul><li></li></ul>
+<h2>4. 이슈 · 리스크</h2><ul><li></li></ul>
+<h2>5. 액션 아이템 (담당 · 기한)</h2><ul><li>☐ (담당:  / 기한: )</li></ul>`,
+  기타: `<blockquote>핵심 요약 — 한 줄로 정리해 주세요.</blockquote>
+<h2>1. 회의 개요</h2><ul><li></li></ul>
+<h2>2. 논의 사항</h2><ul><li></li></ul>
+<h2>3. 결정 사항</h2><ul><li></li></ul>
+<h2>4. 액션 아이템</h2><ul><li>☐ </li></ul>`,
 };
 
 // 30분 단위 시간 옵션(00/30)
@@ -173,6 +113,7 @@ function _mmTimeOptions(sel) {
 
 const MeetingPage = (() => {
   let leads = [];
+  let _mmQuill = null; // 수기 작성 리치 에디터 인스턴스
 
   let _state = {
     transcript: '',
@@ -220,11 +161,11 @@ const MeetingPage = (() => {
           <div class="card-body meet-mode" style="text-align:center;padding:26px 18px;display:flex;flex-direction:column;align-items:center;min-height:212px">
             <span class="meet-ico" style="background:rgba(230,51,41,.1);color:var(--oci-red)"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/></svg></span>
             <div style="font-size:15px;font-weight:600;margin:12px 0 4px">실시간 녹음</div>
-            <div id="rec-status" style="font-size:12px;color:var(--text-3);line-height:1.5;flex:1">미팅을 실시간 녹취하고<br>자동으로 회의록 생성</div>
+            <div id="rec-status" style="font-size:12px;color:var(--text-3);line-height:1.5;margin-bottom:4px">미팅을 실시간 녹취하고<br>자동으로 회의록 생성</div>
             <div id="rec-visual" class="rec-visual" style="display:none"></div>
             <div id="rec-time" class="rec-time" style="display:none">00:00</div>
-            <button class="btn btn-primary" id="rec-start-btn" style="width:100%;margin-top:14px">● 녹음 시작</button>
-            <button class="btn btn-ghost text-danger" id="rec-stop-btn" style="width:100%;margin-top:14px;display:none">■ 녹음 중지</button>
+            <button class="btn meet-cta" id="rec-start-btn" style="margin-top:auto;background:var(--oci-red);border-color:var(--oci-red);color:#fff">● 녹음 시작</button>
+            <button class="btn meet-cta" id="rec-stop-btn" style="margin-top:auto;background:var(--surface-2);border:1px solid var(--border);color:var(--oci-red);display:none">■ 녹음 중지</button>
           </div>
         </div>
 
@@ -233,10 +174,10 @@ const MeetingPage = (() => {
           <div class="card-body meet-mode" id="audio-dropzone" style="text-align:center;padding:26px 18px;display:flex;flex-direction:column;align-items:center;min-height:212px;cursor:pointer">
             <span class="meet-ico" style="background:rgba(26,115,232,.1);color:#1a73e8"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8M8 17l4-4 4 4"/><path d="M20 16.5A4.5 4.5 0 0 0 17 8h-1.26A7 7 0 1 0 4 15"/></svg></span>
             <div style="font-size:15px;font-weight:600;margin:12px 0 4px">파일 업로드</div>
-            <div style="font-size:12px;color:var(--text-3);line-height:1.5;flex:1">녹음 파일(MP3·WAV 등) 업로드 후 자동 변환<br><span style="font-size:11px;color:var(--text-3)">또는 카드 위로 드래그</span></div>
+            <div style="font-size:12px;color:var(--text-3);line-height:1.5;margin-bottom:4px">녹음 파일(MP3·WAV 등) 업로드 후 자동 변환<br><span style="font-size:11px;color:var(--text-3)">또는 카드 위로 드래그</span></div>
             <input type="file" id="audio-file-input" accept="audio/*" style="display:none">
-            <div id="audio-file-info" style="margin-top:8px;width:100%"></div>
-            <button class="btn btn-primary" id="audio-pick-btn" style="width:100%;margin-top:14px">파일 선택</button>
+            <div id="audio-file-info" style="width:100%"></div>
+            <button class="btn meet-cta" id="audio-pick-btn" style="margin-top:auto;background:#1a73e8;border-color:#1a73e8;color:#fff">파일 선택</button>
           </div>
         </div>
 
@@ -245,8 +186,8 @@ const MeetingPage = (() => {
           <div class="card-body meet-mode" style="text-align:center;padding:26px 18px;display:flex;flex-direction:column;align-items:center;min-height:212px">
             <span class="meet-ico" style="background:rgba(0,0,0,.05);color:var(--text-2)"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
             <div style="font-size:15px;font-weight:600;margin:12px 0 4px">수기 작성</div>
-            <div style="font-size:12px;color:var(--text-3);line-height:1.5;flex:1">템플릿 선택 후<br>직접 회의록 작성</div>
-            <button class="btn btn-primary" id="meeting-manual-btn" style="width:100%;margin-top:14px">수기 작성 시작</button>
+            <div style="font-size:12px;color:var(--text-3);line-height:1.5;margin-bottom:4px">템플릿 선택 후<br>직접 회의록 작성</div>
+            <button class="btn meet-cta" id="meeting-manual-btn" style="margin-top:auto;background:#0EA5A0;border-color:#0EA5A0;color:#fff">수기 작성 시작</button>
           </div>
         </div>
       </div>
@@ -261,40 +202,49 @@ const MeetingPage = (() => {
           </div>
         </div>
         <div class="card-body">
-          <div class="form-row-2">
-            <div class="form-row"><label class="form-label required">회의명</label>
-              <input class="form-input" id="mm-title" placeholder="예: LG디스플레이 공장 실사"></div>
-            <div class="form-row"><label class="form-label">고객사</label>
-              <input class="form-input" id="mm-customer" placeholder="고객사"></div>
-          </div>
-          <div class="form-row-2">
-            <div class="form-row"><label class="form-label">참석자(고객)</label>
-              <input class="form-input" id="mm-att-cust" placeholder="쉼표로 구분 (예: 정수석, 김책임)"></div>
-            <div class="form-row"><label class="form-label">참석자(자사)</label>
-              <input class="form-input" id="mm-att-int" placeholder="쉼표로 구분"></div>
-          </div>
-          <div class="form-row-2">
-            <div class="form-row"><label class="form-label">날짜 / 시간</label>
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <input type="date" class="form-input" id="mm-date" value="${new Date().toISOString().slice(0, 10)}" style="flex:1;min-width:130px">
-                <select class="form-input" id="mm-start" style="width:92px">${_mmTimeOptions('13:00')}</select>
-                <span style="color:var(--text-3)">~</span>
-                <select class="form-input" id="mm-end" style="width:92px">${_mmTimeOptions('13:30')}</select>
+          <div class="mm-form">
+            <div class="form-row-2">
+              <div class="form-row"><label class="form-label required">회의명</label>
+                <input class="form-input" id="mm-title" placeholder="예: LG디스플레이 공장 실사"></div>
+              <div class="form-row"><label class="form-label">고객사</label>
+                <input class="form-input" id="mm-customer" autocomplete="off" placeholder="2글자 이상 입력 시 추천 검색"></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-row"><label class="form-label">참석자(고객)</label>
+                <input class="form-input" id="mm-att-cust" placeholder="쉼표로 구분 (예: 정수석, 김책임)"></div>
+              <div class="form-row"><label class="form-label">참석자(자사)</label>
+                <input class="form-input" id="mm-att-int" placeholder="쉼표로 구분"></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-row"><label class="form-label">날짜 / 시간</label>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <input type="date" class="form-input" id="mm-date" value="${new Date().toISOString().slice(0, 10)}" style="flex:1;min-width:130px">
+                  <select class="form-input" id="mm-start" style="width:92px">${_mmTimeOptions('13:00')}</select>
+                  <span style="color:var(--text-3)">~</span>
+                  <select class="form-input" id="mm-end" style="width:92px">${_mmTimeOptions('13:30')}</select>
+                </div>
+              </div>
+              <div class="form-row"><label class="form-label">장소</label>
+                <input class="form-input" id="mm-location" placeholder="회의 장소"></div>
+            </div>
+            <div class="form-row">
+              <div class="mm-content-bar">
+                <label class="form-label" style="margin:0">내용</label>
+                <select class="form-input mm-tpl-select" id="mm-template">
+                  <option value="">회의록 템플릿 선택…</option>
+                  ${Object.keys(MEETING_TEMPLATES).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="mm-editor-wrap">
+                <div id="mm-quill"></div>
+                <textarea id="mm-html" class="mm-html-src" style="display:none" spellcheck="false"></textarea>
+                <div class="mm-src-tabs">
+                  <span class="mm-src-hint">↕ 입력창 크기 조절</span>
+                  <button type="button" class="mm-src-tab is-active" data-mode="editor">Editor</button>
+                  <button type="button" class="mm-src-tab" data-mode="html">HTML</button>
+                </div>
               </div>
             </div>
-            <div class="form-row"><label class="form-label">장소</label>
-              <input class="form-input" id="mm-location" placeholder="회의 장소"></div>
-          </div>
-          <div class="form-row">
-            <label class="form-label" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">내용
-              <select class="form-input" id="mm-template" style="width:auto;font-size:12px;padding:3px 8px;height:auto">
-                <option value="">📄 회의록 템플릿 선택…</option>
-                ${Object.keys(MEETING_TEMPLATES).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}
-              </select>
-            </label>
-            <textarea class="form-input" id="mm-content" rows="16"
-                      style="font-family:var(--font-mono,'Courier New',monospace);font-size:13px;line-height:1.7"
-                      placeholder="템플릿을 선택하거나 직접 작성하세요"></textarea>
           </div>
         </div>
       </div>
@@ -372,16 +322,21 @@ const MeetingPage = (() => {
       document.getElementById('mm-title')?.focus();
     });
     document.getElementById('mm-list-btn')?.addEventListener('click', () => App.navigate('meeting-list'));
-    // 템플릿 선택 → 본문 삽입 (기존 내용 있으면 확인)
+    document.getElementById('mm-save-btn')?.addEventListener('click', () => saveManual());
+
+    // 리치 에디터(Quill) 초기화
+    _initManualEditor();
+    // 템플릿 선택 → 에디터에 삽입
     document.getElementById('mm-template')?.addEventListener('change', e => {
       const key = e.target.value;
-      if (!key || !MEETING_TEMPLATES[key]) return;
-      const ta = document.getElementById('mm-content');
+      if (!key || !MEETING_TEMPLATES[key] || !_mmQuill) return;
       const apply = () => {
-        ta.value = MEETING_TEMPLATES[key];
-        ta.focus();
+        _mmSyncToEditor();
+        _mmQuill.setContents([]); // 초기화 후 삽입
+        _mmQuill.clipboard.dangerouslyPasteHTML(0, MEETING_TEMPLATES[key]);
+        _mmQuill.focus();
       };
-      if (ta.value.trim()) {
+      if (_mmQuill.getText().trim()) {
         Modal.confirm('현재 작성 내용을 템플릿으로 덮어쓸까요?', apply, () => {
           e.target.value = '';
         });
@@ -389,7 +344,36 @@ const MeetingPage = (() => {
         apply();
       }
     });
-    document.getElementById('mm-save-btn')?.addEventListener('click', () => saveManual());
+    // Editor ↔ HTML 소스 토글
+    document.querySelectorAll('.mm-src-tab').forEach(tab => {
+      tab.addEventListener('click', () => _mmSetSourceMode(tab.dataset.mode));
+    });
+    // 고객사 자동완성 → 선택 시 담당자 자동 입력 (편집 가능)
+    const mmCust = document.getElementById('mm-customer');
+    if (mmCust && window.Combobox) {
+      Combobox.attach({
+        inputEl: mmCust,
+        minChars: 2,
+        allowCustom: false,
+        fetchFn: async q => {
+          try {
+            const r = await API.customers.autocomplete(q, 8);
+            return r?.data || (Array.isArray(r) ? r : []);
+          } catch (_) {
+            return [];
+          }
+        },
+        renderItem: (it, q, { highlightMatch }) =>
+          `<div style="font-weight:600">${highlightMatch(it.name, q)}</div>` +
+          `<div style="font-size:11px;color:var(--text-3)">${esc(it.industry || '')}` +
+          `${it.contact_person ? ' · 담당 ' + esc(it.contact_person) : ''}</div>`,
+        onSelect: it => {
+          mmCust.value = it.name || '';
+          const att = document.getElementById('mm-att-cust');
+          if (att && !att.value.trim() && it.contact_person) att.value = it.contact_person;
+        },
+      });
+    }
 
     // audio dropzone
     const dropzone = document.getElementById('audio-dropzone');
@@ -792,6 +776,74 @@ const MeetingPage = (() => {
 
   // ── 6) 저장 + 캘린더 등록 플로우 ────────────────────────
   // 수기 회의록 저장 → 목록으로 이동
+  // ── 수기 리치 에디터(Quill) ───────────────────────────────
+  // 이미지1 수준의 리치 에디터: 글꼴/크기/색/정렬/목록/인용/링크/이미지 + Editor·HTML 소스탭
+  function _initManualEditor() {
+    _mmQuill = null;
+    const host = document.getElementById('mm-quill');
+    if (!host || !window.Quill) return;
+    const toolbar = [
+      [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+      [{ header: [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ color: [] }, { background: [] }],
+      [{ align: [] }],
+      [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+      ['blockquote', 'link', 'image'],
+      ['clean'],
+    ];
+    try {
+      _mmQuill = new Quill(host, {
+        theme: 'snow',
+        placeholder: '템플릿을 선택하거나 직접 작성하세요.',
+        modules: { toolbar },
+      });
+    } catch (e) {
+      console.error('Quill init failed:', e);
+    }
+  }
+
+  // 소스탭 전환: editor ↔ html
+  function _mmSetSourceMode(mode) {
+    const wrap = document.querySelector('.mm-editor-wrap');
+    const ta = document.getElementById('mm-html');
+    if (!wrap || !ta || !_mmQuill) return;
+    const toolbarEl = wrap.querySelector('.ql-toolbar');
+    const containerEl = wrap.querySelector('.ql-container');
+    document.querySelectorAll('.mm-src-tab').forEach(t =>
+      t.classList.toggle('is-active', t.dataset.mode === mode)
+    );
+    if (mode === 'html') {
+      ta.value = _mmQuill.root.innerHTML;
+      ta.style.display = '';
+      if (toolbarEl) toolbarEl.style.display = 'none';
+      if (containerEl) containerEl.style.display = 'none';
+    } else {
+      _mmSyncToEditor();
+      ta.style.display = 'none';
+      if (toolbarEl) toolbarEl.style.display = '';
+      if (containerEl) containerEl.style.display = '';
+    }
+  }
+
+  // HTML 소스가 열려 있으면 편집기로 반영
+  function _mmSyncToEditor() {
+    const ta = document.getElementById('mm-html');
+    if (!ta || !_mmQuill) return;
+    if (ta.style.display !== 'none') {
+      _mmQuill.setContents([]);
+      _mmQuill.clipboard.dangerouslyPasteHTML(0, ta.value || '');
+    }
+  }
+
+  // 저장용 HTML 추출 (빈 내용은 null)
+  function _mmGetContent() {
+    if (!_mmQuill) return null;
+    _mmSyncToEditor();
+    if (!_mmQuill.getText().trim()) return null;
+    return _mmQuill.root.innerHTML;
+  }
+
   async function saveManual() {
     const title = document.getElementById('mm-title').value.trim();
     if (!title) {
@@ -814,7 +866,7 @@ const MeetingPage = (() => {
       attendees_customer: document.getElementById('mm-att-cust').value.trim() || null,
       attendees_internal: document.getElementById('mm-att-int').value.trim() || null,
       location: document.getElementById('mm-location').value.trim() || null,
-      summary_md: document.getElementById('mm-content').value.trim() || null,
+      summary_md: _mmGetContent(),
       source: 'manual',
     };
     const btn = document.getElementById('mm-save-btn');

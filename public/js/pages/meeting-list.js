@@ -7,6 +7,36 @@ const MeetingListPage = {
   _leads: [],
   _pendingId: null,
 
+  // 회의록 본문 렌더 — 수기(HTML) 자동 감지, AI 요약(마크다운)은 기존대로
+  _renderContent(content) {
+    if (!content) return AI.renderMarkdown('*요약 내용이 없습니다*');
+    const looksHtml =
+      /<(p|div|h[1-6]|ul|ol|li|blockquote|br|strong|em|b|i|u|s|table|img|a|pre|span|hr)\b/i.test(
+        content
+      );
+    return looksHtml ? this._sanitizeHtml(content) : AI.renderMarkdown(content);
+  },
+
+  // 최소 살균: script/style/이벤트핸들러/javascript: 제거
+  _sanitizeHtml(html) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(n => n.remove());
+      doc.querySelectorAll('*').forEach(el => {
+        [...el.attributes].forEach(a => {
+          const name = a.name.toLowerCase();
+          if (name.startsWith('on')) el.removeAttribute(a.name);
+          if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(a.value)) {
+            el.removeAttribute(a.name);
+          }
+        });
+      });
+      return doc.body.innerHTML;
+    } catch (_) {
+      return AI.renderMarkdown(html);
+    }
+  },
+
   async render() {
     document.getElementById('content').innerHTML = `
       <div class="filter-bar" style="margin-bottom:14px">
@@ -144,8 +174,8 @@ const MeetingListPage = {
           </div>
         </div>
 
-        <div class="markdown-body" style="line-height:1.7;font-size:13px;margin-bottom:18px">
-          ${AI.renderMarkdown(m.summary_md || '*요약 내용이 없습니다*')}
+        <div class="markdown-body ql-snow" style="line-height:1.7;font-size:13px;margin-bottom:18px">
+          <div class="ql-editor" style="padding:0">${MeetingListPage._renderContent(m.summary_md)}</div>
         </div>
 
         <details style="margin-top:18px">
