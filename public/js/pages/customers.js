@@ -985,6 +985,7 @@ const CustomersPage = {
         <div class="cust-detail-title">${esc(cust.name)}</div>
         <div class="cust-detail-actions">
           <span id="cm-save-status" style="font-size:12px;color:var(--text-3);align-self:center;white-space:nowrap;margin-right:2px;transition:opacity .2s"></span>
+          <button class="btn btn-ghost btn-sm" id="cm-deal-btn" title="이 고객사로 영업딜 빠른 등록">+ 딜 등록</button>
           <button class="btn btn-ghost btn-sm" id="cm-email-btn">이메일</button>
           <button class="btn btn-ghost btn-sm" id="cm-delete-btn" style="color:var(--oci-red)">삭제</button>
           <button class="btn btn-primary btn-sm" id="cm-save-btn" title="전체 저장 (자동저장 외 수동 백업)">저장</button>
@@ -1007,7 +1008,12 @@ const CustomersPage = {
             </div>
             <div class="form-row-2">
               <div class="form-row"><label class="form-label">산업군</label><input class="form-input" name="industry" value="${esc(cust.industry || '')}"></div>
-              <div class="form-row"></div>
+              <div class="form-row"><label class="form-label">상태</label>
+                <select class="form-input" name="status">
+                  <option value="잠재" ${cust.status === '잠재' || !cust.status ? 'selected' : ''}>잠재</option>
+                  <option value="활성화" ${cust.status === '활성화' ? 'selected' : ''}>활성화</option>
+                </select>
+              </div>
             </div>
             <div class="form-row-3">
               <div class="form-row"><label class="form-label">지역</label>
@@ -1018,6 +1024,10 @@ const CustomersPage = {
               </div>
               <div class="form-row"><label class="form-label">국가</label><input class="form-input" name="country" value="${esc(cust.country || '')}"></div>
               <div class="form-row"><label class="form-label">담당자</label><input class="form-input" name="contact_person" value="${esc(cust.contact_person || '')}"></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-row"><label class="form-label">직책</label><input class="form-input" name="contact_position" maxlength="20" value="${esc(cust.contact_position || '')}" placeholder="예: 구매팀장"></div>
+              <div class="form-row"><label class="form-label">소속팀</label><input class="form-input" name="contact_team" maxlength="20" value="${esc(cust.contact_team || '')}" placeholder="예: 구매팀"></div>
             </div>
             <div class="form-row-2">
               <div class="form-row"><label class="form-label">연락처</label><input class="form-input" name="phone" value="${esc(cust.phone || '')}"></div>
@@ -1113,6 +1123,12 @@ const CustomersPage = {
     document.getElementById('cm-delete-btn').addEventListener('click', () => this._deleteCustomer(id, cust.name));
     document.getElementById('cm-email-btn')?.addEventListener('click', () => {
       if (typeof Email !== 'undefined') Email.open({ customer: cust, defaultCategory: 'customer' });
+    });
+    // 빠른 딜 등록 — 영업딜 신규 모달에 이 고객사 프리필 (영업딜 [+ 영업딜 등록]과 동일 폼)
+    document.getElementById('cm-deal-btn')?.addEventListener('click', () => {
+      if (typeof App !== 'undefined' && typeof App.openLeadForm === 'function') {
+        App.openLeadForm(null, { customer_name: cust.name, customer_id: id });
+      }
     });
     document.getElementById('cm-brief-gen').addEventListener('click', () => this._generateBrief(id));
 
@@ -2049,7 +2065,13 @@ const CustomersPage = {
                 <label class="form-label">산업군</label>
                 <input class="form-input" name="industry" placeholder="발전, 에너지, 건설...">
               </div>
-              <div class="form-row"></div>
+              <div class="form-row">
+                <label class="form-label">상태</label>
+                <select class="form-input" name="status">
+                  <option value="잠재">잠재</option>
+                  <option value="활성화">활성화</option>
+                </select>
+              </div>
             </div>
             <div class="form-row-3">
               <div class="form-row">
@@ -2066,6 +2088,16 @@ const CustomersPage = {
               <div class="form-row">
                 <label class="form-label">담당자명</label>
                 <input class="form-input" name="contact_person">
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-row">
+                <label class="form-label">직책</label>
+                <input class="form-input" name="contact_position" maxlength="20" placeholder="예: 구매팀장">
+              </div>
+              <div class="form-row">
+                <label class="form-label">소속팀</label>
+                <input class="form-input" name="contact_team" maxlength="20" placeholder="예: 구매팀">
               </div>
             </div>
             <div class="form-row-2">

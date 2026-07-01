@@ -1446,6 +1446,28 @@ async function initTables() {
     } catch (_) {
       /* exists */
     }
+    // 고객 상태(잠재/활성화) + 담당자 직책·소속팀 (고객사 등록/상세) — 가드형 추가
+    try {
+      await pool.query(
+        `ALTER TABLE customers ADD COLUMN status VARCHAR(20) DEFAULT '잠재' COMMENT '고객 상태: 잠재/활성화'`
+      );
+    } catch (_) {
+      /* exists */
+    }
+    try {
+      await pool.query(
+        `ALTER TABLE customers ADD COLUMN contact_position VARCHAR(20) DEFAULT NULL COMMENT '담당자 직책'`
+      );
+    } catch (_) {
+      /* exists */
+    }
+    try {
+      await pool.query(
+        `ALTER TABLE customers ADD COLUMN contact_team VARCHAR(20) DEFAULT NULL COMMENT '담당자 소속팀'`
+      );
+    } catch (_) {
+      /* exists */
+    }
 
     // 고객사 이름 변경 이력 — BRN 동일 + 이름 다를 때 알림 근거
     await pool.query(`CREATE TABLE IF NOT EXISTS customer_name_history (

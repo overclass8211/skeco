@@ -489,7 +489,11 @@ router.post(
         email,
         address,
         business_no,
+        status,
+        contact_position,
+        contact_team,
       } = req.body;
+      const trim20 = v => (v ? String(v).trim().slice(0, 20) : null);
 
       // v6.0.0: 사업자등록번호 검증 + 정규화
       let brnNormalized = null;
@@ -544,8 +548,9 @@ router.post(
 
       const [result] = await pool.query(
         `INSERT INTO customers
-           (name, region, country, industry, contact_person, phone, email, address, business_no)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+           (name, region, country, industry, contact_person, phone, email, address, business_no,
+            status, contact_position, contact_team)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           name,
           region || '국내',
@@ -556,6 +561,9 @@ router.post(
           email || null,
           address || null,
           brnFormatted, // 정규화 후 표시 포맷 저장
+          status || '잠재',
+          trim20(contact_position),
+          trim20(contact_team),
         ]
       );
       res.json({ success: true, id: result.insertId, data: { id: result.insertId } });
@@ -978,9 +986,25 @@ router.put('/:id', validateId, async (req, res) => {
       address,
       notes,
       business_no,
+      status,
+      contact_position,
+      contact_team,
     } = req.body;
     const fields = [];
     const vals = [];
+    const trim20 = v => (v ? String(v).trim().slice(0, 20) : null);
+    if (status !== undefined) {
+      fields.push('status=?');
+      vals.push(status || '잠재');
+    }
+    if (contact_position !== undefined) {
+      fields.push('contact_position=?');
+      vals.push(trim20(contact_position));
+    }
+    if (contact_team !== undefined) {
+      fields.push('contact_team=?');
+      vals.push(trim20(contact_team));
+    }
     if (name !== undefined) {
       fields.push('name=?');
       vals.push(name);

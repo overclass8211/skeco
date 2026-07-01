@@ -38,6 +38,33 @@ describe('Customers API', () => {
     createdId = res.body.id;
   });
 
+  it('POST/PUT — 상태(status)·직책·소속팀 저장 + 20자 절삭', async () => {
+    const cr = await api().post('/api/customers').send({
+      name: '__TEST__상태필드 ' + Date.now(),
+      status: '활성화',
+      contact_position: '가나다라마바사아자차카타파하일이삼사오육', // 20자 초과
+      contact_team: '구매팀',
+    });
+    expect(cr.status).toBe(200);
+    const id = cr.body.id;
+
+    const list = await api().get('/api/customers?limit=9999');
+    const arr = list.body.data?.items || list.body.data || [];
+    const row = arr.find(c => c.id === id);
+    expect(row).toBeTruthy();
+    expect(row.status).toBe('활성화');
+    expect(row.contact_team).toBe('구매팀');
+    expect((row.contact_position || '').length).toBe(20); // 20자 절삭
+
+    const put = await api().put(`/api/customers/${id}`).send({ status: '잠재' });
+    expect(put.status).toBe(200);
+    const list2 = await api().get('/api/customers?limit=9999');
+    const arr2 = list2.body.data?.items || list2.body.data || [];
+    expect(arr2.find(c => c.id === id)?.status).toBe('잠재');
+
+    await api().delete(`/api/customers/${id}`);
+  });
+
   it('GET /:id/intelligence — 잘못된 ID 400', async () => {
     const res = await api().get('/api/customers/abc/intelligence');
     expect(res.status).toBe(400);

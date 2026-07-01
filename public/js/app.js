@@ -801,7 +801,7 @@ const App = {
   // ============================================================
   // 리드 등록 / 편집 모달 (LeadsPage / PipelinePage 공유)
   // ============================================================
-  async openLeadForm(id = null) {
+  async openLeadForm(id = null, prefill = null) {
     let lead = null;
     if (id) {
       try {
@@ -811,6 +811,8 @@ const App = {
         return;
       }
     }
+    // 신규 + 프리필 (예: 고객카드 빠른 딜등록) — 편집모드 아님(lead=null), 고객 필드 기본값만 채움
+    const pf = !id && prefill ? prefill : null;
 
     if (!this.team.length) await this.refreshCommon();
 
@@ -854,9 +856,9 @@ const App = {
             <div class="form-row">
               <label class="form-label" data-label="leads.customer_name">고객사 *</label>
               <input class="form-input" name="customer_name" id="lead-customer-input"
-                     value="${esc(lead?.customer_name || '')}" required autocomplete="off">
+                     value="${esc(lead?.customer_name || pf?.customer_name || '')}" required autocomplete="off">
               <!-- Combobox 선택 시 customer_id 클라이언트 보관 (백엔드 destructure 에서 무시됨 — 사이드이펙 0) -->
-              <input type="hidden" name="customer_id" id="lead-customer-id" value="${esc(lead?.customer_id || '')}">
+              <input type="hidden" name="customer_id" id="lead-customer-id" value="${esc(lead?.customer_id || pf?.customer_id || '')}">
             </div>
             <div class="form-row">
               <label class="form-label" data-label="leads.project_name">프로젝트명 *</label>
