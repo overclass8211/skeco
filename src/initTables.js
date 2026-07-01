@@ -945,10 +945,45 @@ async function initTables() {
       win_probability TINYINT UNSIGNED DEFAULT NULL,
       status          VARCHAR(20)  DEFAULT 'active',       -- active/onhold/closed
       notes           VARCHAR(500) DEFAULT NULL,
+      lead_id         INT          DEFAULT NULL,           -- 연결 영업딜 (명시적 소재↔딜)
+      source          VARCHAR(10)  DEFAULT 'manual',       -- manual | plm (PLM 연동 소스)
+      external_ref    VARCHAR(100) DEFAULT NULL,           -- PLM 소재/프로젝트 식별키
+      last_synced_at  DATETIME     DEFAULT NULL,           -- 최근 PLM 동기화 시각
+      sync_status     VARCHAR(20)  DEFAULT NULL,           -- ok | failed | pending
       created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_cm_customer (customer_id),
       INDEX idx_cm_stage (lifecycle_stage)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    // Phase 0 — 소재↔딜 연결 + PLM 연동 스텁 (기존 설치 가드형 추가)
+    for (const ddl of [
+      `ALTER TABLE customer_materials ADD COLUMN lead_id INT DEFAULT NULL`,
+      `ALTER TABLE customer_materials ADD COLUMN source VARCHAR(10) DEFAULT 'manual'`,
+      `ALTER TABLE customer_materials ADD COLUMN external_ref VARCHAR(100) DEFAULT NULL`,
+      `ALTER TABLE customer_materials ADD COLUMN last_synced_at DATETIME DEFAULT NULL`,
+      `ALTER TABLE customer_materials ADD COLUMN sync_status VARCHAR(20) DEFAULT NULL`,
+    ]) {
+      try {
+        await pool.query(ddl);
+      } catch (_) {
+        /* column exists */
+      }
+    }
+    // 고객별 PLM 연동 설정 (커넥터 스캐폴드 — 스펙 확정 후 채움)
+    await pool.query(`CREATE TABLE IF NOT EXISTS plm_integrations (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      customer_id  INT          NOT NULL,
+      enabled      TINYINT(1)   DEFAULT 0,
+      provider     VARCHAR(40)  DEFAULT NULL,          -- PLM 종류(미정)
+      endpoint     VARCHAR(300) DEFAULT NULL,          -- API 엔드포인트(미정)
+      auth_ref     VARCHAR(120) DEFAULT NULL,          -- 인증 시크릿 참조(.env 키 등, 값 저장 금지)
+      config_json  TEXT         DEFAULT NULL,          -- 매핑/옵션 등 자유 설정
+      last_sync_at DATETIME     DEFAULT NULL,
+      last_status  VARCHAR(20)  DEFAULT NULL,          -- ok | failed | pending
+      last_error   VARCHAR(500) DEFAULT NULL,
+      created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_plm_customer (customer_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
     // 수요 → 생산가능 → 수주: 소재×월 Forecast (고객/내부 분리)

@@ -2358,6 +2358,18 @@ const Customer360Page = {
       )
       .join('');
     this._matGateOrig = isEdit ? curGate : null; // 변경 감지용
+    // 연결 영업딜 옵션 (해당 고객 딜) + PLM 연동 소재 여부(실제일 읽기전용)
+    const deals = (this._data && this._data.deals) || [];
+    const dealOpts = deals
+      .map(
+        d =>
+          `<option value="${d.id}" ${mat && String(mat.lead_id) === String(d.id) ? 'selected' : ''}>${esc((d.project_name || '딜') + ' · ' + (d.stage_label || ''))}</option>`
+      )
+      .join('');
+    const isPlm = !!(mat && mat.source === 'plm');
+    const plmBadge = isPlm
+      ? `<span class="pill pill-info" title="PLM 연동 소재 — 실제 진행일은 동기화 값(읽기전용)">PLM 연동${mat.last_synced_at ? ' · ' + String(mat.last_synced_at).slice(0, 10) : ''}</span>`
+      : '';
     // 게이트별 예정 계획일(target)·실제 진행일(actual) 입력/편집 — 원본 저장(변경분만 전송)
     const ymd = d => (d ? String(d).slice(0, 10) : '');
     this._matGateDates = {};
@@ -2374,7 +2386,7 @@ const Customer360Page = {
         return `<div style="display:flex;align-items:center;gap:6px">
             <span style="min-width:40px;font-weight:600;font-size:11px;color:var(--text-2)" title="${esc(g.gate_label || g.gate_key)}">${esc(g.gate_key)}</span>
             <input type="date" class="form-input mg-target" data-gk="${esc(g.gate_key)}" value="${t}" style="flex:1;padding:4px 6px;font-size:12px" title="예정 계획일">
-            <input type="date" class="form-input mg-actual" data-gk="${esc(g.gate_key)}" value="${a}" style="flex:1;padding:4px 6px;font-size:12px" title="실제 진행일(입력=완료)">
+            <input type="date" class="form-input mg-actual" data-gk="${esc(g.gate_key)}" value="${a}" style="flex:1;padding:4px 6px;font-size:12px${isPlm ? ';background:var(--surface-3,#f1f1f4)' : ''}" title="${isPlm ? 'PLM 동기화 값(읽기전용)' : '실제 진행일(입력=완료)'}"${isPlm ? ' readonly' : ''}>
           </div>`;
       })
       .join('');
@@ -2386,6 +2398,11 @@ const Customer360Page = {
         <div class="form-grid">
           <div class="form-row"><label class="form-label">소재명 *</label>
             <input class="form-input" id="m-name" value="${mat ? esc(mat.material_name) : ''}" placeholder="예: 식각가스 C4F6"></div>
+          <div class="form-row"><label class="form-label" style="display:flex;align-items:center;gap:6px">연결 영업딜 ${plmBadge}</label>
+            <select class="form-input" id="m-lead">
+              <option value="">— 연결 안 함 —</option>
+              ${dealOpts}
+            </select></div>
           <div class="form-row-2">
             <div class="form-row"><label class="form-label">사업유형</label>
               <input class="form-input" id="m-biz" value="${mat ? esc(mat.business_type || '') : ''}" placeholder="식각가스/프리커서…"></div>
@@ -2433,6 +2450,7 @@ const Customer360Page = {
       demand_unit: v('m-unit') || 'kg',
       expected_mp_date: v('m-mp') || null,
       win_probability: v('m-prob') || null,
+      lead_id: document.getElementById('m-lead')?.value || null,
     };
     const gateKey = v('m-gate');
     try {

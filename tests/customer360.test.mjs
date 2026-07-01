@@ -59,6 +59,49 @@ afterAll(async () => {
 });
 
 describe('Customer360 (MVP) API', () => {
+  // ── Phase 0: 소재↔딜 연결 + PLM 연동 스텁 ────────────────────
+  it('POST/PUT /materials — lead_id·source·external_ref 저장 + 360 노출', async () => {
+    const cr = await api()
+      .post('/api/customer360/materials')
+      .set('X-User-Id', '1')
+      .send({
+        customer_id: custId,
+        material_name: '__C360_MAT_LINK__',
+        lead_id: leadId,
+        source: 'plm',
+        external_ref: 'PLM-TEST-1',
+      });
+    expect(cr.status).toBe(200);
+    const mid = cr.body.data.id;
+
+    const view = await api().get(`/api/customer360/${custId}`).set('X-User-Id', '1');
+    const m = (view.body.data?.lifecycle?.materials || []).find(x => x.id === mid);
+    expect(m).toBeTruthy();
+    expect(m.lead_id).toBe(leadId);
+    expect(m.source).toBe('plm');
+    expect(m.external_ref).toBe('PLM-TEST-1');
+
+    const put = await api()
+      .put(`/api/customer360/materials/${mid}`)
+      .set('X-User-Id', '1')
+      .send({ lead_id: null });
+    expect(put.status).toBe(200);
+
+    await pool.query('DELETE FROM customer_materials WHERE id=?', [mid]);
+  });
+
+  it('PLM 커넥터 — 미구성 시 sync 501 not_configured + status enabled:false', async () => {
+    const st = await api().get(`/api/customer360/${custId}/plm/status`).set('X-User-Id', '1');
+    expect(st.status).toBe(200);
+    expect(st.body.data.enabled).toBe(false);
+
+    const sync = await api()
+      .post(`/api/customer360/${custId}/plm/sync`)
+      .set('X-User-Id', '1');
+    expect(sync.status).toBe(501);
+    expect(sync.body.reason).toBe('not_configured');
+  });
+
   it('GET /api/customer360/customers — 선택기 목록 구조', async () => {
     const res = await api().get('/api/customer360/customers').set('X-User-Id', '1');
     expect(res.status).toBe(200);

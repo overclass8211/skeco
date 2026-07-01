@@ -18,6 +18,7 @@ const { handleError } = require('../middleware/errorHandler');
 const { validateId } = require('../middleware/validate');
 const { requireLevel } = require('../middleware/rbac');
 const { getUserId } = require('../middleware/auth');
+const plmConnector = require('../services/plmConnector');
 const upload = require('../middleware/upload');
 const { getRoleInfo } = require('../services/authService');
 const { genAI, MODEL_FAST, SAFETY_SETTINGS } = require('../services/gemini');
@@ -1172,6 +1173,11 @@ async function buildLifecycle(customerId) {
       linked_deals: linkedDeals,
       linked_deal_count: linkedDeals.length,
       primary_lead_id: linkedDeals.length === 1 ? linkedDeals[0].id : null,
+      // Phase 0 — 명시적 소재↔딜 연결 + PLM 연동 스텁
+      lead_id: m.lead_id || null,
+      source: m.source || 'manual',
+      external_ref: m.external_ref || null,
+      last_synced_at: m.last_synced_at || null,
       ...(() => {
         const gt = gateTimeline(gateDefs, mgByMat.get(m.id) || new Map(), gNow);
         const curDef = gateDefs.find(d => d.gate_key === gt.current_gate);
@@ -1279,8 +1285,9 @@ router.post('/materials', requireLevel(1), async (req, res) => {
     const [r] = await pool.query(
       `INSERT INTO customer_materials
          (customer_id, product_id, material_name, business_type, fab_line, lifecycle_stage,
-          expected_mp_date, monthly_demand, demand_unit, win_probability, notes)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          expected_mp_date, monthly_demand, demand_unit, win_probability, notes,
+          lead_id, source, external_ref)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         b.customer_id,
         b.product_id || null,
@@ -1293,6 +1300,9 @@ router.post('/materials', requireLevel(1), async (req, res) => {
         b.demand_unit || 'kg',
         b.win_probability ?? null,
         b.notes || null,
+        b.lead_id || null,
+        b.source === 'plm' ? 'plm' : 'manual',
+        b.external_ref || null,
       ]
     );
     res.json({ success: true, data: { id: r.insertId } });
@@ -1318,6 +1328,8 @@ router.put('/materials/:id', requireLevel(1), validateId, async (req, res) => {
       win_probability: 'win_probability',
       status: 'status',
       notes: 'notes',
+      lead_id: 'lead_id',
+      external_ref: 'external_ref',
     };
     for (const [k, col] of Object.entries(allow)) {
       if (b[k] !== undefined) {
@@ -1334,6 +1346,44 @@ router.put('/materials/:id', requireLevel(1), validateId, async (req, res) => {
     );
     if (!r.affectedRows) return res.status(404).json({ success: false, error: '소재 없음' });
     res.json({ success: true });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ── PLM 연동 (Phase 0 스캐폴드) ────────────────────────────────
+// 상태 조회 — 연동 설정/최근 동기화 요약 (미구성이면 enabled:false)
+router.get('/:id/plm/status', validateId, async (req, res) => {
+  try {
+    const cfg = await plmConnector.getConfig(req.params.id);
+    res.json({
+      success: true,
+      data: {
+        enabled: !!(cfg && cfg.enabled),
+        provider: cfg?.provider || null,
+        last_sync_at: cfg?.last_sync_at || null,
+        last_status: cfg?.last_status || null,
+      },
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 수동 동기화 트리거 — 스펙 미정 단계: not_configured/not_implemented 를 명확히 반환(admin+)
+router.post('/:id/plm/sync', requireLevel(4), validateId, async (req, res) => {
+  try {
+    const result = await plmConnector.syncCustomer(req.params.id);
+    if (!result.ok) {
+      const msg =
+        result.reason === 'not_configured'
+          ? 'PLM 연동이 설정되지 않았습니다.'
+          : result.reason === 'not_implemented'
+            ? 'PLM 커넥터가 아직 구현되지 않았습니다(스펙 확정 후 연결).'
+            : 'PLM 동기화에 실패했습니다.';
+      return res.status(501).json({ success: false, reason: result.reason, message: msg });
+    }
+    res.json({ success: true, synced: result.synced || 0 });
   } catch (err) {
     handleError(res, err);
   }
