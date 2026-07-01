@@ -191,6 +191,12 @@ const CalendarPage = (() => {
       : d._endDate || (d._end ? d._end.slice(0, 10) : '');
     const sTime = _hhmm(d.start_datetime, d._start ? d._start.slice(11, 16) : '09:00');
     const eTime = _hhmm(d.end_datetime, d._end ? d._end.slice(11, 16) : '10:00');
+    // 연결된 회의록 참조 — 계획 본문에서 분리(표시는 링크로, 저장 시 재부착)
+    const _meetingMatch = (d.description || '').match(/\[회의록 상세보기\]\s*meeting:(\d+)/);
+    const _meetingId = _meetingMatch ? _meetingMatch[1] : '';
+    const _cleanDesc = (d.description || '')
+      .replace(/\n?\[회의록 상세보기\]\s*meeting:\d+/, '')
+      .trim();
     return `
       <form id="cal-event-form" autocomplete="off" class="form-grid">
         <div style="display:grid;grid-template-columns:2fr 2fr auto;gap:14px;align-items:end">
@@ -275,9 +281,12 @@ const CalendarPage = (() => {
 
         <div class="form-row-2">
           <div class="form-row">
-            <label class="form-label">계획</label>
+            <label class="form-label" style="display:flex;align-items:center;gap:6px">계획
+              ${_meetingId ? `<a id="cal-nav-meeting" class="cal-detail-nav" data-meeting-id="${esc(_meetingId)}" style="font-size:11px;font-weight:500;color:#1a73e8;cursor:pointer">회의록 상세보기 ›</a>` : ''}
+            </label>
             <textarea class="form-input" id="cal-description" rows="4"
-                      placeholder="안건·준비 사항 등 계획 내용">${esc(d.description || '')}</textarea>
+                      placeholder="안건·준비 사항 등 계획 내용">${esc(_cleanDesc)}</textarea>
+            <input type="hidden" id="cal-meeting-ref" value="${esc(_meetingId)}">
           </div>
           <div class="form-row">
             <label class="form-label">완료 <span style="font-weight:400;color:var(--text-3)">· 완료 시 작성</span></label>
@@ -316,6 +325,18 @@ const CalendarPage = (() => {
           CustomersPage.showCustomerDetail(Number(cid));
       });
     });
+    // 연결된 회의록 "상세보기 ›" → 회의록 목록 + 상세 화면으로 전환
+    document.getElementById('cal-nav-meeting')?.addEventListener('click', e => {
+      e.preventDefault();
+      const mid = document.getElementById('cal-nav-meeting')?.dataset.meetingId;
+      if (!mid) return;
+      Modal.close();
+      App.navigate('meeting-list');
+      setTimeout(() => {
+        if (typeof MeetingListPage !== 'undefined' && MeetingListPage.showDetail)
+          MeetingListPage.showDetail(parseInt(mid, 10));
+      }, 400);
+    });
   }
 
   function wireAlldayToggle() {
@@ -348,7 +369,15 @@ const CalendarPage = (() => {
       start_datetime: start,
       end_datetime: end || null,
       all_day: allDay ? 1 : 0,
-      description: document.getElementById('cal-description').value.trim(),
+      description: (() => {
+        const base = document.getElementById('cal-description').value.trim();
+        const mid = document.getElementById('cal-meeting-ref')?.value;
+        if (mid && !/\bmeeting:\d+/.test(base)) {
+          const suffix = `[회의록 상세보기] meeting:${mid}`;
+          return base ? `${base}\n\n${suffix}` : suffix;
+        }
+        return base;
+      })(),
       completion_note: document.getElementById('cal-completion-note').value.trim(),
       customer_name: document.getElementById('cal-customer').value.trim(),
       customer_id: document.getElementById('cal-customer-id')?.value || null, // Combobox 자동완성 선택 시
