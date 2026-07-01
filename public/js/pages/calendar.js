@@ -281,9 +281,7 @@ const CalendarPage = (() => {
 
         <div class="form-row-2">
           <div class="form-row">
-            <label class="form-label" style="display:flex;align-items:center;gap:6px">계획
-              ${_meetingId ? `<a id="cal-nav-meeting" class="cal-detail-nav" data-meeting-id="${esc(_meetingId)}" style="font-size:11px;font-weight:500;color:#1a73e8;cursor:pointer">회의록 상세보기 ›</a>` : ''}
-            </label>
+            <label class="form-label">계획</label>
             <textarea class="form-input" id="cal-description" rows="4"
                       placeholder="안건·준비 사항 등 계획 내용">${esc(_cleanDesc)}</textarea>
             <input type="hidden" id="cal-meeting-ref" value="${esc(_meetingId)}">
@@ -294,6 +292,19 @@ const CalendarPage = (() => {
                       placeholder="진행 결과·후속 액션 (완료 시)">${esc(d.completion_note || '')}</textarea>
           </div>
         </div>
+        ${
+          _meetingId
+            ? `<div class="form-row" id="cal-linked-meeting-row" style="margin-top:2px">
+            <label class="form-label">연결된 회의록</label>
+            <a id="cal-nav-meeting" class="cal-detail-nav" data-meeting-id="${esc(_meetingId)}"
+               style="display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:500;color:var(--oci-red);cursor:pointer;text-decoration:none">
+              <span style="font-size:14px">📋</span>
+              <span id="cal-linked-meeting-title">회의록 상세보기</span>
+              <span style="opacity:.7">›</span>
+            </a>
+          </div>`
+            : ''
+        }
       </form>`;
   }
 
@@ -337,6 +348,21 @@ const CalendarPage = (() => {
           MeetingListPage.showDetail(parseInt(mid, 10));
       }, 400);
     });
+  }
+
+  // 연결된 회의록 제목을 비동기 로드해 링크 텍스트에 채움
+  async function _populateLinkedMeeting(desc) {
+    const m = (desc || '').match(/\[회의록 상세보기\]\s*meeting:(\d+)/);
+    if (!m) return;
+    const titleEl = document.getElementById('cal-linked-meeting-title');
+    if (!titleEl) return;
+    try {
+      const r = await API.meetings.get(parseInt(m[1], 10));
+      const t = (r.data || r)?.title;
+      if (t) titleEl.textContent = t;
+    } catch (_) {
+      /* 실패 시 기본 라벨 유지 */
+    }
   }
 
   function wireAlldayToggle() {
@@ -787,6 +813,7 @@ const CalendarPage = (() => {
     wireAlldayToggle();
     wireStatusToggle();
     wireDetailNav();
+    _populateLinkedMeeting(eventData.description || '');
     // 고객사 자동완성 + 영업기회 자동 필터링 (수정 모달도 동일)
     _attachCustomerCombobox(eventData.customer_id || null, eventData.lead_id || null);
     _attachLeadCombobox();
