@@ -3997,6 +3997,22 @@ body,
   font-variant-numeric: tabular-nums;
   margin-bottom: 4px;
 }
+/* 회의록 AI — 3모드 카드 아이콘 칩 */
+.meet-ico {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.meet-mode {
+  transition: box-shadow 0.12s, border-color 0.12s;
+}
+.card:hover > .meet-mode {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
 
 /* ── Google Meet 연동 UI ─────────────────────────────── */
 .gmeet-setup-guide {

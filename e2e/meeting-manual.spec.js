@@ -21,6 +21,22 @@ test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page);
 });
 
+test('회의록 AI — 3모드 카드 일관화(라인 아이콘) + Google Meet/Gmail 제거', async ({ page }) => {
+  await page.evaluate(() => App.navigate('meeting'));
+  await page.waitForSelector('#meeting-entry', { timeout: 15000 });
+
+  // 3개 카드 + 라인 아이콘 칩(이모지 아님) 3개
+  expect(await page.locator('#meeting-entry > .card').count()).toBe(3);
+  expect(await page.locator('#meeting-entry .meet-ico svg').count()).toBe(3);
+  // 3가지 CTA
+  await expect(page.locator('#rec-start-btn')).toBeVisible();
+  await expect(page.locator('#audio-pick-btn')).toBeVisible();
+  await expect(page.locator('#meeting-manual-btn')).toBeVisible();
+  // Google Meet / Gmail 동기화 제거
+  await expect(page.locator('#gmeet-card')).toHaveCount(0);
+  await expect(page.locator('#gmail-sync-toggle')).toHaveCount(0);
+});
+
 test('회의록 AI — 수기 작성 폼 + 템플릿 6종 + 저장', async ({ page }) => {
   await page.evaluate(() => App.navigate('meeting'));
   await page.waitForSelector('#meeting-manual-btn', { timeout: 15000 });

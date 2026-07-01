@@ -173,7 +173,6 @@ function _mmTimeOptions(sel) {
 
 const MeetingPage = (() => {
   let leads = [];
-  let _googleStatus = { connected: false, configured: false, email: null };
 
   let _state = {
     transcript: '',
@@ -215,47 +214,39 @@ const MeetingPage = (() => {
         <div class="card-body no-pad" id="offline-queue-list"></div>
       </div>
 
-      <div id="meeting-entry" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+      <div id="meeting-entry" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:14px">
         <!-- 실시간 녹음 -->
         <div class="card">
-          <div class="card-header"><div class="card-title">🔴 미팅 실시간 녹음</div></div>
-          <div class="card-body" style="text-align:center;padding:24px">
-            <div id="rec-visual" class="rec-visual"></div>
-            <div id="rec-time" class="rec-time">00:00</div>
-            <div id="rec-status" style="font-size:12px;color:var(--text-3);margin-bottom:14px">대기 중</div>
-            <button class="btn btn-primary" id="rec-start-btn">
-              ● 녹음 시작
-            </button>
-            <button class="btn btn-ghost text-danger" id="rec-stop-btn" style="display:none">
-              ■ 녹음 중지
-            </button>
+          <div class="card-body meet-mode" style="text-align:center;padding:26px 18px;display:flex;flex-direction:column;align-items:center;min-height:212px">
+            <span class="meet-ico" style="background:rgba(230,51,41,.1);color:var(--oci-red)"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/></svg></span>
+            <div style="font-size:15px;font-weight:600;margin:12px 0 4px">실시간 녹음</div>
+            <div id="rec-status" style="font-size:12px;color:var(--text-3);line-height:1.5;flex:1">미팅을 실시간 녹취하고<br>자동으로 회의록 생성</div>
+            <div id="rec-visual" class="rec-visual" style="display:none"></div>
+            <div id="rec-time" class="rec-time" style="display:none">00:00</div>
+            <button class="btn btn-primary" id="rec-start-btn" style="width:100%;margin-top:14px">● 녹음 시작</button>
+            <button class="btn btn-ghost text-danger" id="rec-stop-btn" style="width:100%;margin-top:14px;display:none">■ 녹음 중지</button>
           </div>
         </div>
 
         <!-- 파일 업로드 -->
         <div class="card">
-          <div class="card-header"><div class="card-title">📁 녹음 파일 업로드</div></div>
-          <div class="card-body">
-            <div id="audio-dropzone">
-              <div style="font-size:32px;margin-bottom:8px">🎵</div>
-              <div style="font-size:13px;font-weight:600">오디오 파일을 드롭하거나 클릭해서 선택</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:4px">
-                MP3 / WAV / M4A / WEBM / OGG · 최대 25MB
-              </div>
-              <input type="file" id="audio-file-input" accept="audio/*" style="display:none">
-            </div>
-            <div id="audio-file-info" style="margin-top:10px"></div>
+          <div class="card-body meet-mode" id="audio-dropzone" style="text-align:center;padding:26px 18px;display:flex;flex-direction:column;align-items:center;min-height:212px;cursor:pointer">
+            <span class="meet-ico" style="background:rgba(26,115,232,.1);color:#1a73e8"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8M8 17l4-4 4 4"/><path d="M20 16.5A4.5 4.5 0 0 0 17 8h-1.26A7 7 0 1 0 4 15"/></svg></span>
+            <div style="font-size:15px;font-weight:600;margin:12px 0 4px">파일 업로드</div>
+            <div style="font-size:12px;color:var(--text-3);line-height:1.5;flex:1">녹음 파일(MP3·WAV 등) 업로드 후 자동 변환<br><span style="font-size:11px;color:var(--text-3)">또는 카드 위로 드래그</span></div>
+            <input type="file" id="audio-file-input" accept="audio/*" style="display:none">
+            <div id="audio-file-info" style="margin-top:8px;width:100%"></div>
+            <button class="btn btn-primary" id="audio-pick-btn" style="width:100%;margin-top:14px">파일 선택</button>
           </div>
         </div>
 
         <!-- 수기 작성 -->
         <div class="card">
-          <div class="card-header"><div class="card-title">✍ 수기 작성</div></div>
-          <div class="card-body" style="text-align:center;padding:24px">
-            <div style="font-size:32px;margin-bottom:8px">📝</div>
-            <div style="font-size:13px;font-weight:600;margin-bottom:4px">직접 회의록 작성</div>
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:14px">템플릿 선택 후 편집</div>
-            <button class="btn btn-primary" id="meeting-manual-btn">✍ 수기 작성 시작</button>
+          <div class="card-body meet-mode" style="text-align:center;padding:26px 18px;display:flex;flex-direction:column;align-items:center;min-height:212px">
+            <span class="meet-ico" style="background:rgba(0,0,0,.05);color:var(--text-2)"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+            <div style="font-size:15px;font-weight:600;margin:12px 0 4px">수기 작성</div>
+            <div style="font-size:12px;color:var(--text-3);line-height:1.5;flex:1">템플릿 선택 후<br>직접 회의록 작성</div>
+            <button class="btn btn-primary" id="meeting-manual-btn" style="width:100%;margin-top:14px">수기 작성 시작</button>
           </div>
         </div>
       </div>
@@ -305,22 +296,6 @@ const MeetingPage = (() => {
                       style="font-family:var(--font-mono,'Courier New',monospace);font-size:13px;line-height:1.7"
                       placeholder="템플릿을 선택하거나 직접 작성하세요"></textarea>
           </div>
-        </div>
-      </div>
-
-      <!-- Google Meet 연동 카드 -->
-      <div class="card" style="margin-bottom:14px" id="gmeet-card" data-feature="crm.meeting_rec">
-        <div class="card-header">
-          <div class="card-title" style="display:flex;align-items:center;gap:8px">
-            <svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0">
-              <path fill="#00832d" d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-            </svg>
-            Google Meet 연동
-          </div>
-          <div id="gmeet-status-badge"></div>
-        </div>
-        <div class="card-body" id="gmeet-body">
-          <div class="loading" style="padding:20px;text-align:center">연결 상태 확인 중...</div>
         </div>
       </div>
 
@@ -388,7 +363,7 @@ const MeetingPage = (() => {
     // ── 수기 작성 모드 ─────────────────────────────────────
     document.getElementById('meeting-manual-btn')?.addEventListener('click', () => {
       // 진입 카드/결과 숨기고 수기 폼 표시
-      ['meeting-entry', 'gmeet-card', 'meeting-result'].forEach(id => {
+      ['meeting-entry', 'meeting-result'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
@@ -434,7 +409,7 @@ const MeetingPage = (() => {
       ?.addEventListener('change', e => _handleFile(e.target.files[0]));
 
     // 병렬 로드
-    await Promise.all([fetchLeads(), _loadGmeetSection()]);
+    await fetchLeads();
 
     const dl = document.getElementById('meeting-leads-list');
     if (dl) {
@@ -453,284 +428,6 @@ const MeetingPage = (() => {
 
     // 오프라인 큐 항목 표시 (있을 때만 카드 노출)
     _renderOfflineQueue();
-
-    // Google OAuth 팝업 결과 수신
-    window.addEventListener('message', _onGoogleMessage, { once: false });
-  }
-
-  // ── Google Meet 섹션 로드 ──────────────────────────────
-  async function _loadGmeetSection() {
-    try {
-      const res = await API.google.status();
-      _googleStatus = res.data;
-      _renderGmeetSection();
-    } catch (_) {
-      const body = document.getElementById('gmeet-body');
-      if (body)
-        body.innerHTML =
-          '<div style="color:var(--text-3);font-size:12px;padding:8px">Google 연동 상태를 확인할 수 없습니다.</div>';
-    }
-  }
-
-  function _renderGmeetSection() {
-    const badge = document.getElementById('gmeet-status-badge');
-    const body = document.getElementById('gmeet-body');
-    if (!body) return;
-
-    const { connected, configured, email } = _googleStatus;
-
-    if (badge) {
-      badge.innerHTML = connected
-        ? `<span class="badge badge-google-connected" style="border:none;font-size:11px">● 연결됨 · ${esc(email || '')}</span>`
-        : `<span class="badge" style="background:var(--surface-2);color:var(--text-3);border:none;font-size:11px">미연결</span>`;
-    }
-
-    if (!configured) {
-      body.innerHTML = `
-        <div class="gmeet-setup-guide">
-          <div style="font-size:28px;margin-bottom:10px">🔑</div>
-          <div style="font-weight:600;margin-bottom:6px">Google OAuth 설정 필요</div>
-          <div style="font-size:12px;color:var(--text-2);line-height:1.7;margin-bottom:14px">
-            서버 관리자가 <code>.env</code> 파일에 Google OAuth 정보를 입력해야 합니다.<br>
-            <strong>GOOGLE_CLIENT_ID</strong> / <strong>GOOGLE_CLIENT_SECRET</strong>
-          </div>
-          <button class="btn btn-ghost btn-sm" id="gmeet-setup-guide-btn">
-            📖 설정 가이드 보기
-          </button>
-        </div>`;
-      document
-        .getElementById('gmeet-setup-guide-btn')
-        ?.addEventListener('click', () => _showGoogleSetupGuide());
-      return;
-    }
-
-    if (!connected) {
-      body.innerHTML = `
-        <div class="gmeet-connect-panel">
-          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-            <div>
-              <div style="font-size:13px;font-weight:600;margin-bottom:4px">Google 계정을 연결하세요</div>
-              <div style="font-size:12px;color:var(--text-2)">
-                연결 후 Google Meet 링크를 바로 생성하고 회의록과 연동할 수 있습니다.
-              </div>
-            </div>
-            <button class="btn btn-primary gmeet-google-btn" id="gmeet-connect-btn" style="flex-shrink:0">
-              <svg width="16" height="16" viewBox="0 0 24 24" style="margin-right:6px">
-                <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Google 계정 연결
-            </button>
-          </div>
-        </div>`;
-      document
-        .getElementById('gmeet-connect-btn')
-        ?.addEventListener('click', () => connectGoogle());
-      return;
-    }
-
-    // 연결된 상태 — 미팅 생성 폼 + 최근 세션
-    const now = new Date();
-    const defDt = new Date(now.getTime() + 30 * 60_000);
-    const defStr = `${defDt.getFullYear()}-${String(defDt.getMonth() + 1).padStart(2, '0')}-${String(defDt.getDate()).padStart(2, '0')}T${String(defDt.getHours()).padStart(2, '0')}:${String(defDt.getMinutes()).padStart(2, '0')}`;
-
-    body.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start">
-        <!-- 생성 폼 -->
-        <div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-            <div style="flex:2;min-width:160px">
-              <label class="form-label" style="font-size:11px">미팅 제목</label>
-              <input class="form-input form-input-sm" id="gmeet-title" value="영업 미팅" style="height:34px">
-            </div>
-            <div style="flex:1;min-width:160px">
-              <label class="form-label" style="font-size:11px">시작 일시</label>
-              <input type="datetime-local" class="form-input form-input-sm" id="gmeet-datetime" value="${defStr}" style="height:34px">
-            </div>
-            <div style="width:90px">
-              <label class="form-label" style="font-size:11px">소요 시간</label>
-              <select class="form-input form-input-sm" id="gmeet-duration" style="height:34px">
-                <option value="30">30분</option>
-                <option value="60" selected>1시간</option>
-                <option value="90">1.5시간</option>
-                <option value="120">2시간</option>
-              </select>
-            </div>
-          </div>
-          <button class="btn btn-primary btn-sm" id="gmeet-create-btn">
-            📹 Meet 링크 생성
-          </button>
-          <button class="btn btn-ghost btn-sm" id="gmeet-disconnect-btn" style="margin-left:6px;font-size:11px;color:var(--text-3)">연결 해제</button>
-        </div>
-
-        <!-- 생성된 링크 표시 -->
-        <div id="gmeet-link-box" style="min-width:260px;display:none">
-        </div>
-      </div>
-
-      <!-- 📧 Gmail 자동 동기화 (Phase G3) ───────────────────────── -->
-      <div id="gmail-sync-box" style="margin-top:14px;padding:12px 14px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;min-width:200px">
-            <div style="font-size:13px;font-weight:600;margin-bottom:2px">
-              📧 Gmail 자동 동기화
-              <span id="gmail-sync-status" style="font-size:10px;color:var(--text-3);margin-left:6px"></span>
-            </div>
-            <div style="font-size:11px;color:var(--text-2);line-height:1.5">
-              5분 주기로 새 메일 자동 매칭 → 고객사 활동 이력에 자동 기록
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-            <button class="btn btn-ghost btn-sm" id="gmail-sync-now-btn" title="지금 즉시 동기화">⚡ 지금 동기화</button>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:500">
-              <input type="checkbox" id="gmail-sync-toggle" style="width:16px;height:16px;cursor:pointer">
-              <span id="gmail-sync-label">활성화</span>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <!-- 최근 Meet 세션 -->
-      <div id="gmeet-recent" style="margin-top:14px"></div>
-    `;
-
-    document.getElementById('gmeet-create-btn')?.addEventListener('click', () => createMeet());
-    document
-      .getElementById('gmeet-disconnect-btn')
-      ?.addEventListener('click', () => disconnectGoogle());
-
-    _loadRecentMeetSessions();
-    _loadGmailSyncSettings();
-  }
-
-  // ── 📧 Gmail 자동 동기화 설정 로드/토글 (Phase G3) ────────────
-  async function _loadGmailSyncSettings() {
-    const toggle = document.getElementById('gmail-sync-toggle');
-    const status = document.getElementById('gmail-sync-status');
-    const syncBtn = document.getElementById('gmail-sync-now-btn');
-    if (!toggle) return;
-
-    try {
-      const r = await API.gmail.syncSettings();
-      const d = r.data || {};
-      toggle.checked = !!d.enabled;
-      if (status) {
-        const isInvalidGrant =
-          (d.error || '').includes('인증이 만료') || /invalid_grant/i.test(d.error || '');
-        if (d.enabled) {
-          const last = d.last_polled_at
-            ? new Date(d.last_polled_at).toLocaleString('ko-KR')
-            : '아직 없음';
-          status.textContent = `· 마지막 폴링: ${last}`;
-          if (d.error)
-            status.innerHTML += ` · <span style="color:var(--oci-red)">⚠️ ${esc(d.error)}</span>`;
-        } else if (isInvalidGrant) {
-          // 자동 비활성화된 상태 — 재연결 안내
-          status.innerHTML = `· <span style="color:var(--oci-red);font-weight:600">⚠️ 재연결 필요</span> · <span style="font-size:11px">${esc(d.error)}</span>`;
-        } else {
-          status.textContent = '· 비활성';
-        }
-      }
-    } catch (_) {}
-
-    toggle.onchange = async () => {
-      try {
-        await API.gmail.setSync(toggle.checked);
-        Toast.success(
-          toggle.checked ? '📧 Gmail 자동 동기화 활성화' : 'Gmail 자동 동기화 비활성화'
-        );
-        _loadGmailSyncSettings();
-      } catch (err) {
-        toggle.checked = !toggle.checked; // 롤백
-        Toast.error('설정 변경 실패: ' + (err.message || ''));
-      }
-    };
-
-    syncBtn.onclick = async () => {
-      syncBtn.disabled = true;
-      const orig = syncBtn.textContent;
-      syncBtn.textContent = '⏳ 동기화 중...';
-      try {
-        const r = await API.gmail.syncNow();
-        const d = r.data || {};
-        if (d.error === 'disabled') {
-          Toast.warn?.('동기화가 비활성 상태입니다. 토글을 켜주세요.');
-        } else if (d.reason === 'invalid_grant') {
-          // 자동 비활성화됨 — 재연결 안내
-          Toast.error('⚠️ Google 재연결 필요 — 위 "연결 해제" 클릭 후 다시 연결해 주세요');
-        } else if (d.error) {
-          Toast.error('동기화 실패: ' + d.error);
-        } else {
-          Toast.success(`✅ ${d.inserted || 0}건 새로 기록 · ${d.matched || 0}건 매칭`);
-        }
-        _loadGmailSyncSettings();
-      } catch (err) {
-        Toast.error('동기화 실패: ' + (err.message || ''));
-      } finally {
-        syncBtn.disabled = false;
-        syncBtn.textContent = orig;
-      }
-    };
-  }
-
-  async function _loadRecentMeetSessions() {
-    const el = document.getElementById('gmeet-recent');
-    if (!el) return;
-    try {
-      const res = await API.google.meet.list();
-      const rows = res.data || [];
-      if (!rows.length) {
-        el.innerHTML = '';
-        return;
-      }
-
-      el.innerHTML = `
-        <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
-          최근 생성된 미팅
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          ${rows
-            .map(
-              r => `
-            <div class="gmeet-session-row">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                  ${esc(r.title || '미팅')}
-                </div>
-                <div style="font-size:11px;color:var(--text-3)">
-                  ${r.scheduled_at ? new Date(r.scheduled_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '즉시'}
-                  · ${r.duration_min}분
-                  ${r.minutes_title ? `· <span style="color:#1a73e8">📝 ${esc(r.minutes_title)}</span>` : ''}
-                </div>
-              </div>
-              <div style="display:flex;gap:6px;flex-shrink:0">
-                <button class="btn btn-ghost btn-xs" data-action="copy-meet-link" data-link="${esc(r.meet_link)}">복사</button>
-                <a class="btn btn-primary btn-xs" href="${esc(r.meet_link)}" target="_blank" rel="noopener">참여</a>
-              </div>
-            </div>`
-            )
-            .join('')}
-        </div>`;
-      el.addEventListener('click', e => {
-        const btn = e.target.closest('[data-action="copy-meet-link"]');
-        if (btn) _copyLink(btn.dataset.link);
-      });
-    } catch (_) {
-      if (el) el.innerHTML = '';
-    }
-  }
-
-  function _onGoogleMessage(e) {
-    if (!e.data || e.data.type !== 'google_oauth') return;
-    if (e.data.success) {
-      _googleStatus = { connected: true, configured: true, email: e.data.email };
-      _renderGmeetSection();
-      Toast.success(`Google 계정 연결 완료 (${e.data.email})`);
-    } else {
-      Toast.error('Google 연결 실패: ' + (e.data.error || '알 수 없는 오류'));
-    }
   }
 
   /** 화면으로 돌아왔을 때 녹음 중 UI 복원 */
@@ -747,158 +444,6 @@ const MeetingPage = (() => {
     MeetingRecorder._tick();
   }
 
-  // ── Google Meet 액션 함수들 ──────────────────────────────
-
-  /** Google 계정 연결 — 팝업 방식 */
-  async function connectGoogle() {
-    try {
-      const res = await API.google.authUrl();
-      const popup = window.open(
-        res.url,
-        'google_oauth',
-        'width=520,height=640,left=' +
-          Math.round((screen.width - 520) / 2) +
-          ',top=' +
-          Math.round((screen.height - 640) / 2)
-      );
-      if (!popup) Toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.');
-    } catch (err) {
-      Toast.error(err.message);
-    }
-  }
-
-  /** Google Meet 링크 생성 */
-  async function createMeet() {
-    const btn = document.getElementById('gmeet-create-btn');
-    const title = document.getElementById('gmeet-title')?.value.trim() || '영업 미팅';
-    const dt = document.getElementById('gmeet-datetime')?.value;
-    const dur = parseInt(document.getElementById('gmeet-duration')?.value || '60');
-
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = '생성 중...';
-    }
-    try {
-      const res = await API.google.meet.create({
-        title,
-        scheduled_at: dt ? new Date(dt).toISOString() : null,
-        duration_min: dur,
-      });
-      _showMeetLink(res.data);
-      _loadRecentMeetSessions();
-      Toast.success('Google Meet 링크가 생성되었습니다');
-    } catch (err) {
-      if (err.notConnected) {
-        _googleStatus.connected = false;
-        _renderGmeetSection();
-      }
-      Toast.error(err.message);
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '📹 Meet 링크 생성';
-      }
-    }
-  }
-
-  /** 생성된 링크 박스 표시 */
-  function _showMeetLink(data) {
-    const box = document.getElementById('gmeet-link-box');
-    if (!box) return;
-    box.style.display = '';
-    box.innerHTML = `
-      <div class="gmeet-link-card">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-          <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#00832d" d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-          <span style="font-size:12px;font-weight:600;color:var(--text-1)">${esc(data.title)}</span>
-        </div>
-        <div class="gmeet-link-url" id="gmeet-current-link">${esc(data.meet_link)}</div>
-        <div style="display:flex;gap:6px;margin-top:10px">
-          <button class="btn btn-ghost btn-sm" style="flex:1" id="gmeet-copy-link-btn">
-            📋 링크 복사
-          </button>
-          <a class="btn btn-primary btn-sm" style="flex:1;text-align:center" href="${esc(data.meet_link)}" target="_blank" rel="noopener">
-            📹 참여하기
-          </a>
-        </div>
-        <button class="btn btn-ghost btn-sm" id="gmeet-start-recording-btn" style="width:100%;margin-top:6px;color:#d93025;font-size:11px">
-          🔴 녹음 동시 시작
-        </button>
-        <div style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:center">
-          ${data.scheduled_at ? new Date(data.scheduled_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '즉시 사용 가능'} · ${data.duration_min}분
-        </div>
-      </div>`;
-    document
-      .getElementById('gmeet-copy-link-btn')
-      ?.addEventListener('click', () => _copyLink(data.meet_link));
-    document
-      .getElementById('gmeet-start-recording-btn')
-      ?.addEventListener('click', () => startRecordingFromMeet());
-  }
-
-  /** 링크 복사 */
-  function _copyLink(url) {
-    navigator.clipboard.writeText(url).then(
-      () => Toast.success('링크가 클립보드에 복사되었습니다'),
-      () => {
-        prompt('링크를 복사하세요:', url);
-      }
-    );
-  }
-
-  /** Google Meet + 녹음 동시 시작 */
-  function startRecordingFromMeet() {
-    if (!MeetingRecorder.isRecording()) startRecording();
-    else Toast.info('이미 녹음 중입니다');
-  }
-
-  /** Google 계정 연결 해제 */
-  async function disconnectGoogle() {
-    if (!confirm('Google 계정 연결을 해제하시겠습니까?')) return;
-    try {
-      await API.google.disconnect();
-      _googleStatus = { connected: false, configured: true, email: null };
-      _renderGmeetSection();
-      Toast.success('Google 계정 연결이 해제되었습니다');
-    } catch (err) {
-      Toast.error(err.message);
-    }
-  }
-
-  /** Google OAuth 설정 가이드 */
-  function _showGoogleSetupGuide() {
-    Modal.open({
-      title: '📖 Google OAuth 설정 가이드',
-      width: 580,
-      body: `
-        <div style="font-size:13px;line-height:1.8;color:var(--text-1)">
-          <ol style="padding-left:18px;margin:0">
-            <li><a href="https://console.cloud.google.com/" target="_blank" style="color:#1a73e8">Google Cloud Console</a>에 접속합니다.</li>
-            <li><strong>새 프로젝트</strong>를 생성하거나 기존 프로젝트를 선택합니다.</li>
-            <li>좌측 메뉴 → <strong>API 및 서비스 → OAuth 동의 화면</strong> 설정<br>
-              <span style="font-size:11px;color:var(--text-3)">User Type: 외부 / 앱 이름 입력 / 저장</span>
-            </li>
-            <li><strong>API 및 서비스 → 사용자 인증 정보</strong> → <strong>+ 사용자 인증 정보 만들기</strong> → <strong>OAuth 클라이언트 ID</strong></li>
-            <li>애플리케이션 유형: <strong>웹 애플리케이션</strong><br>
-              승인된 리디렉션 URI: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px">http://localhost:3001/api/google/callback</code>
-            </li>
-            <li>생성된 <strong>클라이언트 ID</strong>와 <strong>클라이언트 보안 비밀번호</strong>를 복사합니다.</li>
-            <li>서버의 <code>.env</code> 파일에 아래 내용을 추가합니다:
-              <pre style="background:var(--surface-2);padding:10px;border-radius:6px;margin-top:6px;font-size:11px;overflow-x:auto">GOOGLE_CLIENT_ID=발급받은_클라이언트_ID
-GOOGLE_CLIENT_SECRET=발급받은_보안_비밀번호
-GOOGLE_REDIRECT_URI=http://localhost:3001/api/google/callback</pre>
-            </li>
-            <li><strong>서버를 재시작</strong>합니다.</li>
-          </ol>
-          <div style="margin-top:12px;padding:10px;background:var(--surface-2);border-radius:6px;font-size:11px;color:var(--text-2)">
-            💡 Google Calendar API와 Google Meet를 함께 사용하려면 <strong>Google Calendar API</strong>를 활성화해야 합니다.<br>
-            (API 및 서비스 → 라이브러리 → "Google Calendar API" 검색 → 사용 설정)
-          </div>
-        </div>`,
-      footer: `<button class="btn btn-primary" id="google-guide-ok-btn">확인</button>`,
-      bind: { '#google-guide-ok-btn': () => Modal.close() },
-    });
-  }
 
   // ── 2) 녹음 ─────────────────────────────────────────────
   async function startRecording() {
@@ -1700,13 +1245,6 @@ GOOGLE_REDIRECT_URI=http://localhost:3001/api/google/callback</pre>
     _onCustomerChange,
     _onCustomerDirectInput,
     reset,
-    // Google Meet
-    connectGoogle,
-    createMeet,
-    disconnectGoogle,
-    startRecordingFromMeet,
-    _copyLink,
-    _showGoogleSetupGuide,
     // 오프라인 큐
     _renderOfflineQueue,
   };
