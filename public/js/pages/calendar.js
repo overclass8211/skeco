@@ -107,6 +107,49 @@ const CalendarPage = (() => {
     return `${l.customer_name || ''}${l.project_name ? ' - ' + l.project_name : ''}`;
   }
 
+  // 고객담당자(영업딜과 동일 출처: customers.contact_person + 직책) 파생 텍스트
+  function _custContactText(customerName, customerId) {
+    const list = (typeof App !== 'undefined' && App.customers) || [];
+    const c = list.find(
+      x =>
+        (customerId && Number(x.id) === Number(customerId)) ||
+        (customerName && x.name === customerName)
+    );
+    if (!c) return '';
+    return [c.contact_person, c.contact_position].filter(Boolean).join(' · ');
+  }
+  // 상태 토글(계획⇄완료) 배선 — data-status 를 뒤집고 표시 동기화(collectForm 이 값 읽음)
+  function wireStatusToggle() {
+    const t = document.getElementById('cal-status-toggle');
+    if (!t) return;
+    const sync = () => {
+      const done = t.dataset.status === 'completed';
+      t.classList.toggle('on', done);
+      t.setAttribute('aria-checked', String(done));
+      t.querySelector('.cal-toggle-text').textContent = done ? '완료' : '계획';
+    };
+    sync();
+    t.addEventListener('click', () => {
+      t.dataset.status = t.dataset.status === 'completed' ? 'planned' : 'completed';
+      sync();
+      if (t.dataset.status === 'completed')
+        setTimeout(() => document.getElementById('cal-completion-note')?.focus(), 40);
+    });
+  }
+  // 고객담당자 자동 표시 — 고객사 변경 시 갱신
+  function wireCustomerContact() {
+    const custEl = document.getElementById('cal-customer');
+    const out = document.getElementById('cal-customer-contact');
+    if (!custEl || !out) return;
+    const refresh = () => {
+      const cid = document.getElementById('cal-customer-id')?.value || null;
+      out.value = _custContactText(custEl.value.trim(), cid);
+    };
+    custEl.addEventListener('input', refresh);
+    custEl.addEventListener('change', refresh);
+    refresh();
+  }
+
   function buildEventForm(d = {}) {
     const status = d.status || 'planned';
     return `
@@ -126,13 +169,15 @@ const CalendarPage = (() => {
           </div>
           <div class="form-row">
             <label class="form-label">상태</label>
-            <select class="form-input" id="cal-status">
-              <option value="planned"   ${status === 'planned' ? 'selected' : ''}>○ 계획</option>
-              <option value="completed" ${status === 'completed' ? 'selected' : ''}>✓ 완료</option>
-            </select>
+            <button type="button" id="cal-status-toggle" class="cal-toggle${status === 'completed' ? ' on' : ''}"
+                    role="switch" aria-checked="${status === 'completed'}" data-status="${status}"
+                    aria-label="완료 상태 토글" style="margin-top:4px;align-self:flex-start">
+              <span class="cal-toggle-text">${status === 'completed' ? '완료' : '계획'}</span>
+              <span class="cal-toggle-track"><span class="cal-toggle-knob"></span></span>
+            </button>
           </div>
           <div class="form-row">
-            <label class="form-label">담당자</label>
+            <label class="form-label">영업담당자</label>
             <select class="form-input" id="cal-assigned-to">${teamOptions(d.assigned_to)}</select>
           </div>
         </div>
@@ -165,12 +210,21 @@ const CalendarPage = (() => {
             <input class="form-input" id="cal-customer" value="${esc(d.customer_name || '')}" placeholder="고객사명">
           </div>
           <div class="form-row">
-            <label class="form-label">영업 기회 연결</label>
+            <label class="form-label">영업딜</label>
             <input class="form-input" id="cal-lead-input"
                    placeholder="고객사/프로젝트 검색 (선택)" autocomplete="off"
                    value="${esc(_leadInitialText(d.lead_id))}">
             <input type="hidden" id="cal-lead-id" value="${esc(d.lead_id || '')}">
           </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-row">
+            <label class="form-label">고객담당자 <span style="font-weight:400;color:var(--text-3)">· 고객사 기준 자동</span></label>
+            <input class="form-input" id="cal-customer-contact" value="${esc(_custContactText(d.customer_name, d.customer_id))}" readonly
+                   placeholder="고객사 선택 시 자동 표시" title="연결 고객사의 담당자(영업딜과 동일 출처)" style="background:var(--surface-2)">
+          </div>
+          <div class="form-row"></div>
         </div>
 
         <div class="form-row-2">
@@ -236,7 +290,7 @@ const CalendarPage = (() => {
     return {
       title: document.getElementById('cal-title').value.trim(),
       event_type: document.getElementById('cal-event-type').value,
-      status: document.getElementById('cal-status').value,
+      status: document.getElementById('cal-status-toggle')?.dataset.status || 'planned',
       start_datetime: start,
       end_datetime: end || null,
       all_day: allDay ? 1 : 0,
@@ -249,7 +303,8 @@ const CalendarPage = (() => {
       // 색상 = 유형/상태 자동 산출(완료=회색) — 색상 구분 필드 제거에 따라 내부 계산
       color: (() => {
         const type = document.getElementById('cal-event-type').value;
-        const completed = document.getElementById('cal-status').value === 'completed';
+        const completed =
+          document.getElementById('cal-status-toggle')?.dataset.status === 'completed';
         return completed ? '#9e9e9e' : TYPE_COLORS[type] || '#1a73e8';
       })(),
     };
@@ -538,11 +593,13 @@ const CalendarPage = (() => {
       bind: { '#cal-create-cancel-btn': () => Modal.close() },
     });
     wireAlldayToggle();
+    wireStatusToggle();
 
     // 고객사 자동완성 + 영업기회 자동 필터링 활성화
     _attachCustomerCombobox(defaults.customer_id || null, defaults.lead_id || null);
     // 영업기회 콤보박스 활성화
     _attachLeadCombobox();
+    wireCustomerContact();
     // 제목 자동완성 (Step 2) — 과거 이벤트 + 고객사+동사 템플릿
     _attachTitleCombobox();
 
@@ -616,14 +673,25 @@ const CalendarPage = (() => {
       title: '일정 수정',
       width: 600,
       body: buildEventForm(eventData),
-      footer: `<button class="btn btn-ghost" id="cal-edit-cancel-btn">취소</button>
+      footer: `<button class="btn btn-ghost text-danger" id="cal-edit-del-btn">삭제</button>
+               <button class="btn btn-ghost" id="cal-edit-cancel-btn">취소</button>
                <button class="btn btn-primary" id="cal-update-btn">저장</button>`,
       bind: { '#cal-edit-cancel-btn': () => Modal.close() },
     });
+    document.getElementById('cal-edit-del-btn')?.addEventListener('click', () => {
+      Modal.confirm(`"${eventData.title}" 일정을 삭제하시겠습니까?`, async () => {
+        await API.del(`/calendar/events/${eventData.id}`);
+        Toast.success('일정이 삭제되었습니다');
+        Modal.close();
+        calendar?.refetchEvents();
+      });
+    });
     wireAlldayToggle();
+    wireStatusToggle();
     // 고객사 자동완성 + 영업기회 자동 필터링 (수정 모달도 동일)
     _attachCustomerCombobox(eventData.customer_id || null, eventData.lead_id || null);
     _attachLeadCombobox();
+    wireCustomerContact();
     // 제목 자동완성 (Step 2)
     _attachTitleCombobox();
     document.getElementById('cal-update-btn').addEventListener('click', async () => {
@@ -892,7 +960,8 @@ const CalendarPage = (() => {
       eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
       slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
       eventClick(info) {
-        openDetailModal(info.event.extendedProps);
+        // 계획된 영업활동 클릭 → 편집 모달 직행(상태 토글·완료 내용 통합, 상세→수정 2단계 제거)
+        openEditModal(info.event.extendedProps);
       },
       dateClick(info) {
         if (info.allDay) {
